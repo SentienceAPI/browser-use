@@ -1,4 +1,5 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
+import json
 
 
 class Agent:
@@ -7,6 +8,17 @@ class Agent:
         self.available_actions = None
         self.task = None
         self.context = None
+        self.task_progress = []
+
+    def set_task(self, task: Dict):
+        """
+        Sets the task for the agent to complete.
+
+        Args:
+            task (Dict): Task description with type and parameters
+        """
+        self.task = task
+        self.task_progress = []
 
     def receive_state(self, state: Dict, actions: List):
         """
@@ -18,13 +30,4 @@ class Agent:
         """
         self.current_state = state
         self.available_actions = actions
-
-    def decide_next_action(self) -> Dict:
-        """
-        Determines the next action based on the current state.
-
-        Returns:
-            Dict: Action to be executed with its parameters
-        """
-        # Implementation will use LLM to decide next action
-        pass
+        self.task_progress.append(state)

@@ -1,4 +1,4 @@
-from bs4 import BeautifulSoup, Comment
+from bs4 import BeautifulSoup, Comment, Tag
 import re
 
 

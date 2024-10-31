@@ -1,6 +1,8 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from typing import Dict, List
+from bs4 import BeautifulSoup
+from .html_cleaner import cleanup_html
 
 
 class StateManager:
@@ -9,47 +11,16 @@ class StateManager:
 
     def get_current_state(self) -> Dict:
         """
-        Retrieves current URL and interactable elements.
+        Retrieves current URL and interactable elements from cleaned HTML.
 
         Returns:
-            Dict: Current state including URL and interactable elements
+            Dict: Current state including URL, page title, and interactable elements
         """
+        html_content = self.driver.page_source
+        cleaned_html = cleanup_html(html_content)
+
         return {
             "current_url": self.driver.current_url,
-            "interactable_elements": self.get_interactable_elements()
+            "page_title": self.driver.title,
+            "interactable_elements": cleaned_html
         }
-
-    def get_interactable_elements(self) -> List:
-        """
-        Extracts interactable elements from the page.
-
-        Returns:
-            List: List of interactable elements with their properties
-        """
-        interactable_elements = []
-
-        # Find buttons
-        buttons = self.driver.find_elements(By.TAG_NAME, "button")
-        for button in buttons:
-            interactable_elements.append({
-                "type": "button",
-                "identifier": {
-                    "id": button.get_attribute("id"),
-                    "class": button.get_attribute("class"),
-                    "text": button.text
-                }
-            })
-
-        # Find input fields
-        inputs = self.driver.find_elements(By.TAG_NAME, "input")
-        for input_field in inputs:
-            interactable_elements.append({
-                "type": "input",
-                "identifier": {
-                    "id": input_field.get_attribute("id"),
-                    "name": input_field.get_attribute("name"),
-                    "placeholder": input_field.get_attribute("placeholder")
-                }
-            })
-
-        return interactable_elements

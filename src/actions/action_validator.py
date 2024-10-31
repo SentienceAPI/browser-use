@@ -17,16 +17,7 @@ class ActionValidator:
             bool: True if action was successful, False otherwise
         """
         try:
-            # Check for common failure indicators
-            if "error" in self.driver.title.lower():
-                return False
-
-            # Add specific checks based on action type
-            if action["type"] == "click_element":
-                # Verify element was actually clicked
-                pass
-
-            return True
+            pass
 
         except (TimeoutException, WebDriverException):
             return False

@@ -13,6 +13,7 @@ class BrowserActions:
         """
         Performs a Google search with the provided query.
         """
+        # TODO: replace with search api
         self.driver.get("https://www.google.com")
         search_box = self.wait.until(
             EC.presence_of_element_located((By.NAME, "q"))
