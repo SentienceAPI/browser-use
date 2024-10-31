@@ -18,9 +18,17 @@ class StateManager:
         """
         html_content = self.driver.page_source
         cleaned_html = cleanup_html(html_content)
+        functions = self.get_functions()
 
         return {
             "current_url": self.driver.current_url,
             "page_title": self.driver.title,
-            "interactable_elements": cleaned_html
+            "interactable_elements": cleaned_html,
+            "functions": functions
         }
+
+    def get_functions(self) -> List[Dict]:
+        """
+        Retrieves available functions from cleaned HTML.
+        """
+        return []

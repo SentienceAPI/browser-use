@@ -9,6 +9,23 @@ class BrowserActions:
         self.driver = driver
         self.wait = WebDriverWait(driver, 10)
 
+    def execute_action(self, action: dict):
+        print(action.keys())
+        action_name = action["action"]
+        params = action["params"]
+
+        if action_name == "search_google":
+            self.search_google(params["query"])
+        elif action_name == "go_to_url":
+            self.go_to_url(params["url"])
+        elif action_name == "go_back":
+            self.go_back()
+        elif action_name == "done":
+            return True
+        else:
+            raise Exception(f"Action {action_name} not found")
+
+    # default actions
     def search_google(self, query: str):
         """
         Performs a Google search with the provided query.
@@ -27,6 +44,13 @@ class BrowserActions:
         """
         self.driver.get(url)
 
+    def go_back(self):
+        """
+        Navigates back in the browser history.
+        """
+        self.driver.back()
+
+    # specific actions
     def click_element(self, identifier: dict):
         """
         Clicks an element identified by attributes.
@@ -63,3 +87,11 @@ class BrowserActions:
             except:
                 continue
         raise Exception("Element not found with provided identifiers")
+
+    def get_default_actions(self) -> dict[str, str]:
+        return {
+            "search_google": "query: string",
+            "go_to_url": "url: string",
+            "done": "",
+            "go_back": ""
+        }
