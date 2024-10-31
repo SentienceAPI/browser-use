@@ -1,5 +1,5 @@
+from bs4 import BeautifulSoup, Comment
 import re
-from bs4 import BeautifulSoup, Comment, Tag
 
 
 def cleanup_html(html_content):
