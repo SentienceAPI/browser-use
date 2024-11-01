@@ -5,3 +5,11 @@ description = "Testing agent interfaces"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "tab"
+docstring-code-format = true
