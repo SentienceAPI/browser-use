@@ -34,13 +34,14 @@ class DomService:
 
 			# Handle both Tag elements and text nodes
 			if isinstance(element, Tag):
-				# Add children to queue in reverse order
-				for child in reversed(list(element.children)):
-					dom_queue.append(child)
+				if self._is_element_accepted(element):
+					# Add children to queue in reverse order only if element is accepted
+					for child in reversed(list(element.children)):
+						dom_queue.append(child)
 
-				# Check if element is interactive or leaf element
-				if self._is_interactive_element(element) or self._is_leaf_element(element):
-					should_add_element = True
+					# Check if element is interactive or leaf element
+					if self._is_interactive_element(element) or self._is_leaf_element(element):
+						should_add_element = True
 
 			elif isinstance(element, NavigableString) and element.strip():
 				should_add_element = True
@@ -59,6 +60,10 @@ class DomService:
 			if not xpath:
 				xpath = self._generate_xpath(element)
 				xpath_cache[element] = xpath
+
+			# Skip text nodes that are direct children of already processed elements
+			if isinstance(element, NavigableString) and element.parent in candidate_elements:
+				continue
 
 			if isinstance(element, str):
 				text_content = element.strip()
@@ -127,13 +132,11 @@ class DomService:
 
 	def _is_leaf_element(self, element: Tag) -> bool:
 		"""Check if element is a leaf element."""
-		leaf_element_deny_list = {'svg', 'iframe', 'script', 'style', 'link'}
-
 		if not element.get_text(strip=True):
 			return False
 
 		if not list(element.children):
-			return element.name not in leaf_element_deny_list
+			return True
 
 		# Check for simple text-only elements
 		children = list(element.children)
@@ -141,6 +144,16 @@ class DomService:
 			return True
 
 		return False
+
+	def _is_element_accepted(self, element: Tag) -> bool:
+		"""Check if element is accepted based on tag name."""
+		leaf_element_deny_list = {'svg', 'iframe', 'script', 'style', 'link'}
+
+		# First check if it's in deny list
+		if element.name in leaf_element_deny_list:
+			return False
+
+		return element.name not in leaf_element_deny_list
 
 	def _generate_xpath(self, element: Tag | NavigableString) -> str:
 		"""Generate XPath for given element."""
@@ -195,7 +208,7 @@ class DomService:
 		"""
 		essential_attributes = [
 			'id',
-			'class',
+			# 'class',
 			'href',
 			'src',
 			'aria-label',
@@ -213,8 +226,8 @@ class DomService:
 				attrs.append(f'{attr}="{element[attr]}"')
 
 		# Collect data- attributes
-		for attr in element.attrs:
-			if attr.startswith('data-'):
-				attrs.append(f'{attr}="{element[attr]}"')
+		# for attr in element.attrs:
+		# 	if attr.startswith('data-'):
+		# 		attrs.append(f'{attr}="{element[attr]}"')
 
 		return ' '.join(attrs)

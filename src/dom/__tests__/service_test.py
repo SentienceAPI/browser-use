@@ -20,4 +20,4 @@ def test_process_html_file():
 
 	# Add assertions based on expected content of page.html
 	print(f'Processed DOM content: {result.output_string}')
-	# print(f'Selector map: {result.selector_map}')
+	print(f'Selector map: {result.selector_map}')
