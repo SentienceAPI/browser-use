@@ -112,3 +112,8 @@ def save_formatted_html(html_content, output_file_name):
     # Save formatted HTML to file
     with open("temp/"+output_file_name, 'w', encoding='utf-8') as f:
         f.write(formatted_html)
+
+
+def save_markdown(markdown_content, output_file_name):
+    with open("temp/"+output_file_name, 'w', encoding='utf-8') as f:
+        f.write(markdown_content)
