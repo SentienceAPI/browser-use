@@ -8,267 +8,267 @@ from selenium import webdriver
 
 
 class ProcessedDomContent(BaseModel):
-    output_string: str
-    selector_map: dict
+	output_string: str
+	selector_map: dict
 
 
 class DomService:
-    def __init__(self, driver: webdriver.Chrome):
-        self.driver = driver
+	def __init__(self, driver: webdriver.Chrome):
+		self.driver = driver
 
-    def get_current_state(self) -> ProcessedDomContent:
-        html_content = self.driver.page_source
-        return self._process_content(html_content)
+	def get_current_state(self) -> ProcessedDomContent:
+		html_content = self.driver.page_source
+		return self._process_content(html_content)
 
-    def _process_content(self, html_content: str) -> ProcessedDomContent:
-        """
-        Process HTML content to extract and clean relevant elements.
-        Args:
-            html_content: Raw HTML string to process
-        Returns:
-            ProcessedDomContent: Processed DOM content
-        """
-        # Parse HTML content using BeautifulSoup
-        soup = BeautifulSoup(html_content, 'html.parser')
+	def _process_content(self, html_content: str) -> ProcessedDomContent:
+		"""
+		Process HTML content to extract and clean relevant elements.
+		Args:
+		    html_content: Raw HTML string to process
+		Returns:
+		    ProcessedDomContent: Processed DOM content
+		"""
+		# Parse HTML content using BeautifulSoup
+		soup = BeautifulSoup(html_content, 'html.parser')
 
-        candidate_elements: list[Tag | NavigableString] = []
-        dom_queue = list(soup.body.children) if soup.body else []
-        xpath_cache = {}
+		candidate_elements: list[Tag | NavigableString] = []
+		dom_queue = list(soup.body.children) if soup.body else []
+		xpath_cache = {}
 
-        # Find candidate elements
-        while dom_queue:
-            element = dom_queue.pop()
-            should_add_element = False
+		# Find candidate elements
+		while dom_queue:
+			element = dom_queue.pop()
+			should_add_element = False
 
-            # Handle both Tag elements and text nodes
-            if isinstance(element, Tag):
-                if self._is_element_accepted(element):
-                    # Add children to queue in reverse order only if element is accepted
-                    for child in reversed(list(element.children)):
-                        dom_queue.append(child)
+			# Handle both Tag elements and text nodes
+			if isinstance(element, Tag):
+				if self._is_element_accepted(element):
+					# Add children to queue in reverse order only if element is accepted
+					for child in reversed(list(element.children)):
+						dom_queue.append(child)
 
-                    # Check if element is interactive or leaf element
-                    if self._is_interactive_element(element) or self._is_leaf_element(element):
-                        if (
-                                self._is_active(element)
-                                and self._is_top_element(element)
-                                and self._is_visible(element)
-                        ):
-                            should_add_element = True
+					# Check if element is interactive or leaf element
+					if self._is_interactive_element(element) or self._is_leaf_element(element):
+						if (
+							self._is_active(element)
+							and self._is_top_element(element)
+							and self._is_visible(element)
+						):
+							should_add_element = True
 
-            elif isinstance(element, NavigableString) and element.strip():
-                if self._is_visible(element):
-                    should_add_element = True
+			elif isinstance(element, NavigableString) and element.strip():
+				if self._is_visible(element):
+					should_add_element = True
 
-            if should_add_element:
-                if not isinstance(element, (Tag, NavigableString)):
-                    continue
-                candidate_elements.append(element)
+			if should_add_element:
+				if not isinstance(element, (Tag, NavigableString)):
+					continue
+				candidate_elements.append(element)
 
-        # Process candidates
-        selector_map = {}
-        output_string = ''
+		# Process candidates
+		selector_map = {}
+		output_string = ''
 
-        for index, element in enumerate(candidate_elements):
-            xpath = xpath_cache.get(element)
-            if not xpath:
-                xpath = self._generate_xpath(element)
-                xpath_cache[element] = xpath
+		for index, element in enumerate(candidate_elements):
+			xpath = xpath_cache.get(element)
+			if not xpath:
+				xpath = self._generate_xpath(element)
+				xpath_cache[element] = xpath
 
-            # Skip text nodes that are direct children of already processed elements
-            if isinstance(element, NavigableString) and element.parent in candidate_elements:
-                continue
+			# Skip text nodes that are direct children of already processed elements
+			if isinstance(element, NavigableString) and element.parent in candidate_elements:
+				continue
 
-            if isinstance(element, str):
-                text_content = element.strip()
-                if text_content:
-                    output_string += f'{index}:{text_content}\n'
-            else:
-                tag_name = element.name
-                attributes = self._get_essential_attributes(element)
+			if isinstance(element, str):
+				text_content = element.strip()
+				if text_content:
+					output_string += f'{index}:{text_content}\n'
+			else:
+				tag_name = element.name
+				attributes = self._get_essential_attributes(element)
 
-                opening_tag = f"<{tag_name}{' ' + attributes if attributes else ''}>"
-                closing_tag = f'</{tag_name}>'
-                text_content = element.get_text().strip() or ''
+				opening_tag = f"<{tag_name}{' ' + attributes if attributes else ''}>"
+				closing_tag = f'</{tag_name}>'
+				text_content = element.get_text().strip() or ''
 
-                output_string += f'{index}:{opening_tag}{text_content}{closing_tag}\n'
+				output_string += f'{index}:{opening_tag}{text_content}{closing_tag}\n'
 
-            selector_map[index] = xpath
+			selector_map[index] = xpath
 
-        return ProcessedDomContent(output_string=output_string, selector_map=selector_map)
+		return ProcessedDomContent(output_string=output_string, selector_map=selector_map)
 
-    def _is_interactive_element(self, element: Tag) -> bool:
-        """Check if element is interactive based on tag name and attributes."""
-        interactive_elements = {
-            'a',
-            'button',
-            'details',
-            'embed',
-            'input',
-            'label',
-            'menu',
-            'menuitem',
-            'object',
-            'select',
-            'textarea',
-            'summary',
-        }
-        interactive_roles = {
-            'button',
-            'menu',
-            'menuitem',
-            'link',
-            'checkbox',
-            'radio',
-            'slider',
-            'tab',
-            'tabpanel',
-            'textbox',
-            'combobox',
-            'grid',
-            'listbox',
-            'option',
-            'progressbar',
-            'scrollbar',
-            'searchbox',
-            'switch',
-            'tree',
-            'treeitem',
-            'spinbutton',
-            'tooltip',
-        }
+	def _is_interactive_element(self, element: Tag) -> bool:
+		"""Check if element is interactive based on tag name and attributes."""
+		interactive_elements = {
+			'a',
+			'button',
+			'details',
+			'embed',
+			'input',
+			'label',
+			'menu',
+			'menuitem',
+			'object',
+			'select',
+			'textarea',
+			'summary',
+		}
+		interactive_roles = {
+			'button',
+			'menu',
+			'menuitem',
+			'link',
+			'checkbox',
+			'radio',
+			'slider',
+			'tab',
+			'tabpanel',
+			'textbox',
+			'combobox',
+			'grid',
+			'listbox',
+			'option',
+			'progressbar',
+			'scrollbar',
+			'searchbox',
+			'switch',
+			'tree',
+			'treeitem',
+			'spinbutton',
+			'tooltip',
+		}
 
-        return (
-            element.name in interactive_elements
-            or element.get('role') in interactive_roles
-            or element.get('aria-role') in interactive_roles
-        )
+		return (
+			element.name in interactive_elements
+			or element.get('role') in interactive_roles
+			or element.get('aria-role') in interactive_roles
+		)
 
-    def _is_leaf_element(self, element: Tag) -> bool:
-        """Check if element is a leaf element."""
-        if not element.get_text(strip=True):
-            return False
+	def _is_leaf_element(self, element: Tag) -> bool:
+		"""Check if element is a leaf element."""
+		if not element.get_text(strip=True):
+			return False
 
-        if not list(element.children):
-            return True
+		if not list(element.children):
+			return True
 
-        # Check for simple text-only elements
-        children = list(element.children)
-        if len(children) == 1 and isinstance(children[0], str):
-            return True
+		# Check for simple text-only elements
+		children = list(element.children)
+		if len(children) == 1 and isinstance(children[0], str):
+			return True
 
-        return False
+		return False
 
-    def _is_element_accepted(self, element: Tag) -> bool:
-        """Check if element is accepted based on tag name."""
-        leaf_element_deny_list = {'svg', 'iframe', 'script', 'style', 'link'}
+	def _is_element_accepted(self, element: Tag) -> bool:
+		"""Check if element is accepted based on tag name."""
+		leaf_element_deny_list = {'svg', 'iframe', 'script', 'style', 'link'}
 
-        # First check if it's in deny list
-        if element.name in leaf_element_deny_list:
-            return False
+		# First check if it's in deny list
+		if element.name in leaf_element_deny_list:
+			return False
 
-        return element.name not in leaf_element_deny_list
+		return element.name not in leaf_element_deny_list
 
-    def _generate_xpath(self, element: Tag | NavigableString) -> str:
-        """Generate XPath for given element."""
-        # Handle NavigableString - return parent's xpath
-        if isinstance(element, NavigableString):
-            if element.parent:
-                return self._generate_xpath(element.parent)
-            return ''
+	def _generate_xpath(self, element: Tag | NavigableString) -> str:
+		"""Generate XPath for given element."""
+		# Handle NavigableString - return parent's xpath
+		if isinstance(element, NavigableString):
+			if element.parent:
+				return self._generate_xpath(element.parent)
+			return ''
 
-        # Handle elements that may not have all Tag methods
-        if not hasattr(element, 'name'):
-            return ''
+		# Handle elements that may not have all Tag methods
+		if not hasattr(element, 'name'):
+			return ''
 
-        # Check for ID using getattr to handle elements without get() method
-        element_id = getattr(element, 'get', lambda x: None)('id')
-        if element_id:
-            return f"//*[@id='{element_id}']"
+		# Check for ID using getattr to handle elements without get() method
+		element_id = getattr(element, 'get', lambda x: None)('id')
+		if element_id:
+			return f"//*[@id='{element_id}']"
 
-        parts = []
-        current = element
+		parts = []
+		current = element
 
-        while current and getattr(current, 'name', None):
-            # Skip document node
-            if current.name == '[document]':
-                break
+		while current and getattr(current, 'name', None):
+			# Skip document node
+			if current.name == '[document]':
+				break
 
-            # Safely get parent and children
-            parent = getattr(current, 'parent', None)
-            siblings = list(parent.children) if parent and hasattr(parent, 'children') else []
+			# Safely get parent and children
+			parent = getattr(current, 'parent', None)
+			siblings = list(parent.children) if parent and hasattr(parent, 'children') else []
 
-            # Filter siblings that are elements with matching names
-            same_type_siblings = [
-                s for s in siblings if hasattr(s, 'name') and s.name == current.name
-            ]
+			# Filter siblings that are elements with matching names
+			same_type_siblings = [
+				s for s in siblings if hasattr(s, 'name') and s.name == current.name
+			]
 
-            if len(same_type_siblings) > 1:
-                try:
-                    index = same_type_siblings.index(current) + 1
-                    parts.insert(0, f'{current.name}[{index}]')
-                except ValueError:
-                    parts.insert(0, current.name)
-            else:
-                parts.insert(0, current.name)
+			if len(same_type_siblings) > 1:
+				try:
+					index = same_type_siblings.index(current) + 1
+					parts.insert(0, f'{current.name}[{index}]')
+				except ValueError:
+					parts.insert(0, current.name)
+			else:
+				parts.insert(0, current.name)
 
-            current = parent
+			current = parent
 
-        # Ensure we start with html and body tags for a complete path
-        if parts and parts[0] != 'html':
-            parts.insert(0, 'html')
-        if len(parts) > 1 and parts[1] != 'body':
-            parts.insert(1, 'body')
+		# Ensure we start with html and body tags for a complete path
+		if parts and parts[0] != 'html':
+			parts.insert(0, 'html')
+		if len(parts) > 1 and parts[1] != 'body':
+			parts.insert(1, 'body')
 
-        return '//' + '/'.join(parts) if parts else ''
+		return '//' + '/'.join(parts) if parts else ''
 
-    def _get_essential_attributes(self, element: Tag) -> str:
-        """
-        Collects essential attributes from an element.
-        Args:
-            element: The BeautifulSoup PageElement
-        Returns:
-            A string of formatted essential attributes
-        """
-        essential_attributes = [
-            'id',
-            # 'class',
-            'href',
-            'src',
-            'aria-label',
-            'aria-name',
-            'aria-role',
-            'aria-description',
-            'aria-expanded',
-            'aria-haspopup',
-        ]
+	def _get_essential_attributes(self, element: Tag) -> str:
+		"""
+		Collects essential attributes from an element.
+		Args:
+		    element: The BeautifulSoup PageElement
+		Returns:
+		    A string of formatted essential attributes
+		"""
+		essential_attributes = [
+			'id',
+			# 'class',
+			'href',
+			'src',
+			'aria-label',
+			'aria-name',
+			'aria-role',
+			'aria-description',
+			'aria-expanded',
+			'aria-haspopup',
+		]
 
-        # Collect essential attributes that have values
-        attrs = []
-        for attr in essential_attributes:
-            if attr in element.attrs:
-                attrs.append(f'{attr}="{element[attr]}"')
+		# Collect essential attributes that have values
+		attrs = []
+		for attr in essential_attributes:
+			if attr in element.attrs:
+				attrs.append(f'{attr}="{element[attr]}"')
 
-        # Collect data- attributes
-        # for attr in element.attrs:
-        # 	if attr.startswith('data-'):
-        # 		attrs.append(f'{attr}="{element[attr]}"')
+		# Collect data- attributes
+		# for attr in element.attrs:
+		# 	if attr.startswith('data-'):
+		# 		attrs.append(f'{attr}="{element[attr]}"')
 
-        return ' '.join(attrs)
+		return ' '.join(attrs)
 
-    def _is_visible(self, element: Tag | NavigableString) -> bool:
-        """Check if element is visible using JavaScript."""
-        if not isinstance(element, Tag):
-            return self._is_text_visible(element)
+	def _is_visible(self, element: Tag | NavigableString) -> bool:
+		"""Check if element is visible using JavaScript."""
+		if not isinstance(element, Tag):
+			return self._is_text_visible(element)
 
-        element_id = element.get('id', '')
-        if element_id:
-            js_selector = f'document.getElementById("{element_id}")'
-        else:
-            xpath = self._generate_xpath(element)
-            js_selector = f'document.evaluate("{xpath}", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue'
+		element_id = element.get('id', '')
+		if element_id:
+			js_selector = f'document.getElementById("{element_id}")'
+		else:
+			xpath = self._generate_xpath(element)
+			js_selector = f'document.evaluate("{xpath}", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue'
 
-        visibility_check = f"""
+		visibility_check = f"""
 			return (function() {{
 				const element = {js_selector};
 				
@@ -284,20 +284,20 @@ class DomService:
 			}}());
 		"""
 
-        try:
-            is_visible = self.driver.execute_script(visibility_check)
-            return bool(is_visible)
-        except Exception:
-            return False
+		try:
+			is_visible = self.driver.execute_script(visibility_check)
+			return bool(is_visible)
+		except Exception:
+			return False
 
-    def _is_text_visible(self, element: NavigableString) -> bool:
-        """Check if text node is visible using JavaScript."""
-        parent = element.parent
-        if not parent:
-            return False
+	def _is_text_visible(self, element: NavigableString) -> bool:
+		"""Check if text node is visible using JavaScript."""
+		parent = element.parent
+		if not parent:
+			return False
 
-        xpath = self._generate_xpath(parent)
-        visibility_check = f"""
+		xpath = self._generate_xpath(parent)
+		visibility_check = f"""
 			return (function() {{
 				const parent = document.evaluate("{xpath}", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
 				
@@ -322,16 +322,16 @@ class DomService:
 				}}));
 			}}());
 		"""
-        try:
-            is_visible = self.driver.execute_script(visibility_check)
-            return bool(is_visible)
-        except Exception:
-            return False
+		try:
+			is_visible = self.driver.execute_script(visibility_check)
+			return bool(is_visible)
+		except Exception:
+			return False
 
-    def _is_top_element(self, element: Tag | NavigableString, rect=None) -> bool:
-        """Check if element is the topmost at its position."""
-        xpath = self._generate_xpath(element)
-        check_top = f"""
+	def _is_top_element(self, element: Tag | NavigableString, rect=None) -> bool:
+		"""Check if element is the topmost at its position."""
+		xpath = self._generate_xpath(element)
+		check_top = f"""
 			return (function() {{
 				const elem = document.evaluate("{xpath}", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
 				if (!elem) {{
@@ -358,16 +358,16 @@ class DomService:
 				}}));
 			}}());
 		"""
-        try:
-            is_top = self.driver.execute_script(check_top)
-            return bool(is_top)
-        except Exception:
-            return False
+		try:
+			is_top = self.driver.execute_script(check_top)
+			return bool(is_top)
+		except Exception:
+			return False
 
-    def _is_active(self, element: Tag) -> bool:
-        """Check if element is active (not disabled)."""
-        return not (
-            element.get('disabled') is not None
-            or element.get('hidden') is not None
-            or element.get('aria-disabled') == 'true'
-        )
+	def _is_active(self, element: Tag) -> bool:
+		"""Check if element is active (not disabled)."""
+		return not (
+			element.get('disabled') is not None
+			or element.get('hidden') is not None
+			or element.get('aria-disabled') == 'true'
+		)
