@@ -1,11 +1,11 @@
 import time
+from typing import Dict, Optional, Union
 
+from pydantic import BaseModel
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-from pydantic import BaseModel
-from typing import Optional, Dict, Union
 
 
 # Pydantic Models
@@ -20,9 +20,11 @@ class Action(BaseModel):
 	action: str
 	params: Optional[ActionParams] = None
 
-
-class SelectorMap(BaseModel):
-	__root__: Dict[int, str]
+	@property
+	def is_valid(self) -> bool:
+		if self.action == 'click':
+			return self.params is not None and self.params.id is not None
+		return True
 
 
 class BrowserActions:
@@ -31,39 +33,44 @@ class BrowserActions:
 		self.wait = WebDriverWait(driver, 10)
 		self.selector_map: Dict[int, str] = {}
 
-	def update_selector_map(self, selector_map: Union[Dict[int, str], SelectorMap]):
+	def update_selector_map(self, selector_map: Dict[int, str]):
 		"""Update the current selector map"""
-		if isinstance(selector_map, SelectorMap):
-			self.selector_map = selector_map.__root__
-		else:
-			self.selector_map = selector_map
+		self.selector_map = selector_map
 
-	def execute_action(self, action: Union[dict, Action], selector_map: Union[dict, SelectorMap]):
-		if isinstance(action, dict):
-			action = Action(**action)
-		if isinstance(selector_map, dict):
-			selector_map = SelectorMap(__root__=selector_map)
-
-		print(action.dict().keys())
+	def execute_action(self, action: Action, selector_map: Dict[int, str]):
+		print(action.model_dump().keys())
+		print(action.model_dump_json())
 		action_name = action.action
 		self.update_selector_map(selector_map)
 
-		params = action.params.dict() if action.params else {}
+		# params = action.params.model_dump() if action.params else {}
 
 		if action_name == 'search_google':
-			self.search_google(params['query'])
+			if action.params and action.params.query:
+				self.search_google(action.params.query)
+			else:
+				raise Exception('Query is required for search_google action')
 		elif action_name == 'nothing':
 			pass
 		elif action_name == 'go_to_url':
-			self.go_to_url(params['url'])
+			if action.params and action.params.url:
+				self.go_to_url(action.params.url)
+			else:
+				raise Exception('Url is required for go_to_url action')
 		elif action_name == 'go_back':
 			self.go_back()
 		elif action_name == 'done':
 			return True
 		elif action_name == 'input':
-			self.input_text_by_index(params['id'], params['text'])
+			if action.params and action.params.id and action.params.text:
+				self.input_text_by_index(action.params.id, action.params.text)
+			else:
+				raise Exception('Id and text are required for input action')
 		elif action_name == 'click':
-			self.click_element_by_index(params['id'])
+			if action.params and action.params.id:
+				self.click_element_by_index(action.params.id)
+			else:
+				raise Exception('Id is required for click action')
 		# elif action_name == 'accept_cookies':
 		#     self.driver.accept_cookies()
 		else:

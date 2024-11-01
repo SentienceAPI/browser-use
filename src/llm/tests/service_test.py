@@ -4,9 +4,9 @@ import pytest
 from src.llm.service import LLM
 
 
-@pytest.mark.skip(reason='openai costs')
+# @pytest.mark.skip(reason='openai costs')
 async def test_completion():
-	messages = [{'role': 'user', 'content': 'List 5 important events in the XIX century'}]
+	messages = [{'role': 'user', 'content': 'List 2 important events in the XIX century'}]
 
 	class CalendarEvent(BaseModel):
 		name: str
@@ -16,7 +16,8 @@ async def test_completion():
 	class EventsList(BaseModel):
 		events: list[CalendarEvent]
 
-	llm = LLM(model='gpt-4o-2024-08-06')
+	# llm = LLM(model='gpt-4o-2024-08-06')
+	llm = LLM(model='claude-3-5-sonnet-20240620')
 
 	resp = await llm.create_chat_completion(messages, EventsList)
 

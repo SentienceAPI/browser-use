@@ -9,7 +9,7 @@ from selenium import webdriver
 
 class ProcessedDomContent(BaseModel):
 	output_string: str
-	selector_map: dict
+	selector_map: dict[int, str]
 
 
 class DomService:
@@ -66,7 +66,7 @@ class DomService:
 				candidate_elements.append(element)
 
 		# Process candidates
-		selector_map = {}
+		selector_map: dict[int, str] = {}
 		output_string = ''
 
 		for index, element in enumerate(candidate_elements):

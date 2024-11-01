@@ -9,14 +9,14 @@ from src.dom.service import DomService
 
 class ProcessedContent(BaseModel):
 	output_string: str
-	selector_map: Dict[str, str]
+	selector_map: Dict[int, str]
 
 
 class PageState(BaseModel):
 	current_url: str
 	page_title: str
 	interactable_elements: str
-	selector_map: Dict[str, str]
+	selector_map: Dict[int, str]
 
 
 class StateManager:

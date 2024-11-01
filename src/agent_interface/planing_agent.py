@@ -1,54 +1,51 @@
-import json
-import os
-from typing import Dict, List
-
 from dotenv import load_dotenv
-from openai import OpenAI
 from tokencost import calculate_prompt_cost, count_string_tokens
-from src.actions.browser_actions import Action
 
-from src.llm.service import LLM
+from src.actions.browser_actions import Action
+from src.llm.service import LLM, AvailableModel
 
 
 class PlaningAgent:
-	def __init__(self, task: str, default_actions: str):
+	def __init__(self, task: str, default_actions: str, model: AvailableModel):
 		load_dotenv()
-		# self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
-		self.model = 'gpt-4o'
+		self.model = model
 		self.llm = LLM(model=self.model)
 		self.messages = [
 			{'role': 'system', 'content': self.get_system_prompt(task, default_actions)}
 		]
 
-	async def chat(self, task: str, skip_call: bool = False) -> Dict:
+	async def chat(self, task: str, skip_call: bool = False) -> Action:
 		# TODO: include state, actions, etc.
 
 		# select next functions to call
 		messages = self.messages + [{'role': 'user', 'content': task}]
 
-		# Calculate total cost for all messages
-		total_cost = calculate_prompt_cost(messages, self.model)
-		total_tokens = count_string_tokens(' '.join([m['content'] for m in messages]), self.model)
-		print(
-			'Total prompt cost: ',
-			f'${total_cost:,.2f}',
-			'Total tokens: ',
-			f'{total_tokens:,}',
-		)
+		try:
+			# Calculate total cost for all messages
+			total_cost = calculate_prompt_cost(messages, self.model)
+			total_tokens = count_string_tokens(
+				' '.join([m['content'] for m in messages]), self.model
+			)
+			print(
+				'Total prompt cost: ',
+				f'${total_cost:,.2f}',
+				'Total tokens: ',
+				f'{total_tokens:,}',
+			)
+		except Exception as e:
+			print(f'Error calculating prompt cost: {e}')
 
 		if skip_call:
-			return {'action': 'nothing'}
+			return Action(action='nothing')
 
 		response = await self.llm.create_chat_completion(messages, Action)
 
-		# response = self.client.chat.completions.create(
-		# 	model=self.model, messages=messages, response_format={'type': 'json_object'}
-		# )
+		self.messages.append({'role': 'user', 'content': '... redacted previous state ...'})
 
 		# Only append the output message
-		self.messages.append({'role': 'assistant', 'content': response.choices[0].message.content})
+		self.messages.append({'role': 'assistant', 'content': response.model_dump_json()})
 
-		return json.loads(response.choices[0].message.content)
+		return response
 
 	def get_system_prompt(self, task: str, default_actions: str) -> str:
 		"""
@@ -77,7 +74,7 @@ class PlaningAgent:
         1:<a href="/test">Link text</a>
         2:Some visible text content
 
-        To interact with elements, use their index number in the click() or input() actions.
+        To interact with elements, use their index number in the click() or input() actions. Make 100% sure that the index is ALWAYS present if you use the click() or input() actions.
         Each element has a unique index that can be used to interact with it.
 
         Provide your next action based on the available actions and visible elements. 
