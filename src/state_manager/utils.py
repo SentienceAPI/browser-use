@@ -1,5 +1,7 @@
+from bs4 import BeautifulSoup
 from bs4 import BeautifulSoup, Comment, Tag
 import re
+import os
 
 
 def cleanup_html(html_content):
@@ -86,3 +88,27 @@ def cleanup_html(html_content):
     cleaned_html = re.sub(empty_tags_pattern, "", cleaned_html)
 
     return cleaned_html
+
+
+# Format and save HTML content to file
+
+
+def save_formatted_html(html_content, output_file_name):
+    """
+    Format HTML content using BeautifulSoup and save to file
+
+    Args:
+        html_content (str): Raw HTML content to format
+        output_file_name (str): Name of the file where formatted HTML will be saved
+    """
+    # Format HTML with BeautifulSoup for nice indentation
+    soup = BeautifulSoup(html_content, 'html.parser')
+    formatted_html = soup.prettify()
+
+    # create temp folder if it doesn't exist
+    if not os.path.exists("temp"):
+        os.makedirs("temp")
+
+    # Save formatted HTML to file
+    with open("temp/"+output_file_name, 'w', encoding='utf-8') as f:
+        f.write(formatted_html)

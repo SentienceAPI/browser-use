@@ -2,7 +2,9 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from typing import Dict, List
 from bs4 import BeautifulSoup
-from .html_cleaner import cleanup_html
+from src.state_manager.utils import cleanup_html
+import requests
+from main_content_extractor import MainContentExtractor
 
 
 class StateManager:
@@ -18,13 +20,13 @@ class StateManager:
         """
         html_content = self.driver.page_source
         cleaned_html = cleanup_html(html_content)
-        functions = self.get_functions()
-
+        main_content = self.get_main_content()
         return {
             "current_url": self.driver.current_url,
             "page_title": self.driver.title,
             "interactable_elements": cleaned_html,
-            "functions": functions
+            "main_content": main_content,
+            # "functions": functions
         }
 
     def get_functions(self) -> List[Dict]:
@@ -32,3 +34,24 @@ class StateManager:
         Retrieves available functions from cleaned HTML.
         """
         return []
+
+    def get_main_content(self) -> str:
+        """
+        Retrieves main content from cleaned Markdown.
+        """
+        try:
+            # Get HTML using requests
+            response = requests.get(self.driver.current_url)
+            response.encoding = 'utf-8'
+            content = response.text
+
+            # Get HTML with main content extracted from HTML
+            # extracted_html = MainContentExtractor.extract(content)
+
+            # Get HTML with main content extracted from Markdown
+            extracted_markdown = MainContentExtractor.extract(content, output_format="markdown")
+
+            return extracted_markdown
+        except Exception as e:
+            print(f"Error getting main content: {e}")
+            return ""

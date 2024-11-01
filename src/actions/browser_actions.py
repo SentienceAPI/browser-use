@@ -22,6 +22,10 @@ class BrowserActions:
             self.go_back()
         elif action_name == "done":
             return True
+        elif action_name == "input":
+            self.input_text_by_c(params["c"], params["text"])
+        elif action_name == "click":
+            self.click_element_by_c(params["c"])
         else:
             raise Exception(f"Action {action_name} not found")
 
@@ -50,48 +54,31 @@ class BrowserActions:
         """
         self.driver.back()
 
-    # specific actions
-    def click_element(self, identifier: dict):
+    def click_element_by_c(self, c_value: str):
         """
-        Clicks an element identified by attributes.
+        Clicks an element identified by its c attribute.
         """
-        element = self._find_element(identifier)
+        element = self.wait.until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, f'[c="{c_value}"]'))
+        )
         element.click()
 
-    def input_text(self, identifier: dict, text: str):
+    def input_text_by_c(self, c_value: str, text: str):
         """
-        Inputs text into a field identified by attributes.
+        Inputs text into a field identified by its c attribute.
         """
-        element = self._find_element(identifier)
+        element = self.wait.until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, f'[c="{c_value}"]'))
+        )
         element.clear()
         element.send_keys(text)
-
-    def _find_element(self, identifier: dict):
-        """
-        Helper method to find elements based on various identifiers.
-        """
-        for key, value in identifier.items():
-            try:
-                if key == "id":
-                    return self.wait.until(
-                        EC.presence_of_element_located((By.ID, value))
-                    )
-                elif key == "class":
-                    return self.wait.until(
-                        EC.presence_of_element_located((By.CLASS_NAME, value))
-                    )
-                elif key == "name":
-                    return self.wait.until(
-                        EC.presence_of_element_located((By.NAME, value))
-                    )
-            except:
-                continue
-        raise Exception("Element not found with provided identifiers")
 
     def get_default_actions(self) -> dict[str, str]:
         return {
             "search_google": "query: string",
             "go_to_url": "url: string",
             "done": "",
-            "go_back": ""
+            "go_back": "",
+            "click": "c: int",
+            "input": "c: int, text: string",
         }
