@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Dict
+from typing import Dict, List
 
 from dotenv import load_dotenv
 from openai import OpenAI
