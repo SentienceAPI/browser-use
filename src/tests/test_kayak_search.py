@@ -25,6 +25,7 @@ class TestKayakSearch(unittest.TestCase):
         print(f'Default actions: {default_actions}')
 
         agent = PlaningAgent(task, default_actions)
+        url_history = []
 
         # Main interaction loop
         max_steps = 10
@@ -37,10 +38,11 @@ class TestKayakSearch(unittest.TestCase):
             print(f'Current state map: {current_state["selector_map"]}')
             # save_markdown(current_state["main_content"], f"current_state_{i}.md")
             # Get next action from agent
-            text = f'Elements: {current_state["interactable_elements"]}'
+            url_history.append(self.driver.current_url)
+            text = f'Elements: {current_state["interactable_elements"]}, Url history: {url_history}'
             print(f'\n{text}\n')
 
-            action = agent.chat(text, skip_call=True)
+            action = agent.chat(text, skip_call=False)
             print(f'Selected action: {action}')
 
             out = self.actions.execute_action(action, current_state['selector_map'])
