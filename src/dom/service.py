@@ -4,6 +4,7 @@ Dom Service
 
 from bs4 import BeautifulSoup, NavigableString, Tag
 from pydantic import BaseModel
+from selenium import webdriver
 
 
 class ProcessedDomContent(BaseModel):
@@ -12,7 +13,14 @@ class ProcessedDomContent(BaseModel):
 
 
 class DomService:
-	def process_content(self, html_content: str) -> ProcessedDomContent:
+	def __init__(self, driver: webdriver.Chrome):
+		self.driver = driver
+
+	def get_current_state(self) -> ProcessedDomContent:
+		html_content = self.driver.page_source
+		return self._process_content(html_content)
+
+	def _process_content(self, html_content: str) -> ProcessedDomContent:
 		"""
 		Process HTML content to extract and clean relevant elements.
 		Args:
@@ -41,10 +49,16 @@ class DomService:
 
 					# Check if element is interactive or leaf element
 					if self._is_interactive_element(element) or self._is_leaf_element(element):
-						should_add_element = True
+						if (
+							self._is_active(element)
+							and self._is_top_element(element)
+							and self._is_visible(element)
+						):
+							should_add_element = True
 
 			elif isinstance(element, NavigableString) and element.strip():
-				should_add_element = True
+				if self._is_visible(element):
+					should_add_element = True
 
 			if should_add_element:
 				if not isinstance(element, (Tag, NavigableString)):
@@ -176,6 +190,10 @@ class DomService:
 		current = element
 
 		while current and getattr(current, 'name', None):
+			# Skip document node
+			if current.name == '[document]':
+				break
+
 			# Safely get parent and children
 			parent = getattr(current, 'parent', None)
 			siblings = list(parent.children) if parent and hasattr(parent, 'children') else []
@@ -196,7 +214,13 @@ class DomService:
 
 			current = parent
 
-		return '/' + '/'.join(parts) if parts else ''
+		# Ensure we start with html and body tags for a complete path
+		if parts and parts[0] != 'html':
+			parts.insert(0, 'html')
+		if len(parts) > 1 and parts[1] != 'body':
+			parts.insert(1, 'body')
+
+		return '//' + '/'.join(parts) if parts else ''
 
 	def _get_essential_attributes(self, element: Tag) -> str:
 		"""
@@ -231,3 +255,119 @@ class DomService:
 		# 		attrs.append(f'{attr}="{element[attr]}"')
 
 		return ' '.join(attrs)
+
+	def _is_visible(self, element: Tag | NavigableString) -> bool:
+		"""Check if element is visible using JavaScript."""
+		if not isinstance(element, Tag):
+			return self._is_text_visible(element)
+
+		element_id = element.get('id', '')
+		if element_id:
+			js_selector = f'document.getElementById("{element_id}")'
+		else:
+			xpath = self._generate_xpath(element)
+			js_selector = f'document.evaluate("{xpath}", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue'
+
+		visibility_check = f"""
+			return (function() {{
+				const element = {js_selector};
+				
+				if (!element) {{
+					return false;
+				}}
+
+				// Force return as boolean
+				return Boolean(element.checkVisibility({{
+					checkOpacity: true,
+					checkVisibilityCSS: true
+				}}));
+			}}());
+		"""
+
+		try:
+			is_visible = self.driver.execute_script(visibility_check)
+			return bool(is_visible)
+		except Exception:
+			return False
+
+	def _is_text_visible(self, element: NavigableString) -> bool:
+		"""Check if text node is visible using JavaScript."""
+		parent = element.parent
+		if not parent:
+			return False
+
+		xpath = self._generate_xpath(parent)
+		visibility_check = f"""
+			return (function() {{
+				const parent = document.evaluate("{xpath}", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+				
+				if (!parent) {{
+					return false;
+				}}
+				
+				const range = document.createRange();
+				const textNode = parent.childNodes[{list(parent.children).index(element)}];
+				range.selectNodeContents(textNode);
+				const rect = range.getBoundingClientRect();
+				
+				if (rect.width === 0 || rect.height === 0 || 
+					rect.top < 0 || rect.top > window.innerHeight) {{
+					return false;
+				}}
+				
+				// Force return as boolean
+				return Boolean(parent.checkVisibility({{
+					checkOpacity: true,
+					checkVisibilityCSS: true
+				}}));
+			}}());
+		"""
+		try:
+			is_visible = self.driver.execute_script(visibility_check)
+			return bool(is_visible)
+		except Exception:
+			return False
+
+	def _is_top_element(self, element: Tag | NavigableString, rect=None) -> bool:
+		"""Check if element is the topmost at its position."""
+		xpath = self._generate_xpath(element)
+		check_top = f"""
+			return (function() {{
+				const elem = document.evaluate("{xpath}", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+				if (!elem) {{
+					return false;
+				}}
+				
+				const rect = elem.getBoundingClientRect();
+				const points = [
+					{{x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.25}},
+					{{x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.25}}, 
+					{{x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.75}},
+					{{x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.75}},
+					{{x: rect.left + rect.width / 2, y: rect.top + rect.height / 2}}
+				];
+				
+				return Boolean(points.some(point => {{
+					const topEl = document.elementFromPoint(point.x, point.y);
+					let current = topEl;
+					while (current && current !== document.body) {{
+						if (current === elem) return true;
+						current = current.parentElement;
+					}}
+					return false;
+				}}));
+			}}());
+		"""
+		try:
+			is_top = self.driver.execute_script(check_top)
+			return bool(is_top)
+		except Exception:
+			return False
+
+	def _is_active(self, element: Tag) -> bool:
+		"""Check if element is active (not disabled)."""
+		return not (
+			element.get('disabled') is not None
+			or element.get('hidden') is not None
+			or element.get('aria-disabled') == 'true'
+		)
