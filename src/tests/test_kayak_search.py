@@ -1,4 +1,5 @@
 import time
+
 import pytest
 
 from src.actions.browser_actions import BrowserActions
@@ -22,8 +23,8 @@ async def test_kayak_flight_search(setup):
 	driver, actions, state_manager = setup
 
 	# Define the task
-	task = 'Go to directly to the url ebay.com find a newly listed pre-owned man nike shoe in size 9 with free local pickup under 75 dollars.'
-
+	# task = 'Go to directly to the url ebay.com find a newly listed pre-owned man nike shoe in size 9 with free local pickup under 75 dollars.'
+	task = 'Go to directly to the url kayak.com find a flight from Zürich to Kirgistan on 2024-11-25 with return on 2024-12-09 for 2 people.'
 	default_actions = actions.get_default_actions()
 	print(f'Default actions: {default_actions}')
 
