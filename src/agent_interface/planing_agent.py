@@ -60,7 +60,7 @@ class PlaningAgent:
 		"""
 		# System prompts for the agent
 		output_format = """
-        {"action": "action_name", "params": {"param_name": "param_value"}}
+        {"action": "action_name", "params": {"param_name": "param_value"}, "goal": "short description what you want to achieve", "valuation_previous_goal": "1-10 how confident you are that you achieved your previous goal. If its the first action, put 0."}
         """
 
 		AGENT_PROMPT = f"""
@@ -69,16 +69,21 @@ class PlaningAgent:
         Available actions:
         {default_actions}
 
+		Input:
         The page content will be provided as numbered elements like this:
         0:<button>Click me</button>
         1:<a href="/test">Link text</a>
         2:Some visible text content
-
+        
+		Additional you get a list of previous actions and their results.
         To interact with elements, use their index number in the click() or input() actions. Make 100% sure that the index is ALWAYS present if you use the click() or input() actions.
-        Each element has a unique index that can be used to interact with it.
+        Each element has a unique index that can be used to interact with it. 
+		
 
         Provide your next action based on the available actions and visible elements. 
-        Respond with a valid JSON object containing the action and any required parameters.
+		Validate if the previous goal is achieved, if not, try to achieve it with the next action.
+		If you get stuck, try to find a new element that can help you achieve your goal. Or go back to try it differently.
+        Respond with a valid JSON object containing the action and any required parameters and your current goal of this action.
 
         Response format:
         {output_format}
