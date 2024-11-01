@@ -29,9 +29,11 @@ class TestKayakSearch(unittest.TestCase):
         max_steps = 10
         for i in range(max_steps):
             # Get current state
+            input("\n\n\nPress Enter to continue...")
+
             current_state = self.state_manager.get_current_state()
             save_formatted_html(current_state["interactable_elements"], f"current_state_{i}.html")
-            save_markdown(current_state["main_content"], f"current_state_{i}.md")
+            # save_markdown(current_state["main_content"], f"current_state_{i}.md")
             # Get next action from agent
             text = f"Current state: {current_state}"
             print(f"\n{text}\n")
@@ -43,11 +45,6 @@ class TestKayakSearch(unittest.TestCase):
             if out:
                 print("Task completed")
                 break
-
-            # wait for 1 second
-            # time.sleep(4)
-            # wait until i hit enter in the console
-            input("\n\n\nPress Enter to continue...")
 
         else:
             self.fail("Failed to complete flight search task in maximum steps")

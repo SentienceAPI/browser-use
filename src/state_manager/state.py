@@ -19,14 +19,13 @@ class StateManager:
             Dict: Current state including URL, page title, and interactable elements
         """
         html_content = self.driver.page_source
-        cleaned_html = cleanup_html(html_content)
-        main_content = self.get_main_content()
+        cleaned_content = cleanup_html(html_content)
+
         return {
             "current_url": self.driver.current_url,
             "page_title": self.driver.title,
-            "interactable_elements": cleaned_html,
-            "main_content": main_content,
-            # "functions": functions
+            "interactable_elements": cleaned_content["html"],
+            # "main_content": cleaned_content["main_content"]
         }
 
     def get_functions(self) -> List[Dict]:

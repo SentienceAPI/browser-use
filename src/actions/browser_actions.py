@@ -12,7 +12,11 @@ class BrowserActions:
     def execute_action(self, action: dict):
         print(action.keys())
         action_name = action["action"]
-        params = action["params"]
+
+        if "params" in action:
+            params = action["params"]
+        else:
+            params = {}
 
         if action_name == "search_google":
             self.search_google(params["query"])
@@ -26,6 +30,8 @@ class BrowserActions:
             self.input_text_by_c(params["c"], params["text"])
         elif action_name == "click":
             self.click_element_by_c(params["c"])
+        elif action_name == "accept_cookies":
+            self.driver.accept_cookies()
         else:
             raise Exception(f"Action {action_name} not found")
 
@@ -81,4 +87,5 @@ class BrowserActions:
             "go_back": "",
             "click": "c: int",
             "input": "c: int, text: string",
+            "accept_cookies": "",
         }
