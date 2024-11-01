@@ -1,12 +1,11 @@
-import os
 import time
 
 from src.dom.service import DomService
-from src.utils.selenium_utils import setup_selenium_driver
+from src.driver.service import DriverService
 
 
 def test_process_html_file():
-	driver = setup_selenium_driver()
+	driver = DriverService().get_driver()
 
 	driver.get('https://www.kayak.ch')
 	# driver.get('https://example.com/')

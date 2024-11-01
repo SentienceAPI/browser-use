@@ -4,27 +4,51 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+from pydantic import BaseModel
+from typing import Optional, Dict, Union
+
+
+# Pydantic Models
+class ActionParams(BaseModel):
+	query: Optional[str] = None
+	url: Optional[str] = None
+	id: Optional[int] = None
+	text: Optional[str] = None
+
+
+class Action(BaseModel):
+	action: str
+	params: Optional[ActionParams] = None
+
+
+class SelectorMap(BaseModel):
+	__root__: Dict[int, str]
 
 
 class BrowserActions:
 	def __init__(self, driver: webdriver.Chrome):
 		self.driver = driver
 		self.wait = WebDriverWait(driver, 10)
-		self.selector_map = {}  # Will store current selector map
+		self.selector_map: Dict[int, str] = {}
 
-	def update_selector_map(self, selector_map: dict):
+	def update_selector_map(self, selector_map: Union[Dict[int, str], SelectorMap]):
 		"""Update the current selector map"""
-		self.selector_map = selector_map
+		if isinstance(selector_map, SelectorMap):
+			self.selector_map = selector_map.__root__
+		else:
+			self.selector_map = selector_map
 
-	def execute_action(self, action: dict, selector_map: dict):
-		print(action.keys())
-		action_name = action['action']
+	def execute_action(self, action: Union[dict, Action], selector_map: Union[dict, SelectorMap]):
+		if isinstance(action, dict):
+			action = Action(**action)
+		if isinstance(selector_map, dict):
+			selector_map = SelectorMap(__root__=selector_map)
+
+		print(action.dict().keys())
+		action_name = action.action
 		self.update_selector_map(selector_map)
 
-		if 'params' in action:
-			params = action['params']
-		else:
-			params = {}
+		params = action.params.dict() if action.params else {}
 
 		if action_name == 'search_google':
 			self.search_google(params['query'])

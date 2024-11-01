@@ -5,18 +5,22 @@ from typing import Dict, List
 from dotenv import load_dotenv
 from openai import OpenAI
 from tokencost import calculate_prompt_cost, count_string_tokens
+from src.actions.browser_actions import Action
+
+from src.llm.service import LLM
 
 
 class PlaningAgent:
 	def __init__(self, task: str, default_actions: str):
 		load_dotenv()
-		self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+		# self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 		self.model = 'gpt-4o'
+		self.llm = LLM(model=self.model)
 		self.messages = [
 			{'role': 'system', 'content': self.get_system_prompt(task, default_actions)}
 		]
 
-	def chat(self, task: str, skip_call: bool = False) -> Dict:
+	async def chat(self, task: str, skip_call: bool = False) -> Dict:
 		# TODO: include state, actions, etc.
 
 		# select next functions to call
@@ -35,9 +39,11 @@ class PlaningAgent:
 		if skip_call:
 			return {'action': 'nothing'}
 
-		response = self.client.chat.completions.create(
-			model=self.model, messages=messages, response_format={'type': 'json_object'}
-		)
+		response = await self.llm.create_chat_completion(messages, Action)
+
+		# response = self.client.chat.completions.create(
+		# 	model=self.model, messages=messages, response_format={'type': 'json_object'}
+		# )
 
 		# Only append the output message
 		self.messages.append({'role': 'assistant', 'content': response.choices[0].message.content})

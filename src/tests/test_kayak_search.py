@@ -3,14 +3,14 @@ import unittest
 
 from src.actions.browser_actions import BrowserActions
 from src.agent_interface.planing_agent import PlaningAgent
+from src.driver.service import DriverService
 from src.state_manager.state import StateManager
-from src.state_manager.utils import save_formatted_html, save_markdown
-from src.utils.selenium_utils import setup_selenium_driver
+from src.state_manager.utils import save_formatted_html
 
 
 class TestKayakSearch(unittest.TestCase):
 	def setUp(self):
-		self.driver = setup_selenium_driver(headless=False)
+		self.driver = DriverService().get_driver()
 		self.actions = BrowserActions(self.driver)
 		self.state_manager = StateManager(self.driver)
 

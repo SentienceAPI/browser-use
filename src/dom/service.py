@@ -285,6 +285,7 @@ class DomService:
 		"""
 
 		try:
+			# todo: parse responses with pydantic
 			is_visible = self.driver.execute_script(visibility_check)
 			return bool(is_visible)
 		except Exception:

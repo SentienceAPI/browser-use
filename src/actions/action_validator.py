@@ -17,7 +17,7 @@ class ActionValidator:
 		    bool: True if action was successful, False otherwise
 		"""
 		try:
-			pass
+			return True
 
 		except (TimeoutException, WebDriverException):
 			return False
@@ -33,4 +33,4 @@ class ActionValidator:
 		    bool: True if action is ambiguous, False otherwise
 		"""
 		# Implementation will use LLM to check for ambiguity
-		pass
+		return False
