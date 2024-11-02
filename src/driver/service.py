@@ -31,6 +31,8 @@ class DriverService:
 		chrome_options.add_argument('--disable-blink-features=AutomationControlled')
 		chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
 		chrome_options.add_experimental_option('useAutomationExtension', False)
+		chrome_options.add_argument('--start-maximized')
+		chrome_options.add_argument('--force-device-scale-factor=1')
 
 		# Initialize the Chrome driver
 		driver = webdriver.Chrome(
