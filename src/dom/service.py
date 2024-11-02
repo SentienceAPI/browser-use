@@ -31,21 +31,23 @@ class DomService:
 		# Parse HTML content using BeautifulSoup
 		soup = BeautifulSoup(html_content, 'html.parser')
 
-		candidate_elements: list[Tag | NavigableString] = []
-		dom_queue = list(soup.body.children) if soup.body else []
+		candidate_elements: list[tuple[Tag | NavigableString, int]] = []  # (element, depth)
+		dom_queue = [
+			(element, 0) for element in (soup.body.children if soup.body else [])
+		]  # (element, depth)
 		xpath_cache = {}
 
 		# Find candidate elements
 		while dom_queue:
-			element = dom_queue.pop()
+			element, depth = dom_queue.pop()
 			should_add_element = False
 
 			# Handle both Tag elements and text nodes
 			if isinstance(element, Tag):
 				if self._is_element_accepted(element):
-					# Add children to queue in reverse order only if element is accepted
+					# Add children to queue in reverse order with increased depth
 					for child in reversed(list(element.children)):
-						dom_queue.append(child)
+						dom_queue.append((child, depth + 1))
 
 					# Check if element is interactive or leaf element
 					if self._is_interactive_element(element) or self._is_leaf_element(element):
@@ -63,26 +65,30 @@ class DomService:
 			if should_add_element:
 				if not isinstance(element, (Tag, NavigableString)):
 					continue
-				candidate_elements.append(element)
+				candidate_elements.append((element, depth))
 
 		# Process candidates
 		selector_map: dict[int, str] = {}
 		output_string = ''
 
-		for index, element in enumerate(candidate_elements):
+		for index, (element, depth) in enumerate(candidate_elements):
+			indent = '\t' * depth  # Create indentation based on depth
+
 			xpath = xpath_cache.get(element)
 			if not xpath:
 				xpath = self._generate_xpath(element)
 				xpath_cache[element] = xpath
 
 			# Skip text nodes that are direct children of already processed elements
-			if isinstance(element, NavigableString) and element.parent in candidate_elements:
+			if isinstance(element, NavigableString) and element.parent in [
+				e for e, _ in candidate_elements
+			]:
 				continue
 
-			if isinstance(element, str):
+			if isinstance(element, NavigableString):
 				text_content = element.strip()
 				if text_content:
-					output_string += f'{index}:{text_content}\n'
+					output_string += f'{index}:{indent}{text_content}\n'
 			else:
 				tag_name = element.name
 				attributes = self._get_essential_attributes(element)
@@ -91,7 +97,7 @@ class DomService:
 				closing_tag = f'</{tag_name}>'
 				text_content = element.get_text().strip() or ''
 
-				output_string += f'{index}:{opening_tag}{text_content}{closing_tag}\n'
+				output_string += f'{index}:{indent}{opening_tag}{text_content}{closing_tag}\n'
 
 			selector_map[index] = xpath
 
