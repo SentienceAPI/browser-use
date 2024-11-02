@@ -24,7 +24,7 @@ async def test_kayak_flight_search(setup):
 
 	# Define the task
 	# task = 'Go to directly to the url ebay.com find a newly listed pre-owned man nike shoe in size 9 with free local pickup under 75 dollars.'
-	task = 'Go to directly to the url kayak.com find a flight from Zürich to Kirgistan on 2024-11-25 with return on 2024-12-09 for 2 people.'
+	task = 'Go to directly to the url kayak.com find a flight from Zürich to Bali on 2024-11-25 with return on 2024-12-09 for 2 people.'
 	default_actions = actions.get_default_actions()
 	print(f'Default actions: {default_actions}')
 
@@ -36,26 +36,27 @@ async def test_kayak_flight_search(setup):
 	for i in range(max_steps):
 		# Get current state
 		# input('\n\n\nPress Enter to continue...')
-
+		print(f'Step {i}')
 		current_state = state_manager.get_current_state()
 		save_formatted_html(current_state.interactable_elements, f'current_state_{i}.html')
-		print(f'Current state map: {current_state.selector_map}')
+		# print(f'Current state map: {current_state.selector_map}')
 		# save_markdown(current_state["main_content"], f"current_state_{i}.md")
 		# Get next action from agent
 		url_history.append(driver.current_url)
 		text = f'Elements: {current_state.interactable_elements}, Url history: {url_history}'
-		print(f'\n{text}\n')
+		# print(f'\n{text}\n')
 
 		action = await agent.chat(text, skip_call=False)
-		print(f'Selected action: {action}')
+		# print(f'Selected action: {action}')
 
 		out = actions.execute_action(action, current_state.selector_map)
+		print('')
 		if out:
 			print('Task completed')
 			break
 
 		# Wait for 1 second
-		time.sleep(1)
+		time.sleep(0.5)
 
 	else:
 		assert False, 'Failed to complete flight search task in maximum steps'

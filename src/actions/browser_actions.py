@@ -19,6 +19,8 @@ class ActionParams(BaseModel):
 class Action(BaseModel):
 	action: str
 	params: Optional[ActionParams] = None
+	goal: str
+	valuation_previous_goal: str
 
 	@property
 	def is_valid(self) -> bool:
@@ -38,8 +40,8 @@ class BrowserActions:
 		self.selector_map = selector_map
 
 	def execute_action(self, action: Action, selector_map: Dict[int, str]):
-		print(action.model_dump().keys())
-		print(action.model_dump_json())
+		# print(action.model_dump().keys())
+		print(action.model_dump_json(indent=4))
 		action_name = action.action
 		self.update_selector_map(selector_map)
 
@@ -85,10 +87,10 @@ class BrowserActions:
 			raise Exception(f'Element index {index} not found in selector map')
 
 		xpath = self.selector_map[int(index)]
-		print(f'Trying to click element with xpath: {xpath}')
+		# print(f'Trying to click element with xpath: {xpath}')
 
 		# Wait for any overlays/popups to disappear
-		time.sleep(2)  # Brief wait for page to stabilize
+		time.sleep(0.5)  # Brief wait for page to stabilize
 
 		try:
 			# Try multiple strategies to find the element

@@ -10,21 +10,23 @@ class PlaningAgent:
 		load_dotenv()
 		self.model = model
 		self.llm = LLM(model=self.model)
-		self.messages = [
+		self.system_prompt = [
 			{'role': 'system', 'content': self.get_system_prompt(task, default_actions)}
 		]
+		self.messages_all = []
+		self.messages = []
 
 	async def chat(self, task: str, skip_call: bool = False) -> Action:
 		# TODO: include state, actions, etc.
 
 		# select next functions to call
-		messages = self.messages + [{'role': 'user', 'content': task}]
+		input_messages = self.system_prompt + self.messages + [{'role': 'user', 'content': task}]
 
 		try:
 			# Calculate total cost for all messages
-			total_cost = calculate_prompt_cost(messages, self.model)
+			total_cost = calculate_prompt_cost(input_messages, self.model)
 			total_tokens = count_string_tokens(
-				' '.join([m['content'] for m in messages]), self.model
+				' '.join([m['content'] for m in input_messages]), self.model
 			)
 			print(
 				'Total prompt cost: ',
@@ -38,12 +40,16 @@ class PlaningAgent:
 		if skip_call:
 			return Action(action='nothing')
 
-		response = await self.llm.create_chat_completion(messages, Action)
+		response = await self.llm.create_chat_completion(input_messages, Action)
 
-		self.messages.append({'role': 'user', 'content': '... redacted previous state ...'})
+		self.messages.append({'role': 'user', 'content': '... execute action ...'})
 
 		# Only append the output message
 		self.messages.append({'role': 'assistant', 'content': response.model_dump_json()})
+
+		# keep newest 20 messages
+		if len(self.messages) > 20:
+			self.messages = self.messages[-20:]
 
 		return response
 
@@ -60,7 +66,7 @@ class PlaningAgent:
 		"""
 		# System prompts for the agent
 		output_format = """
-        {"action": "action_name", "params": {"param_name": "param_value"}, "goal": "short description what you want to achieve", "valuation_previous_goal": "1-10 how confident you are that you achieved your previous goal. If its the first action, put 0."}
+        {"action": "action_name", "params": {"param_name": "param_value"}, "goal": "short description what you want to achieve", "valuation_previous_goal": "Success if completed, else short sentence of why not successful."}
         """
 
 		AGENT_PROMPT = f"""
@@ -82,7 +88,7 @@ class PlaningAgent:
 
         Provide your next action based on the available actions and visible elements. 
 		Validate if the previous goal is achieved, if not, try to achieve it with the next action.
-		If you get stuck, try to find a new element that can help you achieve your goal. Or go back to try it differently.
+		If you get stuck, try to find a new element that can help you achieve your goal or if persistent, go back or reload the page.
         Respond with a valid JSON object containing the action and any required parameters and your current goal of this action.
 
         Response format:
