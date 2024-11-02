@@ -1,4 +1,5 @@
 import time
+import urllib.parse
 from typing import Dict, Optional, Union
 
 from pydantic import BaseModel
@@ -171,14 +172,14 @@ class BrowserActions:
 	# default actions
 	def search_google(self, query: str):
 		"""
-		Performs a Google search with the provided query.
+		Performs a Google search with the provided query using direct URL.
 		"""
-		# TODO: replace with search api
-		self.driver.get('https://www.google.com')
+		# Encode the query for URL
 
-		search_box = self.wait.until(EC.presence_of_element_located((By.NAME, 'q')))
-		search_box.send_keys(query)
-		search_box.submit()
+		encoded_query = urllib.parse.quote(query)
+
+		search_url = f'https://www.google.com/search?q={encoded_query}'
+		self.driver.get(search_url)
 
 	def go_to_url(self, url: str):
 		"""
