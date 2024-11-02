@@ -1,5 +1,6 @@
-from bs4 import BeautifulSoup
 import os
+
+from bs4 import BeautifulSoup
 
 
 def save_formatted_html(html_content, output_file_name):
@@ -21,6 +22,15 @@ def save_formatted_html(html_content, output_file_name):
 	# Save formatted HTML to file
 	with open('temp/' + output_file_name, 'w', encoding='utf-8') as f:
 		f.write(formatted_html)
+
+
+def save_conversation(input_messages, model_output, output_file_name):
+	if not os.path.exists('temp'):
+		os.makedirs('temp')
+	with open('temp/' + output_file_name, 'w', encoding='utf-8') as f:
+		for message in input_messages:
+			f.write(f'{message["role"]}: {message["content"]}\n')
+		f.write(f'\n\nModel output:\n{model_output}')
 
 
 def save_markdown(markdown_content, output_file_name):

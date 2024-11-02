@@ -2,6 +2,10 @@ import time
 import urllib.parse
 from typing import Dict, Optional, Union
 
+import requests
+
+# MainContentExtractor
+from main_content_extractor import MainContentExtractor
 from pydantic import BaseModel
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -11,10 +15,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 # Pydantic Models
 class ActionParams(BaseModel):
-	query: Optional[str] = None
+	text: Optional[str] = None
 	url: Optional[str] = None
 	id: Optional[int] = None
-	text: Optional[str] = None
 
 
 class Action(BaseModel):
@@ -28,6 +31,12 @@ class Action(BaseModel):
 		if self.action == 'click':
 			return self.params is not None and self.params.id is not None
 		return True
+
+
+class ActionResult(BaseModel):
+	done: bool = False
+	extracted_content: str = ''
+	user_input: str = ''
 
 
 class BrowserActions:
@@ -47,10 +56,10 @@ class BrowserActions:
 		self.update_selector_map(selector_map)
 
 		# params = action.params.model_dump() if action.params else {}
-
+		output = ActionResult()
 		if action_name == 'search_google':
-			if action.params and action.params.query:
-				self.search_google(action.params.query)
+			if action.params and action.params.text:
+				self.search_google(action.params.text)
 			else:
 				raise Exception('Query is required for search_google action')
 		elif action_name == 'nothing':
@@ -63,8 +72,9 @@ class BrowserActions:
 		elif action_name == 'go_back':
 			self.go_back()
 		elif action_name == 'done':
-			return True
-		elif action_name == 'input':
+			output.done = True
+
+		elif action_name == 'text_input':
 			if action.params and action.params.id and action.params.text:
 				self.input_text_by_index(action.params.id, action.params.text)
 			else:
@@ -74,10 +84,27 @@ class BrowserActions:
 				self.click_element_by_index(action.params.id)
 			else:
 				raise Exception('Id is required for click action')
+		elif action_name == 'ask_user':
+			if action.params and action.params.text:
+				output.user_input = self.ask_user(action.params.text)
+			else:
+				raise Exception('Question is required for ask_user action')
+		elif action_name == 'send_user_text':
+			if action.params and action.params.text:
+				self.send_user_text(action.params.text)
+			else:
+				raise Exception('Text is required for send_user_text action')
+		elif action_name == 'extract_page_content':
+			output.extracted_content = self.extract_page_content()
 		# elif action_name == 'accept_cookies':
 		#     self.driver.accept_cookies()
 		else:
 			raise Exception(f'Action {action_name} not found')
+
+		return output
+
+	def done(self):
+		return True
 
 	def click_element_by_index(self, index: int):
 		"""
@@ -145,29 +172,31 @@ class BrowserActions:
 			raise Exception(f'Failed to click element with index {index}, xpath: {xpath}')
 
 	def input_text_by_index(self, index: int, text: str):
-		"""
-		Inputs text into a field using its index from the selector map.
-		"""
 		if int(index) not in self.selector_map:
 			raise Exception(f'Element index {index} not found in selector map')
 
 		xpath = self.selector_map[int(index)]
 
 		try:
-			# First try: Direct XPath
-			element = self.wait.until(EC.presence_of_element_located((By.XPATH, xpath)))
-		except:
-			try:
-				# Second try: Simplified XPath
-				clean_xpath = xpath.replace('[document]/', '')
-				if not clean_xpath.startswith('//'):
-					clean_xpath = '//' + clean_xpath
-				element = self.wait.until(EC.presence_of_element_located((By.XPATH, clean_xpath)))
-			except:
-				raise Exception(f'Failed to find input element with index {index}, xpath: {xpath}')
+			# Wait for element to be both present and interactable
+			element = self.wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
 
-		element.clear()
-		element.send_keys(text)
+			# Scroll element into view
+			self.driver.execute_script(
+				"arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", element
+			)
+			time.sleep(0.5)  # Wait for scroll
+
+			# Try to clear using JavaScript first
+			self.driver.execute_script("arguments[0].value = '';", element)
+
+			# Then send keys
+			element.send_keys(text)
+
+		except Exception as e:
+			raise Exception(
+				f'Failed to input text into element with index {index}, xpath: {xpath}. Error: {str(e)}'
+			)
 
 	# default actions
 	def search_google(self, query: str):
@@ -193,14 +222,47 @@ class BrowserActions:
 		"""
 		self.driver.back()
 
+	def extract_page_content(self):
+		"""
+		Extracts the page content.
+		"""
+		try:
+			response = requests.get(self.driver.current_url)
+			response.encoding = 'utf-8'
+			content = response.text
+			extracted_markdown = MainContentExtractor.extract(content, output_format='markdown')
+			return extracted_markdown
+		except Exception as e:
+			print(f'Error getting main content: {e}')
+			return ''
+
+	def ask_user(self, question: str):
+		"""
+		Talks to the user.
+		"""
+		print(question)
+		print('--------------------------------\nInput: \n ')
+		user_input = input()
+		return user_input
+
+	def send_user_text(self, text: str):
+		"""
+		Sends text to the user.
+		"""
+		print(text)
+		print('--------------------------------')
+
 	def get_default_actions(self) -> dict[str, str]:
 		return {
-			'search_google': 'query: string',
+			'search_google': 'text: string',
 			'go_to_url': 'url: string',
 			'done': '',
 			'go_back': '',
 			'click': 'id: int',
-			'input': 'id: int, text: string',
+			'text_input': 'id: int, text: string',
 			'nothing': '',
+			'extract_page_content': '',
+			'ask_user': 'text: string',
+			'send_user_text': 'text: string',
 		}
 		# 'accept_cookies': '',

@@ -3,6 +3,7 @@ from tokencost import calculate_prompt_cost, count_string_tokens
 
 from src.actions.browser_actions import Action
 from src.llm.service import LLM, AvailableModel
+from src.state_manager.utils import save_conversation
 
 
 class PlaningAgent:
@@ -16,7 +17,9 @@ class PlaningAgent:
 		self.messages_all = []
 		self.messages = []
 
-	async def chat(self, task: str, skip_call: bool = False) -> Action:
+	async def chat(
+		self, task: str, skip_call: bool = False, store_conversation: str = ''
+	) -> Action:
 		# TODO: include state, actions, etc.
 
 		# select next functions to call
@@ -42,7 +45,10 @@ class PlaningAgent:
 
 		response = await self.llm.create_chat_completion(input_messages, Action)
 
-		self.messages.append({'role': 'user', 'content': '... execute action ...'})
+		# self.messages.append({'role': 'user', 'content': '... execute action ...'})
+		if store_conversation:
+			# save conversation
+			save_conversation(input_messages, response.model_dump_json(), store_conversation)
 
 		# Only append the output message
 		self.messages.append({'role': 'assistant', 'content': response.model_dump_json()})
@@ -52,6 +58,9 @@ class PlaningAgent:
 			self.messages = self.messages[-20:]
 
 		return response
+
+	def update_system_prompt(self, user_input: str):
+		self.system_prompt.append({'role': 'user', 'content': user_input})
 
 	def get_system_prompt(self, task: str, default_actions: str) -> str:
 		"""
@@ -70,32 +79,34 @@ class PlaningAgent:
         """
 
 		AGENT_PROMPT = f"""
-        You are an AI agent that helps users navigate websites and perform actions. Your task is: {task}
+        You are an AI agent that helps users interact with websites. 
 
-        Available actions:
+		Your input are all the interactive elements of the current page from which you can choose which to click or input. They will be provided like this:
+		0:Chat-Fenster
+		1:Skip to Main Content.
+		2:<a href="https://www.example.de/"></a>
+		3:<button>Book now</button>
+		4:<div>Book now</div>
+		26:<span>Other interactive elements</span>
+
+		Additional you get a list of previous actions and their results.
+
+		Available actions:
         {default_actions}
 
-		Input:
-        The page content will be provided as numbered elements like this:
-        0:<button>Click me</button>
-        1:<a href="/test">Link text</a>
-        2:Some visible text content
-        
-		Additional you get a list of previous actions and their results.
-        To interact with elements, use their index number in the click() or input() actions. Make 100% sure that the index is ALWAYS present if you use the click() or input() actions.
-        Each element has a unique index that can be used to interact with it. 
-		
+        To interact with elements, use their index number in the click() or text_input() actions. 
 
-        Provide your next action based on the available actions and visible elements. 
+		If you need more than the interactive elements from the page you can use the extract_content action.
+
 		Validate if the previous goal is achieved, if not, try to achieve it with the next action.
 		If you get stuck, try to find a new element that can help you achieve your goal or if persistent, go back or reload the page.
-        Respond with a valid JSON object containing the action and any required parameters and your current goal of this action.
+        Respond with a valid JSON object containing the action, any required parameters and your current goal of this action.
+		You can send_user_text or ask_user for clarification if you are completely stuck. 
 
         Response format:
         {output_format}
 
         """
-
 		return AGENT_PROMPT
 
 		# Remember:
