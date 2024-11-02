@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from tokencost import calculate_prompt_cost, count_string_tokens
+from tokencost import calculate_all_costs_and_tokens
 
 from src.actions.browser_actions import Action
 from src.llm.service import LLM, AvailableModel
@@ -25,23 +25,8 @@ class PlaningAgent:
 		# select next functions to call
 		input_messages = self.system_prompt + self.messages + [{'role': 'user', 'content': task}]
 
-		try:
-			# Calculate total cost for all messages
-			total_cost = calculate_prompt_cost(input_messages, self.model)
-			total_tokens = count_string_tokens(
-				' '.join([m['content'] for m in input_messages]), self.model
-			)
-			print(
-				'Total prompt cost: ',
-				f'${total_cost:,.2f}',
-				'Total tokens: ',
-				f'{total_tokens:,}',
-			)
-		except Exception as e:
-			print(f'Error calculating prompt cost: {e}')
-
 		if skip_call:
-			return Action(action='nothing')
+			return Action(action='nothing', goal='', valuation_previous_goal='')
 
 		response = await self.llm.create_chat_completion(input_messages, Action)
 
@@ -52,6 +37,17 @@ class PlaningAgent:
 
 		# Only append the output message
 		self.messages.append({'role': 'assistant', 'content': response.model_dump_json()})
+
+		try:
+			# Calculate total cost for all messages
+			output = calculate_all_costs_and_tokens(
+				input_messages, response.model_dump_json(), self.model
+			)
+			print(
+				f'Total cost: ${output["prompt_cost"] + output["completion_cost"]:,.4f} for {output["prompt_tokens"] + output["completion_tokens"]} tokens'
+			)
+		except Exception as e:
+			print(f'Error calculating prompt cost: {e}')
 
 		# keep newest 20 messages
 		if len(self.messages) > 20:

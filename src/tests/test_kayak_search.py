@@ -24,8 +24,12 @@ async def test_kayak_flight_search(setup):
 	driver, actions, state_manager = setup
 
 	# Create run folder
-	timestamp = 'bali_flight_search'
-	run_folder = f'temp/run_{timestamp}'
+	# timestamp = 'meta'
+	# task = 'apply for a job at meta internship for ml research in sunny vale'
+	timestamp = 'flight_search_bali_to_kirgistan'
+	task = 'find a flight from Bali to Kirgistan on 2024-11-25 for 2 people one way.'
+
+	run_folder = f'temp/{timestamp}'
 	if not os.path.exists(run_folder):
 		os.makedirs(run_folder)
 
@@ -33,15 +37,14 @@ async def test_kayak_flight_search(setup):
 	print('🚀 Starting flight search task')
 	print('=' * 50)
 
-	task = ' find a flight from Zürich to (ask the user for the destination) on 2024-11-25 with return on 2024-12-09 for 2 people.'
 	default_actions = actions.get_default_actions()
 
 	agent = PlaningAgent(task, str(default_actions), 'gpt-4o')
 	agent.update_system_prompt(f'Your task is: {task}')
 
 	url_history = []
-	extracted_content = ''
-	user_input = ''
+	output = ActionResult()
+
 	max_steps = 50
 	for i in range(max_steps):
 		print(f'\n📍 Step {i+1}')
@@ -54,11 +57,13 @@ async def test_kayak_flight_search(setup):
 		url_history.append(driver.current_url)
 
 		state_text = f'Current interactive elements: {current_state.interactable_elements}'
-		# , Url history: {url_history}
-		if extracted_content:
-			state_text += f', Extracted content: {extracted_content}'
-		if user_input:
-			state_text += f', User input: {user_input}'
+		if output.extracted_content:
+			state_text += f', Extracted content: {output.extracted_content}'
+		if output.user_input:
+			agent.update_system_prompt(output.user_input)
+			state_text += f', User input: {output.user_input}'
+		if output.error:
+			state_text += f', Previous action error: {output.error}'
 
 		action = await agent.chat(
 			state_text, skip_call=False, store_conversation=f'{run_folder}/conversation_{i}.txt'
@@ -67,21 +72,12 @@ async def test_kayak_flight_search(setup):
 
 		# check if output is exactly True (boolean)
 		if output.done:
-			print('\n' + '=' * 50)
-			print('✅ Task completed successfully!')
-			print('=' * 50)
 			break
 
-		if output.extracted_content:
-			extracted_content = output.extracted_content
-		if output.user_input:
-			# update system prompt
-			agent.update_system_prompt(output.user_input)
-			user_input = output.user_input
 		time.sleep(0.5)
 
 	else:
 		print('\n' + '=' * 50)
 		print('❌ Failed to complete task in maximum steps')
 		print('=' * 50)
-		assert False, 'Failed to complete flight search task in maximum steps'
+		assert False, 'Failed to complete task in maximum steps'

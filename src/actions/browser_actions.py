@@ -21,10 +21,10 @@ class ActionParams(BaseModel):
 
 
 class Action(BaseModel):
+	valuation_previous_goal: str
+	goal: str
 	action: str
 	params: Optional[ActionParams] = None
-	goal: str
-	valuation_previous_goal: str
 
 	@property
 	def is_valid(self) -> bool:
@@ -37,6 +37,7 @@ class ActionResult(BaseModel):
 	done: bool = False
 	extracted_content: str = ''
 	user_input: str = ''
+	error: Optional[str] = None
 
 
 class BrowserActions:
@@ -57,53 +58,60 @@ class BrowserActions:
 
 		# params = action.params.model_dump() if action.params else {}
 		output = ActionResult()
-		if action_name == 'search_google':
-			if action.params and action.params.text:
-				self.search_google(action.params.text)
-			else:
-				raise Exception('Query is required for search_google action')
-		elif action_name == 'nothing':
-			pass
-		elif action_name == 'go_to_url':
-			if action.params and action.params.url:
-				self.go_to_url(action.params.url)
-			else:
-				raise Exception('Url is required for go_to_url action')
-		elif action_name == 'go_back':
-			self.go_back()
-		elif action_name == 'done':
-			output.done = True
+		try:
+			if action_name == 'search_google':
+				if action.params and action.params.text:
+					self.search_google(action.params.text)
+				else:
+					raise Exception('Query is required for search_google action')
+			elif action_name == 'nothing':
+				pass
+			elif action_name == 'go_to_url':
+				if action.params and action.params.url:
+					self.go_to_url(action.params.url)
+				else:
+					raise Exception('Url is required for go_to_url action')
+			elif action_name == 'go_back':
+				self.go_back()
+			elif action_name == 'done':
+				output.done = True
 
-		elif action_name == 'text_input':
-			if action.params and action.params.id and action.params.text:
-				self.input_text_by_index(action.params.id, action.params.text)
+			elif action_name == 'text_input':
+				if action.params and action.params.id and action.params.text:
+					self.input_text_by_index(action.params.id, action.params.text)
+				else:
+					raise Exception('Id and text are required for input action')
+			elif action_name == 'click':
+				if action.params and (action.params.id or action.params.id == 0):
+					self.click_element_by_index(action.params.id)
+				else:
+					raise Exception('Id is required for click action')
+			elif action_name == 'ask_user':
+				if action.params and action.params.text:
+					output.user_input = self.ask_user(action.params.text)
+				else:
+					raise Exception('Question is required for ask_user action')
+			elif action_name == 'send_user_text':
+				if action.params and action.params.text:
+					self.send_user_text(action.params.text)
+				else:
+					raise Exception('Text is required for send_user_text action')
+			elif action_name == 'extract_page_content':
+				output.extracted_content = self.extract_page_content()
+			# elif action_name == 'accept_cookies':
+			#     self.driver.accept_cookies()
 			else:
-				raise Exception('Id and text are required for input action')
-		elif action_name == 'click':
-			if action.params and (action.params.id or action.params.id == 0):
-				self.click_element_by_index(action.params.id)
-			else:
-				raise Exception('Id is required for click action')
-		elif action_name == 'ask_user':
-			if action.params and action.params.text:
-				output.user_input = self.ask_user(action.params.text)
-			else:
-				raise Exception('Question is required for ask_user action')
-		elif action_name == 'send_user_text':
-			if action.params and action.params.text:
-				self.send_user_text(action.params.text)
-			else:
-				raise Exception('Text is required for send_user_text action')
-		elif action_name == 'extract_page_content':
-			output.extracted_content = self.extract_page_content()
-		# elif action_name == 'accept_cookies':
-		#     self.driver.accept_cookies()
-		else:
-			raise Exception(f'Action {action_name} not found')
+				raise Exception(f'Action {action_name} not found')
+
+		except Exception as e:
+			output.error = str(e)
 
 		return output
 
 	def done(self):
+		print('\n' + '=' * 50)
+		print('✅ Task completed successfully!')
+		print('=' * 50)
 		return True
 
 	def click_element_by_index(self, index: int):
