@@ -22,41 +22,42 @@ async def setup():
 async def test_kayak_flight_search(setup):
 	driver, actions, state_manager = setup
 
-	# Define the task
-	# task = 'Go to directly to the url ebay.com find a newly listed pre-owned man nike shoe in size 9 with free local pickup under 75 dollars.'
-	task = 'Go to directly to the url kayak.com find a flight from Zürich to Bali on 2024-11-25 with return on 2024-12-09 for 2 people.'
+	print('\n' + '=' * 50)
+	print('🚀 Starting flight search task')
+	print('=' * 50)
+
+	task = (
+		' find a flight from Zürich to Bali on 2024-11-25 with return on 2024-12-09 for 2 people.'
+	)
 	default_actions = actions.get_default_actions()
-	print(f'Default actions: {default_actions}')
 
 	agent = PlaningAgent(task, str(default_actions), 'gpt-4o')
 	url_history = []
 
-	# Main interaction loop
 	max_steps = 50
 	for i in range(max_steps):
-		# Get current state
-		# input('\n\n\nPress Enter to continue...')
-		print(f'Step {i}')
+		print(f'\n📍 Step {i+1}')
 		current_state = state_manager.get_current_state()
 		save_formatted_html(current_state.interactable_elements, f'current_state_{i}.html')
 		# print(f'Current state map: {current_state.selector_map}')
 		# save_markdown(current_state["main_content"], f"current_state_{i}.md")
 		# Get next action from agent
 		url_history.append(driver.current_url)
-		text = f'Elements: {current_state.interactable_elements}, Url history: {url_history}'
-		# print(f'\n{text}\n')
+		state_text = f'Elements: {current_state.interactable_elements}, Url history: {url_history}'
 
-		action = await agent.chat(text, skip_call=False)
-		# print(f'Selected action: {action}')
-
+		action = await agent.chat(state_text, skip_call=False)
 		out = actions.execute_action(action, current_state.selector_map)
-		print('')
+
 		if out:
-			print('Task completed')
+			print('\n' + '=' * 50)
+			print('✅ Task completed successfully!')
+			print('=' * 50)
 			break
 
-		# Wait for 1 second
 		time.sleep(0.5)
 
 	else:
+		print('\n' + '=' * 50)
+		print('❌ Failed to complete task in maximum steps')
+		print('=' * 50)
 		assert False, 'Failed to complete flight search task in maximum steps'
