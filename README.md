@@ -53,3 +53,15 @@ Single file; if too long → split into multiple files (one prompt per file or s
 ### Routers.py
 
 Never split into more than one file
+
+
+
+## Requirements
+
+```bash
+uv pip install -r requirements.txt
+```
+
+```bash
+uv pipreqs --ignore .venv --force 
+```
