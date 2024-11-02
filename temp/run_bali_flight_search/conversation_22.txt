@@ -1,0 +1,198 @@
+system: 
+        You are an AI agent that helps users interact with websites. 
+
+		Your input are all the interactive elements of the current page from which you can choose which to click or input. 
+		
+		This is how an input looks like:
+		1:Interactive element
+		3:	<a href="https://www.example.de/"></a>
+		9:<div>Interactive element</div>
+
+		Additional you get a list of previous actions and their results.
+
+		Available actions:
+        {'search_google': 'text: string', 'go_to_url': 'url: string', 'done': '', 'go_back': '', 'click': 'id: int', 'text_input': 'id: int, text: string', 'nothing': '', 'extract_page_content': '', 'ask_user': 'text: string', 'send_user_text': 'text: string'}
+
+		In the beginning the list will be empty so you have to do google search or go to url.
+        To interact with elements, use their index number in the click() or text_input() actions. Make sure the index exists in the list of interactive elements.
+		If you need more than the interactive elements from the page you can use the extract_content action.
+
+		Validate if the previous goal is achieved, if not, try to achieve it with the next action.
+		If you get stuck, try to find a new element that can help you achieve your goal or if persistent, go back or reload the page.
+        Respond with a valid JSON object containing the action, any required parameters and your current goal of this action.
+		You can send_user_text or ask_user for clarification if you are completely stuck. 
+
+		Make sure after filling a field if you need to click a suggestion or if the field is already filled.
+		
+        Response format:
+        
+        {"action": "action_name", "params": {"param_name": "param_value"}, "goal": "short description what you want to achieve", "valuation_previous_goal": "Success if completed, else short sentence of why not successful."}
+        
+
+        
+user: Your task is:  find a flight from Zürich to (ask the user for the destination) on 2024-11-25 with return on 2024-12-09 for 2 people.
+user: bali
+assistant: {"action":"click","params":{"text":null,"url":null,"id":19},"goal":"Navigate to the ebookers.ch webpage to look for flight options from Zürich to Bali.","valuation_previous_goal":"Unsuccessful as I need to navigate to a specific website to find flights."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":76},"goal":"Search for flight options from Zürich to Bali on the specified dates.","valuation_previous_goal":"Success as we have navigated to the ebookers.ch website, where flight options can be searched."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":10},"goal":"Accept cookies to proceed smoothly with the flight search process.","valuation_previous_goal":"Necessary to accept or decline cookies to proceed with using the website effectively."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":26},"goal":"Open the departure airport selection to set it to Zürich (ZRH).","valuation_previous_goal":"I need to set both departure and destination airports, along with the travel dates and number of passengers."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":2},"goal":"Start booking travel options to search for a flight from Zürich to Bali","valuation_previous_goal":"The previous attempt to accept cookies or interact with certain elements was not necessary at this stage."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":7},"goal":"Select flights search to find roundtrip flight from Zürich to Bali.","valuation_previous_goal":"To accurately initiate a search for flights from Zürich to Bali, updated travel dates and passenger count are essential."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":2},"goal":"Navigate to the flight booking section on the ebookers website.","valuation_previous_goal":"The redirection was successful but did not progress towards setting specific flight details yet."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":7},"goal":"Select 'Flüge' to search for flights specifically.","valuation_previous_goal":"Attempted to find the correct section for flights but did not land on the specific flight search page."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":16},"goal":"Select roundtrip flight option to ensure booking for both departure and return flights.","valuation_previous_goal":"Successfully navigated to the main flights page focusing on roundtrip options."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":41},"goal":"Search for flights from Zürich to Bali on the specified dates (2024-11-25 - 2024-12-09) for 2 passengers.","valuation_previous_goal":"Successfully navigated to the relevant search interface for roundtrip flights."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":33},"goal":"Click on the departure field to input Zürich as the departure location.","valuation_previous_goal":"Success as we are ready to set up flight search parameters."}
+assistant: {"action":"text_input","params":{"text":"Zürich","url":null,"id":36},"goal":"Enter Zürich as the departure location for the flight search.","valuation_previous_goal":"Successfully identified the correct field for inputting the departure location."}
+assistant: {"action":"text_input","params":{"text":"Zürich","url":null,"id":36},"goal":"Input Zürich as the departure location to set the flight search parameters correctly.","valuation_previous_goal":"Not successful because I need to input and confirm the correct departure and arrival details in the designated input fields."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":38},"goal":"Select Zürich as the departure location.","valuation_previous_goal":"Managed to reach the point of entering and selecting Zürich for departure."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":39},"goal":"Expand the field to input Bali as the destination for the flight.","valuation_previous_goal":"Successfully set Zürich as the departure location, ready to input destination details."}
+assistant: {"action":"text_input","params":{"text":"Bali","url":null,"id":43},"goal":"Input Bali as the destination for the flight search.","valuation_previous_goal":"Successfully set Zürich as the departure location, ready to input destination details."}
+assistant: {"action":"text_input","params":{"text":"Bali","url":null,"id":43},"goal":"Enter Bali as the destination for the flight search.","valuation_previous_goal":"Successfully selected Zürich as the departure location, now setting destination."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":45},"goal":"Confirm Bali, Indonesia as the flight destination.","valuation_previous_goal":"Entered Bali which shows suggestion, needs confirmation."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":44},"goal":"Open date selection to update the departure and return dates for the trip.","valuation_previous_goal":"Successfully set both departure and destination locations, now need to set the travel dates."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":98},"goal":"Select departure date on November 25, 2024, from the calendar for the flight to Bali.","valuation_previous_goal":"Successfully set the origin and destination, now proceeding to adjust the correct travel dates."}
+user: Current interactive elements: 0:	Kalender geöffnet. Wähle aus den Tabellen unten einen Reisezeitraum aus., 
+      Sa., 16. Nov. Daten ausgewählt.
+1:																							Abreiseort
+2:																						<button aria-label="Abreiseort Zürich, Schweiz (ZRH), Zürich, Schweiz (ZRH)" aria-expanded="false">Zürich, Schweiz (ZRH)</button>
+4:																					<div id="undefined-error">Wähle aus, wo du abreist.</div>
+6:																	<button aria-label="Ausgangsort und Zielort tauschen">Ausgangsort und Zielort tauschen</button>
+7:																							Zielort
+8:																						<button aria-label="Zielort Denpasar, Indonesien (DPS-Ngurah Rai Intl.), Denpasar, Indonesien (DPS-Ngurah Rai Intl.)" aria-expanded="false">Denpasar, Indonesien (DPS-Ngurah Rai Intl.)</button>
+10:																					<div id="undefined-error">Wähle aus, wohin du reist.</div>
+12:																						Daten
+13:																					25. Nov. - 26. Nov.
+14:																						<button>Mo., 25. Nov.: Daten</button>
+15:																								Mo., 25. Nov.
+16:																									: Daten
+17:																						<button>Di., 26. Nov.: Daten ausgewählt.</button>
+18:																								Di., 26. Nov.
+19:																									: Daten ausgewählt.
+20:																							Mo., 25. Nov. ausgewählt. Schließe den Kalender oder fahre fort, um das ausgewählte Datum zu ändern.
+21:																							<button>Nächster Monat</button>
+22:																									November 2024
+23:																													Montag
+24:																												<span>M</span>
+26:																													Dienstag
+27:																												<span>D</span>
+29:																													Mittwoch
+30:																												<span>M</span>
+32:																													Donnerstag
+33:																												<span>D</span>
+35:																													Freitag
+36:																												<span>F</span>
+38:																													Samstag
+39:																												<span>S</span>
+41:																													Sonntag
+42:																												<span>S</span>
+44:																												<button aria-label="2. Nov. 2024"></button>
+45:																												<button aria-label="3. Nov. 2024"></button>
+46:																												<button aria-label="4. Nov. 2024"></button>
+47:																												<button aria-label="5. Nov. 2024"></button>
+48:																												<button aria-label="6. Nov. 2024"></button>
+49:																												<button aria-label="7. Nov. 2024"></button>
+50:																												<button aria-label="8. Nov. 2024"></button>
+51:																												<button aria-label="9. Nov. 2024"></button>
+52:																												<button aria-label="10. Nov. 2024"></button>
+53:																												<button aria-label="11. Nov. 2024"></button>
+54:																												<button aria-label="12. Nov. 2024"></button>
+55:																												<button aria-label="13. Nov. 2024"></button>
+56:																												<button aria-label="14. Nov. 2024"></button>
+57:																												<button aria-label="15. Nov. 2024"></button>
+58:																												<button aria-label="16. Nov. 2024"></button>
+59:																												<button aria-label="17. Nov. 2024"></button>
+60:																												<button aria-label="18. Nov. 2024"></button>
+61:																												<button aria-label="19. Nov. 2024"></button>
+62:																												<button aria-label="20. Nov. 2024"></button>
+63:																												<button aria-label="21. Nov. 2024"></button>
+64:																												<button aria-label="22. Nov. 2024"></button>
+65:																												<button aria-label="23. Nov. 2024"></button>
+66:																												<button aria-label="24. Nov. 2024"></button>
+67:																												<button aria-label="25. Nov. 2024 zurzeit als Anreisedatum ausgewählt."></button>
+68:																												<button aria-label="26. Nov. 2024 zurzeit als Abreisedatum ausgewählt."></button>
+69:																												<button aria-label="27. Nov. 2024"></button>
+70:																												<button aria-label="28. Nov. 2024"></button>
+71:																												<button aria-label="29. Nov. 2024"></button>
+72:																												<button aria-label="30. Nov. 2024"></button>
+73:																									Dezember 2024
+74:																													Montag
+75:																												<span>M</span>
+77:																													Dienstag
+78:																												<span>D</span>
+80:																													Mittwoch
+81:																												<span>M</span>
+83:																													Donnerstag
+84:																												<span>D</span>
+86:																													Freitag
+87:																												<span>F</span>
+89:																													Samstag
+90:																												<span>S</span>
+92:																													Sonntag
+94:																												<button aria-label="1. Dez. 2024"></button>
+95:																												<button aria-label="2. Dez. 2024"></button>
+96:																												<button aria-label="3. Dez. 2024"></button>
+97:																												<button aria-label="4. Dez. 2024"></button>
+98:																												<button aria-label="5. Dez. 2024"></button>
+99:																												<button aria-label="6. Dez. 2024"></button>
+100:																												<button aria-label="7. Dez. 2024"></button>
+101:																												<button aria-label="8. Dez. 2024"></button>
+102:																												<button aria-label="9. Dez. 2024"></button>
+103:																												<button aria-label="10. Dez. 2024"></button>
+104:																												<button aria-label="11. Dez. 2024"></button>
+105:																												<button aria-label="12. Dez. 2024"></button>
+106:																												<button aria-label="13. Dez. 2024"></button>
+107:																												<button aria-label="14. Dez. 2024"></button>
+108:																												<button aria-label="15. Dez. 2024"></button>
+109:																												<button aria-label="16. Dez. 2024"></button>
+110:																												<button aria-label="17. Dez. 2024"></button>
+111:																												<button aria-label="18. Dez. 2024"></button>
+112:																												<button aria-label="19. Dez. 2024"></button>
+113:																												<button aria-label="20. Dez. 2024"></button>
+114:																												<button aria-label="21. Dez. 2024"></button>
+115:																												<button aria-label="22. Dez. 2024"></button>
+116:																												<button aria-label="23. Dez. 2024"></button>
+117:																												<button aria-label="24. Dez. 2024"></button>
+118:																												<button aria-label="25. Dez. 2024"></button>
+119:																												<button aria-label="26. Dez. 2024"></button>
+120:																												<button aria-label="27. Dez. 2024"></button>
+121:																												<button aria-label="28. Dez. 2024"></button>
+122:																												<button aria-label="29. Dez. 2024"></button>
+123:																												<button aria-label="30. Dez. 2024"></button>
+124:																												<button aria-label="31. Dez. 2024"></button>
+125:																							Mon Nov 25 2024 ausgewählt. Wähle nun ein Abreisedatum aus.
+126:																							<button aria-label="Änderungen speichern und Kalender schliessen.">Fertig</button>
+128:																			Passagiere
+129:																			1 Passagier
+130:																	Suchen
+131:																		<label>Unterkunft hinzufügen</label>
+132:																			<p>Unterkunft hinzufügen</p>
+134:																		<label>Mietwagen hinzufügen</label>
+135:																			<p>Mietwagen hinzufügen</p>
+137:								<h2>Eine Welt an Neuigkeiten</h2>
+139:																						Top-Angebote des Tages
+140:																						Entdecken Sie Ihre nächsten Ferien in den Top-Angeboten des Tages.
+141:																	<a href="https://www.ebookers.ch/billig-reisen">Top-Angebote des Tages</a>
+142:																			Top-Angebote des Tages
+143:																						Flug-Angebote
+144:																						Sichern Sie sich Ihr nächstes Abenteuer mit einem Flug.
+145:																			Flug-Angebote
+146:																						Auf zu den Nachbarn
+147:																						Die europäischen Nachbarn haben alles: Strände, Städte und Berge.
+148:																			Auf zu den Nachbarn
+149:								<h2>Reisen ganz nach deinen Wünschen und Vorlieben</h2>
+151:																<a href="https://www.ebookers.ch/lp/deals/lastminute?langid=2055?rfrr=editorial.Last_minute.click">Last minute</a>
+152:																		Last minute
+153:																<a href="https://www.ebookers.ch/lp/deals/badeferien?langid=2055?rfrr=editorial.Badeferien.click">Badeferien</a>
+154:																		Badeferien
+155:																<a href="https://www.ebookers.ch/lp/deals/familienurlaub?langid=2055?rfrr=editorial.Familienurlaub.click">Familienurlaub</a>
+156:																		Familienurlaub
+157:																<a href="https://www.ebookers.ch/lp/deals/citybreaks?langid=2055?rfrr=editorial.Städtereisen.click">Städtereisen</a>
+158:																		Städtereisen
+159:																<a href="https://www.ebookers.ch/lp/deals/ausfluge-fur-zwei?langid=2055?rfrr=editorial.Reisen_zu zweit.click">Reisen zu zweit</a>
+160:																		Reisen zu zweit
+, Url history: ['data:,', 'data:,', 'https://www.google.com/search?q=flight%20from%20Z%C3%BCrich%20to%20Bali%20on%202024-11-25%20with%20return%20on%202024-12-09%20for%202%20people%20booking%20site.', 'https://www.ebookers.ch/lp/fluege/zrh/dps/von-zurich-nach-ngurah-rai-intl?locale=de_CH&siteid=70472&nis=6', 'https://www.ebookers.ch/Flights-Search?flight-type=on&mode=search&trip=roundtrip&leg1=from%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cto%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cdeparture%3A16.11.2024TANYT&options=cabinclass%3Aeconomy&leg2=from%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cto%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cdeparture%3A17.11.2024TANYT&passengers=children%3A0%2Cadults%3A1%2Cseniors%3A0%2Cinfantinlap%3AY&fromDate=16.11.2024&toDate=17.11.2024&d1=2024-11-16&d2=2024-11-17', 'https://www.ebookers.ch/Flights-Search?flight-type=on&mode=search&trip=roundtrip&leg1=from%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cto%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cdeparture%3A16.11.2024TANYT&options=cabinclass%3Aeconomy&leg2=from%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cto%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cdeparture%3A17.11.2024TANYT&passengers=children%3A0%2Cadults%3A1%2Cseniors%3A0%2Cinfantinlap%3AY&fromDate=16.11.2024&toDate=17.11.2024&d1=2024-11-16&d2=2024-11-17', 'https://www.ebookers.ch/Flights-Search?flight-type=on&mode=search&trip=roundtrip&leg1=from%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cto%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cdeparture%3A16.11.2024TANYT&options=cabinclass%3Aeconomy&leg2=from%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cto%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cdeparture%3A17.11.2024TANYT&passengers=children%3A0%2Cadults%3A1%2Cseniors%3A0%2Cinfantinlap%3AY&fromDate=16.11.2024&toDate=17.11.2024&d1=2024-11-16&d2=2024-11-17', 'https://www.ebookers.ch/Flights-Search?flight-type=on&mode=search&trip=roundtrip&leg1=from%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cto%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cdeparture%3A16.11.2024TANYT&options=cabinclass%3Aeconomy&leg2=from%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cto%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cdeparture%3A17.11.2024TANYT&passengers=children%3A0%2Cadults%3A1%2Cseniors%3A0%2Cinfantinlap%3AY&fromDate=16.11.2024&toDate=17.11.2024&d1=2024-11-16&d2=2024-11-17', 'https://www.ebookers.ch/Fluege', 'https://www.ebookers.ch/Fluege', 'https://www.ebookers.ch/Fluege', 'https://www.ebookers.ch/Fluege', 'https://www.ebookers.ch/Fluege', 'https://www.ebookers.ch/Fluege?pwaDialog=search-location-dialog-origin_select-1', 'https://www.ebookers.ch/Fluege?pwaDialog=search-location-dialog-origin_select-1', 'https://www.ebookers.ch/Fluege?pwaDialog=search-location-dialog-origin_select-1', 'https://www.ebookers.ch/Fluege', 'https://www.ebookers.ch/Fluege?pwaDialog=search-location-dialog-destination_select-2', 'https://www.ebookers.ch/Fluege?pwaDialog=search-location-dialog-destination_select-2', 'https://www.ebookers.ch/Fluege?pwaDialog=search-location-dialog-destination_select-2', 'https://www.ebookers.ch/Fluege', 'https://www.ebookers.ch/Fluege', 'https://www.ebookers.ch/Fluege'], User input: bali
+
+
+Model output:
+{"action":"click","params":{"text":null,"url":null,"id":21},"goal":"Navigate to the next month in the calendar to select the correct return date in December 2024.","valuation_previous_goal":"Unsuccessful because the calendar needs to be navigated to December for return date selection."}

@@ -1,0 +1,123 @@
+system: 
+        You are an AI agent that helps users interact with websites. 
+
+		Your input are all the interactive elements of the current page from which you can choose which to click or input. 
+		
+		This is how an input looks like:
+		1:Interactive element
+		3:	<a href="https://www.example.de/"></a>
+		9:<div>Interactive element</div>
+
+		Additional you get a list of previous actions and their results.
+
+		Available actions:
+        {'search_google': 'text: string', 'go_to_url': 'url: string', 'done': '', 'go_back': '', 'click': 'id: int', 'text_input': 'id: int, text: string', 'nothing': '', 'extract_page_content': '', 'ask_user': 'text: string', 'send_user_text': 'text: string'}
+
+		In the beginning the list will be empty so you have to do google search or go to url.
+        To interact with elements, use their index number in the click() or text_input() actions. Make sure the index exists in the list of interactive elements.
+		If you need more than the interactive elements from the page you can use the extract_content action.
+
+		Validate if the previous goal is achieved, if not, try to achieve it with the next action.
+		If you get stuck, try to find a new element that can help you achieve your goal or if persistent, go back or reload the page.
+        Respond with a valid JSON object containing the action, any required parameters and your current goal of this action.
+		You can send_user_text or ask_user for clarification if you are completely stuck. 
+
+		Make sure after filling a field if you need to click a suggestion or if the field is already filled.
+		
+        Response format:
+        
+        {"action": "action_name", "params": {"param_name": "param_value"}, "goal": "short description what you want to achieve", "valuation_previous_goal": "Success if completed, else short sentence of why not successful."}
+        
+
+        
+user: Your task is:  find a flight from Zürich to (ask the user for the destination) on 2024-11-25 with return on 2024-12-09 for 2 people.
+user: bali
+assistant: {"action":"click","params":{"text":null,"url":null,"id":2},"goal":"Start booking travel options to search for a flight from Zürich to Bali","valuation_previous_goal":"The previous attempt to accept cookies or interact with certain elements was not necessary at this stage."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":7},"goal":"Select flights search to find roundtrip flight from Zürich to Bali.","valuation_previous_goal":"To accurately initiate a search for flights from Zürich to Bali, updated travel dates and passenger count are essential."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":2},"goal":"Navigate to the flight booking section on the ebookers website.","valuation_previous_goal":"The redirection was successful but did not progress towards setting specific flight details yet."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":7},"goal":"Select 'Flüge' to search for flights specifically.","valuation_previous_goal":"Attempted to find the correct section for flights but did not land on the specific flight search page."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":16},"goal":"Select roundtrip flight option to ensure booking for both departure and return flights.","valuation_previous_goal":"Successfully navigated to the main flights page focusing on roundtrip options."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":41},"goal":"Search for flights from Zürich to Bali on the specified dates (2024-11-25 - 2024-12-09) for 2 passengers.","valuation_previous_goal":"Successfully navigated to the relevant search interface for roundtrip flights."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":33},"goal":"Click on the departure field to input Zürich as the departure location.","valuation_previous_goal":"Success as we are ready to set up flight search parameters."}
+assistant: {"action":"text_input","params":{"text":"Zürich","url":null,"id":36},"goal":"Enter Zürich as the departure location for the flight search.","valuation_previous_goal":"Successfully identified the correct field for inputting the departure location."}
+assistant: {"action":"text_input","params":{"text":"Zürich","url":null,"id":36},"goal":"Input Zürich as the departure location to set the flight search parameters correctly.","valuation_previous_goal":"Not successful because I need to input and confirm the correct departure and arrival details in the designated input fields."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":38},"goal":"Select Zürich as the departure location.","valuation_previous_goal":"Managed to reach the point of entering and selecting Zürich for departure."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":39},"goal":"Expand the field to input Bali as the destination for the flight.","valuation_previous_goal":"Successfully set Zürich as the departure location, ready to input destination details."}
+assistant: {"action":"text_input","params":{"text":"Bali","url":null,"id":43},"goal":"Input Bali as the destination for the flight search.","valuation_previous_goal":"Successfully set Zürich as the departure location, ready to input destination details."}
+assistant: {"action":"text_input","params":{"text":"Bali","url":null,"id":43},"goal":"Enter Bali as the destination for the flight search.","valuation_previous_goal":"Successfully selected Zürich as the departure location, now setting destination."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":45},"goal":"Confirm Bali, Indonesia as the flight destination.","valuation_previous_goal":"Entered Bali which shows suggestion, needs confirmation."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":44},"goal":"Open date selection to update the departure and return dates for the trip.","valuation_previous_goal":"Successfully set both departure and destination locations, now need to set the travel dates."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":98},"goal":"Select departure date on November 25, 2024, from the calendar for the flight to Bali.","valuation_previous_goal":"Successfully set the origin and destination, now proceeding to adjust the correct travel dates."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":21},"goal":"Navigate to the next month in the calendar to select the correct return date in December 2024.","valuation_previous_goal":"Unsuccessful because the calendar needs to be navigated to December for return date selection."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":85},"goal":"Select December 9, 2024, as the return date to complete flight search dates setup.","valuation_previous_goal":"Successfully navigated to the December calendar, and now selecting the appropriate return date."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":140},"goal":"To save the selected dates of November 25, 2024, to December 9, 2024, and close the calendar.","valuation_previous_goal":"Partially successful, since dates were navigated and selected but need confirmation to be set."}
+assistant: {"action":"go_back","params":null,"goal":"Go back to the previous page to ensure proper date setup and confirmation for the flight search.","valuation_previous_goal":"Unsuccessful in progressing towards booking details, possibly due to a navigation oversight or need to reconfigure search parameters."}
+user: Current interactive elements: 0:								Skip to Main Content.
+1:									<a href="https://www.ebookers.ch/"></a>
+2:												<button>Reisen buchenReisen buchen</button>
+3:													<div>Reisen buchen</div>
+5:											<a href="https://ebk.app.link/?~customer_ad_set_name=EBOOKERS-CH&~customer_ad_name=SEO.U.GOOGLE.COM&~customer_campaign=BRAND&~customer_placement=EBK-NAVBAR-DESKTOP-CTADESKTOP&~placement_id=page.Flight-Search-Roundtrip.Out&%24desktop_url=https%3A%2F%2Fwww.ebookers.ch%2Fapp&custom_web_attribute=1df9d22a-3127-4d17-a150-9c8928ad9f61&%24canonical_url=https%3A%2F%2Fwww.ebookers.ch%2FFlights-Search%3Fd1%3D2024-11-16%26d2%3D2024-11-17%26flight-type%3Don%26fromDate%3D16.11.2024%26leg1%3Dfrom%253AZ%25C3%25BCrich%252C%2520Schweiz%2520%2528ZRH%2529%252Cto%253ADenpasar%252C%2520Indonesien%2520%2528DPS-Ngurah%2520Rai%2520Intl.%2529%252Cdeparture%253A16.11.2024TANYT%26leg2%3Dfrom%253ADenpasar%252C%2520Indonesien%2520%2528DPS-Ngurah%2520Rai%2520Intl.%2529%252Cto%253AZ%25C3%25BCrich%252C%2520Schweiz%2520%2528ZRH%2529%252Cdeparture%253A17.11.2024TANYT%26mode%3Dsearch%26options%3Dcabinclass%253Aeconomy%26passengers%3Dchildren%253A0%252Cadults%253A1%252Cseniors%253A0%252Cinfantinlap%253AY%26toDate%3D17.11.2024%26trip%3Droundtrip" aria-label="Download the app">App herunterladen</a>
+6:												<div>App herunterladen</div>
+8:										<a href="https://apps.expediapartnercentral.com/de_DE/list?utm_medium=referral&utm_source=wwwebookersch-de_CH&utm_campaign=direct&utm_contentewd=pwa-header-btn&siteId=70472&tpid=70472&eapid=0&langId=2055&utm_term=direct&lasttouchMktgcode=direct">Unterkunft registrieren</a>
+10:										<a href="/p/support.htm">Hilfe</a>
+12:										<a href="/trips">Meine Reisen</a>
+14:												<button>Anmelden</button>
+16:											<button>Hin- und Rückflug</button>
+17:														<span>Hin- und Rückflug</span>
+19:											<button>1 Reisender</button>
+20:														<span>1 Reisender</span>
+22:											<button>Economy Class</button>
+23:														<span>Economy Class</span>
+25:																		Abflughafen
+26:																	<button aria-label="Abflughafen Zürich (ZRH), Zürich (ZRH)" aria-expanded="false">Zürich (ZRH)</button>
+28:																		Abflughafen
+29:																		Abflughafen
+30:													<button></button>
+31:																		Zielflughafen
+32:																	<button aria-label="Zielflughafen Denpasar (DPS-Ngurah Rai Intl.), Denpasar (DPS-Ngurah Rai Intl.)" aria-expanded="false">Denpasar (DPS-Ngurah Rai Intl.)</button>
+34:																		Zielflughafen
+35:																		Zielflughafen
+36:																				Hinflug
+37:																		<button id="start-date-ROUND_TRIP-0-btn" aria-label="Hinflug 16. Nov.">16. Nov.</button>
+39:																				Rückflug
+40:																		<button id="end-date-ROUND_TRIP-0-btn" aria-label="Rückflug 17. Nov.">17. Nov.</button>
+42:														<button>Suchen</button>
+44:											<h3>Filtern nach</h3>
+46:															Zwischenstopps
+47:															<h4>Zwischenstopps</h4>
+49:															<h4>Ab</h4>
+51:																		<label>1 Zwischenstopp (13)</label>
+52:																			<p>1 Zwischenstopp (13)</p>
+53:															<div>CHF 928</div>
+55:																		<label>2+ Zwischenstopps (14)</label>
+56:																			<p>2+ Zwischenstopps (14)</p>
+57:															<div>CHF 1'188</div>
+59:															Fluggesellschaft
+60:															<h4>Fluggesellschaft</h4>
+62:															<h4>Ab</h4>
+64:																					<label>Garuda Indonesia (6)</label>
+65:																						<p>Garuda Indonesia (6)</p>
+66:																		<div>CHF 1'268</div>
+68:																					<label>Swiss International Air Lines (6)</label>
+69:																						<p>Swiss International Air Lines (6)</p>
+70:																		<div>CHF 1'688</div>
+72:																					<label>Air France (5)</label>
+73:																						<p>Air France (5)</p>
+74:																		<div>CHF 1'188</div>
+76:																					<label>Singapore Airlines (5)</label>
+77:																						<p>Singapore Airlines (5)</p>
+78:																		<div>CHF 2'282</div>
+80:																					<label>Qatar Airways (3)</label>
+81:																						<p>Qatar Airways (3)</p>
+82:																		<div>CHF 1'611</div>
+84:																					<label>Thai Airways International (3)</label>
+85:																						<p>Thai Airways International (3)</p>
+86:																		<div>CHF 1'663</div>
+88:																					<label>EVA Airways (2)</label>
+89:																						<p>EVA Airways (2)</p>
+90:																		<div>CHF 2'466</div>
+, Url history: ['data:,', 'data:,', 'https://www.google.com/search?q=flight%20from%20Z%C3%BCrich%20to%20Bali%20on%202024-11-25%20with%20return%20on%202024-12-09%20for%202%20people%20booking%20site.', 'https://www.ebookers.ch/lp/fluege/zrh/dps/von-zurich-nach-ngurah-rai-intl?locale=de_CH&siteid=70472&nis=6', 'https://www.ebookers.ch/Flights-Search?flight-type=on&mode=search&trip=roundtrip&leg1=from%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cto%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cdeparture%3A16.11.2024TANYT&options=cabinclass%3Aeconomy&leg2=from%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cto%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cdeparture%3A17.11.2024TANYT&passengers=children%3A0%2Cadults%3A1%2Cseniors%3A0%2Cinfantinlap%3AY&fromDate=16.11.2024&toDate=17.11.2024&d1=2024-11-16&d2=2024-11-17', 'https://www.ebookers.ch/Flights-Search?flight-type=on&mode=search&trip=roundtrip&leg1=from%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cto%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cdeparture%3A16.11.2024TANYT&options=cabinclass%3Aeconomy&leg2=from%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cto%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cdeparture%3A17.11.2024TANYT&passengers=children%3A0%2Cadults%3A1%2Cseniors%3A0%2Cinfantinlap%3AY&fromDate=16.11.2024&toDate=17.11.2024&d1=2024-11-16&d2=2024-11-17', 'https://www.ebookers.ch/Flights-Search?flight-type=on&mode=search&trip=roundtrip&leg1=from%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cto%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cdeparture%3A16.11.2024TANYT&options=cabinclass%3Aeconomy&leg2=from%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cto%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cdeparture%3A17.11.2024TANYT&passengers=children%3A0%2Cadults%3A1%2Cseniors%3A0%2Cinfantinlap%3AY&fromDate=16.11.2024&toDate=17.11.2024&d1=2024-11-16&d2=2024-11-17', 'https://www.ebookers.ch/Flights-Search?flight-type=on&mode=search&trip=roundtrip&leg1=from%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cto%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cdeparture%3A16.11.2024TANYT&options=cabinclass%3Aeconomy&leg2=from%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cto%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cdeparture%3A17.11.2024TANYT&passengers=children%3A0%2Cadults%3A1%2Cseniors%3A0%2Cinfantinlap%3AY&fromDate=16.11.2024&toDate=17.11.2024&d1=2024-11-16&d2=2024-11-17', 'https://www.ebookers.ch/Fluege', 'https://www.ebookers.ch/Fluege', 'https://www.ebookers.ch/Fluege', 'https://www.ebookers.ch/Fluege', 'https://www.ebookers.ch/Fluege', 'https://www.ebookers.ch/Fluege?pwaDialog=search-location-dialog-origin_select-1', 'https://www.ebookers.ch/Fluege?pwaDialog=search-location-dialog-origin_select-1', 'https://www.ebookers.ch/Fluege?pwaDialog=search-location-dialog-origin_select-1', 'https://www.ebookers.ch/Fluege', 'https://www.ebookers.ch/Fluege?pwaDialog=search-location-dialog-destination_select-2', 'https://www.ebookers.ch/Fluege?pwaDialog=search-location-dialog-destination_select-2', 'https://www.ebookers.ch/Fluege?pwaDialog=search-location-dialog-destination_select-2', 'https://www.ebookers.ch/Fluege', 'https://www.ebookers.ch/Fluege', 'https://www.ebookers.ch/Fluege', 'https://www.ebookers.ch/Fluege', 'https://www.ebookers.ch/Fluege', 'https://www.ebookers.ch/Fluege', 'https://www.ebookers.ch/Flights-Search?flight-type=on&mode=search&trip=roundtrip&leg1=from%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cto%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cdeparture%3A16.11.2024TANYT&options=cabinclass%3Aeconomy&leg2=from%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cto%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cdeparture%3A17.11.2024TANYT&passengers=children%3A0%2Cadults%3A1%2Cseniors%3A0%2Cinfantinlap%3AY&fromDate=16.11.2024&toDate=17.11.2024&d1=2024-11-16&d2=2024-11-17'], User input: bali
+
+
+Model output:
+{"action":"click","params":{"text":null,"url":null,"id":37},"goal":"Change departure date of flight to 2024-11-25","valuation_previous_goal":"Unsuccessful as the current dates default to November without user preference."}

@@ -1,0 +1,41 @@
+system: 
+        You are an AI agent that helps users navigate websites and perform actions. 
+
+        Available actions:
+        {'search_google': 'query: string', 'go_to_url': 'url: string', 'done': '', 'go_back': '', 'click': 'id: int', 'input': 'id: int, text: string', 'nothing': '', 'extract_page_content': '', 'talk_to_user': 'text: string, wait_for_input: bool'}
+
+		Input:
+        The page content will be provided as numbered elements like this:
+        0:<button>Click me</button>
+        1:<a href="/test">Link text</a>
+        2:Some visible text content
+        
+		Additional you get a list of previous actions and their results.
+        To interact with elements, use their index number in the click() or input() actions. Make 100% sure that the index is ALWAYS present if you use the click() or input() actions.
+        Each element has a unique index that can be used to interact with it. 
+		
+
+        Provide your next action based on the available actions and visible elements. 
+		Validate if the previous goal is achieved, if not, try to achieve it with the next action.
+		If you get stuck, try to find a new element that can help you achieve your goal or if persistent, go back or reload the page.
+        Respond with a valid JSON object containing the action and any required parameters and your current goal of this action.
+
+        Response format:
+        
+        {"action": "action_name", "params": {"param_name": "param_value"}, "goal": "short description what you want to achieve", "valuation_previous_goal": "Success if completed, else short sentence of why not successful."}
+        
+
+        
+user: Your task is:  find a flight from Zürich to Bali on 2024-11-25 with return on 2024-12-09 for 2 people.
+assistant: {"action":"search_google","params":{"query":"Flight from Zürich to Bali on 2024-11-25 return on 2024-12-09 for 2 people booking site like Expedia or Skyscanner or Google Flights or Kayak or similar sites.","url":null,"id":null,"text":null},"goal":"Search for a flight booking website to find flights from Zürich to Bali.","valuation_previous_goal":"No goal set as this is the first action."}
+assistant: {"action":"click","params":{"query":null,"url":null,"id":29,"text":null},"goal":"Access Skyscanner to find flights from Zürich to Bali.","valuation_previous_goal":"Search results successfully found potential booking sites."}
+assistant: {"action":"click","params":{"query":null,"url":null,"id":16,"text":null},"goal":"Navigate to the flights section on Skyscanner to enter flight details.","valuation_previous_goal":"Successfully arrived at the Skyscanner page for flights."}
+user: Elements: 0:<section>Are you a person or a robot?</section>
+2:<section>Please don’t take this personally - some scripts and bots are remarkably lifelike these days!</section>
+4:<section>Still having problems accessing the page? Try checking you have JavaScript and cookies turned on and that your browser isn’t blocking them from loading.</section>
+6:<section>5b394610-98fe-11ef-bc83-0fa50be25b01</section>
+, Url history: ['data:,', 'https://www.google.com/search?q=Flight%20from%20Z%C3%BCrich%20to%20Bali%20on%202024-11-25%20return%20on%202024-12-09%20for%202%20people%20booking%20site%20like%20Expedia%20or%20Skyscanner%20or%20Google%20Flights%20or%20Kayak%20or%20similar%20sites.', 'https://www.skyscanner.ch/ch/en-gb/chf/routes/zrh/dps/zurich-to-bali-denpasar.html', 'https://www.skyscanner.ch/sttc/px/captcha-v2/index.html?url=L2ZsaWdodHM/&uuid=5b394610-98fe-11ef-bc83-0fa50be25b01&vid=581c1880-98fe-11ef-9bb2-f3e953931cde']
+
+
+Model output:
+{"action":"go_back","params":{"query":null,"url":null,"id":null,"text":null},"goal":"Return to the previous page to bypass the CAPTCHA.","valuation_previous_goal":"Encountered a CAPTCHA page, unable to proceed."}

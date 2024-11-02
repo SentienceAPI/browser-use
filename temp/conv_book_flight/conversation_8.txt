@@ -1,0 +1,88 @@
+system: 
+        You are an AI agent that helps users navigate websites and perform actions. 
+
+        Available actions:
+        {'search_google': 'query: string', 'go_to_url': 'url: string', 'done': '', 'go_back': '', 'click': 'id: int', 'input': 'id: int, text: string', 'nothing': '', 'extract_page_content': '', 'talk_to_user': 'text: string, wait_for_input: bool'}
+
+		Input:
+        The page content will be provided as numbered elements like this:
+        0:<button>Click me</button>
+        1:<a href="/test">Link text</a>
+        2:Some visible text content
+        
+		Additional you get a list of previous actions and their results.
+        To interact with elements, use their index number in the click() or input() actions. Make 100% sure that the index is ALWAYS present if you use the click() or input() actions.
+        Each element has a unique index that can be used to interact with it. 
+		
+
+        Provide your next action based on the available actions and visible elements. 
+		Validate if the previous goal is achieved, if not, try to achieve it with the next action.
+		If you get stuck, try to find a new element that can help you achieve your goal or if persistent, go back or reload the page.
+        Respond with a valid JSON object containing the action and any required parameters and your current goal of this action.
+
+        Response format:
+        
+        {"action": "action_name", "params": {"param_name": "param_value"}, "goal": "short description what you want to achieve", "valuation_previous_goal": "Success if completed, else short sentence of why not successful."}
+        
+
+        
+user: Your task is:  find a flight from Zürich to Bali on 2024-11-25 with return on 2024-12-09 for 2 people.
+assistant: {"action":"search_google","params":{"query":"Flight from Zürich to Bali on 2024-11-25 return on 2024-12-09 for 2 people booking site like Expedia or Skyscanner or Google Flights or Kayak or similar sites.","url":null,"id":null,"text":null},"goal":"Search for a flight booking website to find flights from Zürich to Bali.","valuation_previous_goal":"No goal set as this is the first action."}
+assistant: {"action":"click","params":{"query":null,"url":null,"id":29,"text":null},"goal":"Access Skyscanner to find flights from Zürich to Bali.","valuation_previous_goal":"Search results successfully found potential booking sites."}
+assistant: {"action":"click","params":{"query":null,"url":null,"id":16,"text":null},"goal":"Navigate to the flights section on Skyscanner to enter flight details.","valuation_previous_goal":"Successfully arrived at the Skyscanner page for flights."}
+assistant: {"action":"go_back","params":{"query":null,"url":null,"id":null,"text":null},"goal":"Return to the previous page to bypass the CAPTCHA.","valuation_previous_goal":"Encountered a CAPTCHA page, unable to proceed."}
+assistant: {"action":"go_to_url","params":{"query":null,"url":"https://www.expedia.com","id":null,"text":null},"goal":"Navigate to Expedia to search for flights as an alternative to Skyscanner.","valuation_previous_goal":"Unable to bypass the CAPTCHA on Skyscanner. Returning isn't an option, a direct go-to is necessary."}
+assistant: {"action":"click","params":{"query":null,"url":null,"id":6,"text":null},"goal":"Switch to the Switzerland site for localized deals and offers on Expedia.","valuation_previous_goal":"Successfully loaded the Expedia homepage."}
+assistant: {"action":"click","params":{"query":null,"url":null,"id":11,"text":null},"goal":"Accept cookies to proceed with browsing on Expedia.","valuation_previous_goal":"Successfully navigated to the Switzerland site for localized deals and offers on Expedia."}
+assistant: {"action":"click","params":{"query":null,"url":null,"id":24,"text":null},"goal":"Select the 'Flights' section to enter travel details on Expedia.","valuation_previous_goal":"Successfully accepted cookies."}
+user: Elements: 0:Chat-Fenster
+1:Skip to Main Content.
+2:<a href="https://www.expedia.ch/"></a>
+3:<button>Reisen buchenReisen buchen</button>
+4:<div>Reisen buchen</div>
+6:<a href="https://expe.app.link/?~customer_ad_set_name=EXPEDIA-CH&~customer_ad_name=DIRECT.REFERRAL&~customer_campaign=BRAND&~customer_placement=BEX-NAVBAR-DESKTOP-CTA-V0DESKTOP&~placement_id=Homepage&%24desktop_url=https%3A%2F%2Fwww.expedia.ch%2Fapp&custom_web_attribute=c9b04316-d97e-4041-bdeb-da6bebdc6299&%24canonical_url=https%3A%2F%2Fwww.expedia.ch%2F%3Fadobe_mc%3DMCMID%253D61891063655409774422942702316072382611%257CMCORGID%253DC00802BE5330A8350A490D4C%252540AdobeOrg%257CTS%253D1730540380" aria-label="Download the app">App herunterladen</a>
+7:<div>App herunterladen</div>
+9:<button>Deutsch</button>
+11:<a href="https://apps.expediapartnercentral.com/de_DE/list?utm_medium=referral&utm_source=wwwexpediach-de_CH&utm_campaign=direct&utm_contentewd=pwa-header-btn&siteId=72&tpid=72&eapid=0&langId=2055&utm_term=direct&lasttouchMktgcode=direct">Unterkunft registrieren</a>
+13:<a href="/helpcenter/">Hilfe</a>
+15:<a href="/trips">Meine Reisen</a>
+17:<a href="/inbox/notifications">Communication Center icon</a>
+18:<button>Communication Center icon</button>
+19:<button>Anmelden</button>
+21:Reisen mit Expedia: Hotels, günstige Flüge, Mietwagen, Events & Tickets und Flug+Hotel-Angebote suchen
+22:<a href="/Hotels">Unterkünfte</a>
+23:<span>Unterkünfte</span>
+25:<a href="/Flights">Flüge</a>
+26:<span>Flüge</span>
+28:<a href="/Cars">Mietwagen</a>
+29:<span>Mietwagen</span>
+31:<a href="/Vacation-Packages">Reisepakete</a>
+32:<span>Reisepakete</span>
+34:<a href="/Activities">Aktivitäten</a>
+35:<span>Aktivitäten</span>
+37:<span>Mitglieder sparen 10% oder mehr bei über 100.000 Hotels auf der ganzen Welt, wenn sie angemeldet sind.</span>
+39:<button id="managedBannerPrimaryCTA">Jetzt anmelden</button>
+40:<div>Jetzt anmelden</div>
+42:<h2>Entdecke deine neue Lieblingsunterkunft</h2>
+44:<a href="https://www.expedia.ch/Hotel-Search?destination=Schweiz&regionId=174&latLong=47.381962%2C8.539648&rooms=1&adults=2&startDate=2024-11-16&d1=2024-11-16&endDate=2024-11-18&d2=2024-11-18&amenities=SPA_ON_SITE">Suche nach Unterkünften mit Wellness vor Ort</a>
+45:Suche nach Unterkünften mit Wellness vor Ort
+46:<a href="https://www.expedia.ch/Hotel-Search?destination=Schweiz&regionId=174&latLong=47.381962%2C8.539648&rooms=1&adults=2&startDate=2024-11-16&d1=2024-11-16&endDate=2024-11-18&d2=2024-11-18&amenities=PETS">Suche nach haustierfreundlichen Unterkünften</a>
+47:Suche nach haustierfreundlichen Unterkünften
+48:<a href="https://www.expedia.ch/Hotel-Search?destination=Schweiz&regionId=174&latLong=47.381962%2C8.539648&rooms=1&adults=2&startDate=2024-11-16&d1=2024-11-16&endDate=2024-11-18&d2=2024-11-18&amenities=POOL">Suche nach Unterkünften mit Pool</a>
+49:Suche nach Unterkünften mit Pool
+50:<a href="https://www.expedia.ch/Hotel-Search?destination=Schweiz&regionId=174&latLong=47.381962%2C8.539648&rooms=1&adults=2&startDate=2024-11-16&d1=2024-11-16&endDate=2024-11-18&d2=2024-11-18&amenities=HOT_TUB">Suche nach Unterkünften mit Whirlpool</a>
+51:Suche nach Unterkünften mit Whirlpool
+52:<a href="https://www.expedia.ch/Hotel-Search?destination=Schweiz&regionId=174&latLong=47.381962%2C8.539648&rooms=1&adults=2&startDate=2024-11-16&d1=2024-11-16&endDate=2024-11-18&d2=2024-11-18&lodging=HOTEL_RESORT">Suche nach Resorts</a>
+53:Suche nach Resorts
+54:Suche nach Chalets
+55:Suche nach Aparthotels
+56:Suche nach Villen
+57:Suche nach Apartments
+58:Nach Ferienwohnungen suchen
+59:Suche nach familienfreundlichen Unterkünften
+60:Suche nach Unterkünften mit Wasserpark
+, Url history: ['data:,', 'https://www.google.com/search?q=Flight%20from%20Z%C3%BCrich%20to%20Bali%20on%202024-11-25%20return%20on%202024-12-09%20for%202%20people%20booking%20site%20like%20Expedia%20or%20Skyscanner%20or%20Google%20Flights%20or%20Kayak%20or%20similar%20sites.', 'https://www.skyscanner.ch/ch/en-gb/chf/routes/zrh/dps/zurich-to-bali-denpasar.html', 'https://www.skyscanner.ch/sttc/px/captcha-v2/index.html?url=L2ZsaWdodHM/&uuid=5b394610-98fe-11ef-bc83-0fa50be25b01&vid=581c1880-98fe-11ef-9bb2-f3e953931cde', 'https://www.skyscanner.ch/sttc/px/captcha-v2/index.html?url=L2NoL2VuLWdiL2NoZi9yb3V0ZXMvenJoL2Rwcy96dXJpY2gtdG8tYmFsaS1kZW5wYXNhci5odG1sPw==&uuid=5b394610-98fe-11ef-bc83-0fa50be25b01&vid=581c1880-98fe-11ef-9bb2-f3e953931cde', 'https://www.expedia.com/', 'https://www.expedia.ch/?adobe_mc=MCMID%3D61891063655409774422942702316072382611%7CMCORGID%3DC00802BE5330A8350A490D4C%2540AdobeOrg%7CTS%3D1730540380', 'https://www.expedia.ch/?adobe_mc=MCMID%3D61891063655409774422942702316072382611%7CMCORGID%3DC00802BE5330A8350A490D4C%2540AdobeOrg%7CTS%3D1730540380', 'https://www.expedia.ch/?adobe_mc=MCMID%3D61891063655409774422942702316072382611%7CMCORGID%3DC00802BE5330A8350A490D4C%2540AdobeOrg%7CTS%3D1730540380']
+
+
+Model output:
+{"action":"click","params":{"query":null,"url":null,"id":25,"text":null},"goal":"Open the Flights section to begin searching for flights on Expedia.","valuation_previous_goal":"Successfully navigated to the main page of Expedia Switzerland."}

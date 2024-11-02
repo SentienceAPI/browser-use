@@ -1,0 +1,188 @@
+system: 
+        You are an AI agent that helps users interact with websites. 
+
+		Your input are all the interactive elements of the current page from which you can choose which to click or input. 
+		
+		This is how an input looks like:
+		1:Interactive element
+		3:	<a href="https://www.example.de/"></a>
+		9:<div>Interactive element</div>
+
+		Additional you get a list of previous actions and their results.
+
+		Available actions:
+        {'search_google': 'text: string', 'go_to_url': 'url: string', 'done': '', 'go_back': '', 'click': 'id: int', 'text_input': 'id: int, text: string', 'nothing': '', 'extract_page_content': '', 'ask_user': 'text: string', 'send_user_text': 'text: string'}
+
+		In the beginning the list will be empty so you have to do google search or go to url.
+        To interact with elements, use their index number in the click() or text_input() actions. Make sure the index exists in the list of interactive elements.
+		If you need more than the interactive elements from the page you can use the extract_content action.
+
+		Validate if the previous goal is achieved, if not, try to achieve it with the next action.
+		If you get stuck, try to find a new element that can help you achieve your goal or if persistent, go back or reload the page.
+        Respond with a valid JSON object containing the action, any required parameters and your current goal of this action.
+		You can send_user_text or ask_user for clarification if you are completely stuck. 
+
+		Make sure after filling a field if you need to click a suggestion or if the field is already filled.
+		
+        Response format:
+        
+        {"action": "action_name", "params": {"param_name": "param_value"}, "goal": "short description what you want to achieve", "valuation_previous_goal": "Success if completed, else short sentence of why not successful."}
+        
+
+        
+user: Your task is:  find a flight from Zürich to (ask the user for the destination) on 2024-11-25 with return on 2024-12-09 for 2 people.
+user: bali
+assistant: {"action":"ask_user","params":{"text":"Please provide the destination city for the flight you want to book from Zürich.","url":null,"id":null},"goal":"Get the user to specify the destination city for the flight.","valuation_previous_goal":"Unable to proceed without knowing the destination city."}
+assistant: {"action":"search_google","params":{"text":"flight from Zürich to Bali on 2024-11-25 with return on 2024-12-09 for 2 people booking site.","url":null,"id":null},"goal":"Find a website to book a flight from Zürich to Bali on the specified dates.","valuation_previous_goal":"Success as the destination input was successfully obtained from the user."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":19},"goal":"Navigate to the ebookers.ch webpage to look for flight options from Zürich to Bali.","valuation_previous_goal":"Unsuccessful as I need to navigate to a specific website to find flights."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":76},"goal":"Search for flight options from Zürich to Bali on the specified dates.","valuation_previous_goal":"Success as we have navigated to the ebookers.ch website, where flight options can be searched."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":10},"goal":"Accept cookies to proceed smoothly with the flight search process.","valuation_previous_goal":"Necessary to accept or decline cookies to proceed with using the website effectively."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":26},"goal":"Open the departure airport selection to set it to Zürich (ZRH).","valuation_previous_goal":"I need to set both departure and destination airports, along with the travel dates and number of passengers."}
+assistant: {"action":"click","params":{"text":null,"url":null,"id":2},"goal":"Start booking travel options to search for a flight from Zürich to Bali","valuation_previous_goal":"The previous attempt to accept cookies or interact with certain elements was not necessary at this stage."}
+user: Current interactive elements: 0:								Skip to Main Content.
+1:									<a href="https://www.ebookers.ch/"></a>
+2:												<button>Reisen buchenReisen buchen</button>
+3:													<div>Reisen buchen</div>
+5:															<a href="/Hotels" aria-label="Hotels">HotelsHotels</a>
+6:																	Hotels
+7:															<a href="/Fluege" aria-label="Flüge">FlügeFlüge</a>
+8:																	Flüge
+9:															<a href="/mietwagen" aria-label="Mietwagen">MietwagenMietwagen</a>
+10:																	Mietwagen
+11:															<a href="/Flug-und-Hotel" aria-label="Reisepakete">ReisepaketeReisepakete</a>
+12:																	Reisepakete
+13:															<a href="/aktivitaeten" aria-label="Aktivitäten">AktivitätenAktivitäten</a>
+14:																	Aktivitäten
+15:															<a href="/ferienwohnungen" aria-label="Ferienwohnungen">FerienwohnungenFerienwohnungen</a>
+16:																	Ferienwohnungen
+17:															<a href="/billig-reisen" aria-label="Top-Angebote">Top-Angebote</a>
+18:																<div>Top-Angebote</div>
+20:															<a href="/bonus" aria-label="BONUS+">BONUS+</a>
+21:																<div>BONUS+</div>
+23:															<a href="/last-minute-angebote?&langid=2055" aria-label="Last minute">Last minute</a>
+24:																<div>Last minute</div>
+26:															<a href="https://www.hotelplanner.com/Common/Services/Groups/?Brand=EBookers&Loc=de_CH" aria-label="Gruppen & Tagungen">Gruppen & Tagungen</a>
+27:																<div>Gruppen & Tagungen</div>
+29:															<a href="/app" aria-label="App">App</a>
+30:																<div>App</div>
+32:															<a href="/reise-blog/" aria-label="Blog">Blog</a>
+33:																<div>Blog</div>
+35:											<a href="https://ebk.app.link/?~customer_ad_set_name=EBOOKERS-CH&~customer_ad_name=SEO.U.GOOGLE.COM&~customer_campaign=BRAND&~customer_placement=EBK-NAVBAR-DESKTOP-CTADESKTOP&~placement_id=page.Flight-Search-Roundtrip.Out&%24desktop_url=https%3A%2F%2Fwww.ebookers.ch%2Fapp&custom_web_attribute=1df9d22a-3127-4d17-a150-9c8928ad9f61&%24canonical_url=https%3A%2F%2Fwww.ebookers.ch%2FFlights-Search%3Fd1%3D2024-11-16%26d2%3D2024-11-17%26flight-type%3Don%26fromDate%3D16.11.2024%26leg1%3Dfrom%253AZ%25C3%25BCrich%252C%2520Schweiz%2520%2528ZRH%2529%252Cto%253ADenpasar%252C%2520Indonesien%2520%2528DPS-Ngurah%2520Rai%2520Intl.%2529%252Cdeparture%253A16.11.2024TANYT%26leg2%3Dfrom%253ADenpasar%252C%2520Indonesien%2520%2528DPS-Ngurah%2520Rai%2520Intl.%2529%252Cto%253AZ%25C3%25BCrich%252C%2520Schweiz%2520%2528ZRH%2529%252Cdeparture%253A17.11.2024TANYT%26mode%3Dsearch%26options%3Dcabinclass%253Aeconomy%26passengers%3Dchildren%253A0%252Cadults%253A1%252Cseniors%253A0%252Cinfantinlap%253AY%26toDate%3D17.11.2024%26trip%3Droundtrip" aria-label="Download the app">App herunterladen</a>
+36:												<div>App herunterladen</div>
+38:										<a href="https://apps.expediapartnercentral.com/de_DE/list?utm_medium=referral&utm_source=wwwebookersch-de_CH&utm_campaign=direct&utm_contentewd=pwa-header-btn&siteId=70472&tpid=70472&eapid=0&langId=2055&utm_term=direct&lasttouchMktgcode=direct">Unterkunft registrieren</a>
+40:										<a href="/p/support.htm">Hilfe</a>
+42:										<a href="/trips">Meine Reisen</a>
+44:												<button>Anmelden</button>
+46:								Suche ändern
+47:											<button>Hin- und Rückflug</button>
+48:														<span>Hin- und Rückflug</span>
+50:											<button>1 Reisender</button>
+51:														<span>1 Reisender</span>
+53:															Economy Class
+54:																		Abflughafen
+55:																	<button aria-label="Abflughafen Zürich (ZRH), Zürich (ZRH)" aria-expanded="false">Zürich (ZRH)</button>
+57:																		Abflughafen
+58:																		Abflughafen
+59:																		Zielflughafen
+60:																		Denpasar (DPS-Ngurah Rai Intl.)
+61:																		Zielflughafen
+62:																		Zielflughafen
+63:																				Hinflug
+64:																		<button id="start-date-ROUND_TRIP-0-btn" aria-label="Hinflug 16. Nov.">16. Nov.</button>
+66:																				Rückflug
+67:																		<button id="end-date-ROUND_TRIP-0-btn" aria-label="Rückflug 17. Nov.">17. Nov.</button>
+69:														<button>Suchen</button>
+71:											<h3>Filtern nach</h3>
+73:															Zwischenstopps
+74:															<h4>Zwischenstopps</h4>
+76:																Ab
+77:																		<label>1 Zwischenstopp (13)</label>
+78:																			<p>1 Zwischenstopp (13)</p>
+79:															<div>CHF 928</div>
+81:																		<label>2+ Zwischenstopps (14)</label>
+82:																			<p>2+ Zwischenstopps (14)</p>
+83:															<div>CHF 1'188</div>
+85:															Fluggesellschaft
+86:															<h4>Fluggesellschaft</h4>
+88:																Ab
+89:																					<label>Garuda Indonesia (6)</label>
+90:																						<p>Garuda Indonesia (6)</p>
+91:																		<div>CHF 1'268</div>
+93:																					<label>Swiss International Air Lines (6)</label>
+94:																						<p>Swiss International Air Lines (6)</p>
+95:																		<div>CHF 1'688</div>
+97:																					<label>Air France (5)</label>
+98:																						<p>Air France (5)</p>
+99:																		<div>CHF 1'188</div>
+101:																					<label>Singapore Airlines (5)</label>
+102:																						<p>Singapore Airlines (5)</p>
+103:																		<div>CHF 2'282</div>
+105:																					<label>Qatar Airways (3)</label>
+106:																						<p>Qatar Airways (3)</p>
+107:																		<div>CHF 1'611</div>
+109:																					<label>Thai Airways International (3)</label>
+110:																						<p>Thai Airways International (3)</p>
+111:																		<div>CHF 1'663</div>
+113:																					<label>EVA Airways (2)</label>
+114:																						<p>EVA Airways (2)</p>
+115:																		<div>CHF 2'466</div>
+117:										Wähle deinen Hinflug nach Bali.
+118:															Aktuell: Hinflug wählen
+119:																	Hinflug wählen
+120:																	Rückflug wählen
+121:																<span>Reisedetails überprüfen</span>
+123:												Tabelle mit flexiblen Daten wird geladen.
+124:											Die angezeigten Preise enthalten Steuern und können sich je nach Verfügbarkeit ändern. Du kannst eventuelle zusätzliche Gebühren vor der Zahlung noch einmal überprüfen. Die Preise sind erst bei Buchungsabschluss endgültig.
+125:																Sortieren nach
+126:															<select id="sort-filter-dropdown-SORT">Preis (aufsteigend zu absteigend)Preis (absteigend zu aufsteigend)Dauer (kürzeste)Dauer (längste)Abreise (früheste)Abreise (späteste)Ankunft (früheste)Ankunft (späteste)</select>
+127:																Sortieren nach
+128:										Suchergebnisse
+129:															Flug mit Etihad Airways um 10:25 Uhr ab CHF 928
+130:																					10:25 Uhr–11:35 Uhr
+131:																						+1
+132:																				Zürich (ZRH) – Bali (DPS)
+133:																				18 h 10 min (1 Stopp)
+134:																				2 h 50 min in Abu Dhabi (AUH)
+135:																				Etihad Airways
+136:																					CHF 928
+137:																					CHF 928
+138:																					Hin- und Rückflug, pro Person
+139:																					Sammle CHF 9.28 in BONUS+
+140:																					Sammle CHF 9.28 in BONUS+
+141:													<button>Auswählen und Anzeigen der Tarifinformationen für den Flug mit Etihad Airways, Abflugzeit 10:25 Uhr, Abflugort Zürich, Ankunftszeit 11:35 Uhr, Ankunftsort Bali, Hin- und Rückflug, pro Person mit einem Preis von CHF 928. Landet 1 Tag später, Gesamtreisezeit von 18 Stunden und 10 Minuten, Ein Zwischenstopp, Zwischenstopp von 2 Stunden und 50 Minuten in Abu Dhabi.</button>
+142:															Auswählen und Anzeigen der Tarifinformationen für den Flug mit Etihad Airways, Abflugzeit 10:25 Uhr, Abflugort Zürich, Ankunftszeit 11:35 Uhr, Ankunftsort Bali, Hin- und Rückflug, pro Person mit einem Preis von CHF 928. Landet 1 Tag später, Gesamtreisezeit von 18 Stunden und 10 Minuten, Ein Zwischenstopp, Zwischenstopp von 2 Stunden und 50 Minuten in Abu Dhabi.
+143:															Flug mit Air France um 6:30 Uhr ab CHF 1'188
+144:																					6:30 Uhr–17:50 Uhr
+145:																						+1
+146:																				Zürich (ZRH) – Bali (DPS)
+147:																				28 h 20 min (2 Stopps)
+148:																				5 h 35 min in Paris (CDG) • 6 h 5 min in Singapur (SIN)
+149:																				Nur noch 3 Tickets auf unserer Website für
+150:																				Nur noch 3 Tickets zu diesem Preis
+151:																					CHF 1'188
+152:																					CHF 1'188
+153:																					Hin- und Rückflug, pro Person
+154:																					Sammle CHF 11.87 in BONUS+
+155:																					Sammle CHF 11.87 in BONUS+
+156:													<button>Auswählen und Anzeigen der Tarifinformationen für den Flug mit Air France, Abflugzeit 6:30 Uhr, Abflugort Zürich, Ankunftszeit 17:50 Uhr, Ankunftsort Bali, Hin- und Rückflug, pro Person mit einem Preis von CHF 1'188. Nur noch 3 Tickets zu diesem Preis. Landet 1 Tag später Gesamtreisezeit von 28 Stunden und 20 Minuten, Zwei Zwischenstopps, Zwischenstopp von 5 Stunden und 35 Minuten in Paris • Zwischenstopp von 6 Stunden und 5 Minuten in Singapur. Air France, durchgeführt von Air France und Jetstar Asia</button>
+157:															Auswählen und Anzeigen der Tarifinformationen für den Flug mit Air France, Abflugzeit 6:30 Uhr, Abflugort Zürich, Ankunftszeit 17:50 Uhr, Ankunftsort Bali, Hin- und Rückflug, pro Person mit einem Preis von CHF 1'188. Nur noch 3 Tickets zu diesem Preis. Landet 1 Tag später Gesamtreisezeit von 28 Stunden und 20 Minuten, Zwei Zwischenstopps, Zwischenstopp von 5 Stunden und 35 Minuten in Paris • Zwischenstopp von 6 Stunden und 5 Minuten in Singapur. Air France, durchgeführt von Air France und Jetstar Asia
+158:															Flug mit Air France um 10:50 Uhr ab CHF 1'266
+159:																					10:50 Uhr–17:50 Uhr
+160:																						+1
+161:																				Zürich (ZRH) – Bali (DPS)
+162:																				24 h 0 min (2 Stopps)
+163:																				1 h 15 min in Paris (CDG) • 6 h 5 min in Singapur (SIN)
+164:																				Nur noch 3 Tickets auf unserer Website für
+165:																				Nur noch 3 Tickets zu diesem Preis
+166:																					CHF 1'266
+167:																					CHF 1'266
+168:																					Hin- und Rückflug, pro Person
+169:																					Sammle CHF 12.65 in BONUS+
+170:																					Sammle CHF 12.65 in BONUS+
+171:													<button>Auswählen und Anzeigen der Tarifinformationen für den Flug mit Air France, Abflugzeit 10:50 Uhr, Abflugort Zürich, Ankunftszeit 17:50 Uhr, Ankunftsort Bali, Hin- und Rückflug, pro Person mit einem Preis von CHF 1'266. Nur noch 3 Tickets zu diesem Preis. Landet 1 Tag später Gesamtreisezeit von 24 Stunden und 0 Minuten, Zwei Zwischenstopps, Zwischenstopp von 1 Stunde und 15 Minuten in Paris • Zwischenstopp von 6 Stunden und 5 Minuten in Singapur. Air France, durchgeführt von Air France und Jetstar Asia</button>
+172:															Auswählen und Anzeigen der Tarifinformationen für den Flug mit Air France, Abflugzeit 10:50 Uhr, Abflugort Zürich, Ankunftszeit 17:50 Uhr, Ankunftsort Bali, Hin- und Rückflug, pro Person mit einem Preis von CHF 1'266. Nur noch 3 Tickets zu diesem Preis. Landet 1 Tag später Gesamtreisezeit von 24 Stunden und 0 Minuten, Zwei Zwischenstopps, Zwischenstopp von 1 Stunde und 15 Minuten in Paris • Zwischenstopp von 6 Stunden und 5 Minuten in Singapur. Air France, durchgeführt von Air France und Jetstar Asia
+, Url history: ['data:,', 'data:,', 'https://www.google.com/search?q=flight%20from%20Z%C3%BCrich%20to%20Bali%20on%202024-11-25%20with%20return%20on%202024-12-09%20for%202%20people%20booking%20site.', 'https://www.ebookers.ch/lp/fluege/zrh/dps/von-zurich-nach-ngurah-rai-intl?locale=de_CH&siteid=70472&nis=6', 'https://www.ebookers.ch/Flights-Search?flight-type=on&mode=search&trip=roundtrip&leg1=from%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cto%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cdeparture%3A16.11.2024TANYT&options=cabinclass%3Aeconomy&leg2=from%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cto%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cdeparture%3A17.11.2024TANYT&passengers=children%3A0%2Cadults%3A1%2Cseniors%3A0%2Cinfantinlap%3AY&fromDate=16.11.2024&toDate=17.11.2024&d1=2024-11-16&d2=2024-11-17', 'https://www.ebookers.ch/Flights-Search?flight-type=on&mode=search&trip=roundtrip&leg1=from%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cto%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cdeparture%3A16.11.2024TANYT&options=cabinclass%3Aeconomy&leg2=from%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cto%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cdeparture%3A17.11.2024TANYT&passengers=children%3A0%2Cadults%3A1%2Cseniors%3A0%2Cinfantinlap%3AY&fromDate=16.11.2024&toDate=17.11.2024&d1=2024-11-16&d2=2024-11-17', 'https://www.ebookers.ch/Flights-Search?flight-type=on&mode=search&trip=roundtrip&leg1=from%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cto%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cdeparture%3A16.11.2024TANYT&options=cabinclass%3Aeconomy&leg2=from%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cto%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cdeparture%3A17.11.2024TANYT&passengers=children%3A0%2Cadults%3A1%2Cseniors%3A0%2Cinfantinlap%3AY&fromDate=16.11.2024&toDate=17.11.2024&d1=2024-11-16&d2=2024-11-17', 'https://www.ebookers.ch/Flights-Search?flight-type=on&mode=search&trip=roundtrip&leg1=from%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cto%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cdeparture%3A16.11.2024TANYT&options=cabinclass%3Aeconomy&leg2=from%3ADenpasar%2C+Indonesien+%28DPS-Ngurah+Rai+Intl.%29%2Cto%3AZ%C3%BCrich%2C+Schweiz+%28ZRH%29%2Cdeparture%3A17.11.2024TANYT&passengers=children%3A0%2Cadults%3A1%2Cseniors%3A0%2Cinfantinlap%3AY&fromDate=16.11.2024&toDate=17.11.2024&d1=2024-11-16&d2=2024-11-17'], User input: bali
+
+
+Model output:
+{"action":"click","params":{"text":null,"url":null,"id":7},"goal":"Select flights search to find roundtrip flight from Zürich to Bali.","valuation_previous_goal":"To accurately initiate a search for flights from Zürich to Bali, updated travel dates and passenger count are essential."}
