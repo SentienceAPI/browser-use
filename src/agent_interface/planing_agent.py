@@ -81,21 +81,20 @@ class PlaningAgent:
 		AGENT_PROMPT = f"""
         You are an AI agent that helps users interact with websites. 
 
-		Your input are all the interactive elements of the current page from which you can choose which to click or input. They will be provided like this:
-		0:Chat-Fenster
-		1:Skip to Main Content.
-		2:<a href="https://www.example.de/"></a>
-		3:<button>Book now</button>
-		4:<div>Book now</div>
-		26:<span>Other interactive elements</span>
+		Your input are all the interactive elements of the current page from which you can choose which to click or input. 
+		
+		This is how an input looks like:
+		1:Interactive element
+		3:	<a href="https://www.example.de/"></a>
+		9:<div>Interactive element</div>
 
 		Additional you get a list of previous actions and their results.
 
 		Available actions:
         {default_actions}
 
-        To interact with elements, use their index number in the click() or text_input() actions. 
-
+		In the beginning the list will be empty so you have to do google search or go to url.
+        To interact with elements, use their index number in the click() or text_input() actions. Make sure the index exists in the list of interactive elements.
 		If you need more than the interactive elements from the page you can use the extract_content action.
 
 		Validate if the previous goal is achieved, if not, try to achieve it with the next action.
@@ -103,6 +102,8 @@ class PlaningAgent:
         Respond with a valid JSON object containing the action, any required parameters and your current goal of this action.
 		You can send_user_text or ask_user for clarification if you are completely stuck. 
 
+		Make sure after filling a field if you need to click a suggestion or if the field is already filled.
+		
         Response format:
         {output_format}
 

@@ -1,3 +1,4 @@
+import os
 import time
 
 import pytest
@@ -22,6 +23,12 @@ async def setup():
 async def test_kayak_flight_search(setup):
 	driver, actions, state_manager = setup
 
+	# Create run folder
+	timestamp = 'bali_flight_search'
+	run_folder = f'temp/run_{timestamp}'
+	if not os.path.exists(run_folder):
+		os.makedirs(run_folder)
+
 	print('\n' + '=' * 50)
 	print('🚀 Starting flight search task')
 	print('=' * 50)
@@ -39,18 +46,22 @@ async def test_kayak_flight_search(setup):
 	for i in range(max_steps):
 		print(f'\n📍 Step {i+1}')
 		current_state = state_manager.get_current_state()
-		save_formatted_html(current_state.interactable_elements, f'current_state_{i}.html')
-
+		save_formatted_html(
+			current_state.interactable_elements, f'{run_folder}/current_state_{i}.html'
+		)
+		# save normal html
+		save_formatted_html(driver.page_source, f'{run_folder}/html_{i}.html')
 		url_history.append(driver.current_url)
 
-		state_text = f'Elements: {current_state.interactable_elements}, Url history: {url_history}'
+		state_text = f'Current interactive elements: {current_state.interactable_elements}'
+		# , Url history: {url_history}
 		if extracted_content:
 			state_text += f', Extracted content: {extracted_content}'
 		if user_input:
 			state_text += f', User input: {user_input}'
 
 		action = await agent.chat(
-			state_text, skip_call=False, store_conversation=f'conversation_{i}.txt'
+			state_text, skip_call=False, store_conversation=f'{run_folder}/conversation_{i}.txt'
 		)
 		output: ActionResult = actions.execute_action(action, current_state.selector_map)
 
