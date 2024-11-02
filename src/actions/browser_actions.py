@@ -80,7 +80,7 @@ class BrowserActions:
 			else:
 				raise Exception('Id and text are required for input action')
 		elif action_name == 'click':
-			if action.params and action.params.id:
+			if action.params and (action.params.id or action.params.id == 0):
 				self.click_element_by_index(action.params.id)
 			else:
 				raise Exception('Id is required for click action')
