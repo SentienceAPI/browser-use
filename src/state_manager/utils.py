@@ -1,3 +1,4 @@
+import base64
 import os
 
 from bs4 import BeautifulSoup
@@ -34,3 +35,9 @@ def save_markdown(markdown_content, output_file_name):
 	output_path = os.path.join(output_file_name)
 	with open(output_path, 'w', encoding='utf-8') as f:
 		f.write(markdown_content)
+
+
+def encode_image(image_path):
+	"""Encode image to base64 string"""
+	with open(image_path, 'rb') as image_file:
+		return base64.b64encode(image_file.read()).decode('utf-8')

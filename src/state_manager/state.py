@@ -27,7 +27,9 @@ class StateManager:
 		self.dom_service = DomService(driver)
 		self.ob = Screenshot.Screenshot()
 
-	def get_current_state(self, run_folder: str, full_page_screenshot: bool = False) -> PageState:
+	def get_current_state(
+		self, run_folder: str, full_page_screenshot: bool = False, step: int = 0
+	) -> PageState:
 		"""
 		Retrieves current URL and interactable elements from processed HTML.
 
@@ -37,16 +39,17 @@ class StateManager:
 		processed_content = self.dom_service.get_current_state()
 
 		if full_page_screenshot:
+			# this takes longer because of scrolling
 			screenshot = self.ob.full_screenshot(
 				self.driver,
 				save_path=run_folder,
-				image_name='selenium_full_screenshot.png',
+				image_name=f'selenium_full_screenshot_{step}.png',
 				is_load_at_runtime=True,
-				load_wait_time=0,
+				load_wait_time=1,
 			)
-			screenshot = run_folder + '/selenium_full_screenshot.png'
+			screenshot = run_folder + f'/selenium_full_screenshot_{step}.png'
 		else:
-			file_name = run_folder + '/window_screenshot.png'
+			file_name = run_folder + f'/window_screenshot_{step}.png'
 			screenshot = self.driver.get_screenshot_as_file(file_name)
 			screenshot = file_name if screenshot else ''
 

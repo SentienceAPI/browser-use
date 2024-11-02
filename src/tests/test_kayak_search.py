@@ -1,3 +1,4 @@
+import base64
 import os
 import time
 
@@ -7,7 +8,7 @@ from src.actions.browser_actions import ActionResult, BrowserActions
 from src.agent_interface.planing_agent import PlaningAgent
 from src.driver.service import DriverService
 from src.state_manager.state import PageState, StateManager
-from src.state_manager.utils import save_formatted_html
+from src.state_manager.utils import encode_image, save_formatted_html
 
 
 @pytest.fixture
@@ -24,8 +25,6 @@ async def test_kayak_flight_search(setup):
 	driver, actions, state_manager = setup
 
 	# Create run folder
-	# timestamp = 'meta'
-	# task = 'apply for a job at meta internship for ml research in sunny vale'
 	timestamp = 'flight_search_bali_to_kirgistan'
 	task = 'find a flight from Bali to Kirgistan on 2024-11-25 for 2 people one way.'
 	vision = True
@@ -49,24 +48,12 @@ async def test_kayak_flight_search(setup):
 	max_steps = 50
 	for i in range(max_steps):
 		print(f'\n📍 Step {i+1}')
-		current_state: PageState = state_manager.get_current_state(run_folder)
+		current_state: PageState = state_manager.get_current_state(run_folder=run_folder, step=i)
 		save_formatted_html(
 			current_state.interactable_elements, f'{run_folder}/current_state_{i}.html'
 		)
 		# save normal html
 		save_formatted_html(driver.page_source, f'{run_folder}/html_{i}.html')
-
-		# show image and pause
-		# if vision:
-		# 	import matplotlib.pyplot as plt
-
-		# 	# read path and show image
-		# 	# image = plt.imread(current_state.screenshot)
-		# 	# # no axis
-		# 	# plt.axis('off')
-
-		# 	# plt.imshow(image)
-		# plt.pause(5)
 
 		url_history.append(driver.current_url)
 
@@ -80,7 +67,9 @@ async def test_kayak_flight_search(setup):
 			state_text += f', Previous action error: {output.error}'
 
 		action = await agent.chat(
-			state_text, skip_call=False, store_conversation=f'{run_folder}/conversation_{i}.txt'
+			state_text,
+			images=current_state.screenshot,
+			store_conversation=f'{run_folder}/conversation_{i}.txt',
 		)
 		output: ActionResult = actions.execute_action(action, current_state.selector_map)
 
