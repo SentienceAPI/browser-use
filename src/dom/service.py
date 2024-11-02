@@ -241,12 +241,19 @@ class DomService:
 			# 'class',
 			'href',
 			'src',
-			'aria-label',
-			'aria-name',
-			'aria-role',
-			'aria-description',
-			'aria-expanded',
-			'aria-haspopup',
+			'readonly',
+			'disabled',
+			'checked',
+			'selected',
+			'role',
+			'type',  # Important for inputs, buttons
+			'name',  # Important for form elements
+			'value',  # Current value of form elements
+			'placeholder',  # Helpful for understanding input purpose
+			'title',  # Additional descriptive text
+			'alt',  # Alternative text for images
+			'for',  # Important for label associations
+			'autocomplete',  # Form field behavior
 		]
 
 		# Collect essential attributes that have values
@@ -255,10 +262,15 @@ class DomService:
 			if attr in element.attrs:
 				attrs.append(f'{attr}="{element[attr]}"')
 
+		state_attributes_prefixes = (
+			'aria-',
+			'data-',
+		)
+
 		# Collect data- attributes
-		# for attr in element.attrs:
-		# 	if attr.startswith('data-'):
-		# 		attrs.append(f'{attr}="{element[attr]}"')
+		for attr in element.attrs:
+			if attr.startswith(state_attributes_prefixes):
+				attrs.append(f'{attr}="{element[attr]}"')
 
 		return ' '.join(attrs)
 
