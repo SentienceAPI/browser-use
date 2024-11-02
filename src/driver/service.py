@@ -14,29 +14,59 @@ class DriverService:
 
 	def get_driver(self) -> webdriver.Chrome:
 		"""
-		Sets up and returns a Selenium WebDriver instance.
-
-		Args:
-		    headless (bool): Whether to run browser in headless mode
+		Sets up and returns a Selenium WebDriver instance with anti-detection measures.
 
 		Returns:
 		    webdriver.Chrome: Configured Chrome WebDriver instance
 		"""
-		# Configure Chrome options
 		chrome_options = Options()
 		if self.headless:
 			chrome_options.add_argument('--headless')
 
-		# Disable automation flags
+		# Anti-detection measures
 		chrome_options.add_argument('--disable-blink-features=AutomationControlled')
 		chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
 		chrome_options.add_experimental_option('useAutomationExtension', False)
+
+		# Additional stealth settings
 		chrome_options.add_argument('--start-maximized')
-		chrome_options.add_argument('--force-device-scale-factor=1')
+		chrome_options.add_argument('--disable-extensions')
+		chrome_options.add_argument('--no-sandbox')
+		chrome_options.add_argument('--disable-infobars')
 
 		# Initialize the Chrome driver
 		driver = webdriver.Chrome(
 			service=Service(ChromeDriverManager().install()), options=chrome_options
+		)
+
+		# Execute stealth scripts
+		driver.execute_cdp_cmd(
+			'Page.addScriptToEvaluateOnNewDocument',
+			{
+				'source': """
+				Object.defineProperty(navigator, 'webdriver', {
+					get: () => undefined
+				});
+				
+				Object.defineProperty(navigator, 'languages', {
+					get: () => ['en-US', 'en']
+				});
+				
+				Object.defineProperty(navigator, 'plugins', {
+					get: () => [1, 2, 3, 4, 5]
+				});
+				
+				window.chrome = {
+					runtime: {}
+				};
+				
+				Object.defineProperty(navigator, 'permissions', {
+					get: () => ({
+						query: Promise.resolve.bind(Promise)
+					})
+				});
+			"""
+			},
 		)
 
 		return driver

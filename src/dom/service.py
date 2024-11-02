@@ -2,7 +2,7 @@
 Dom Service
 """
 
-from bs4 import BeautifulSoup, NavigableString, Tag
+from bs4 import BeautifulSoup, NavigableString, PageElement, Tag
 from pydantic import BaseModel
 from selenium import webdriver
 
@@ -31,32 +31,33 @@ class DomService:
 		# Parse HTML content using BeautifulSoup
 		soup = BeautifulSoup(html_content, 'html.parser')
 
-		candidate_elements: list[tuple[Tag | NavigableString, int]] = []  # (element, depth)
-		dom_queue = [
-			(element, 0) for element in (soup.body.children if soup.body else [])
-		]  # (element, depth)
+		candidate_elements: list[Tag | NavigableString] = []
+		dom_queue = [element for element in soup.body.children] if soup.body else []
 		xpath_cache = {}
 
 		# Find candidate elements
 		while dom_queue:
-			element, depth = dom_queue.pop()
+			element = dom_queue.pop()
 			should_add_element = False
 
 			# Handle both Tag elements and text nodes
 			if isinstance(element, Tag):
-				if self._is_element_accepted(element):
-					# Add children to queue in reverse order with increased depth
-					for child in reversed(list(element.children)):
-						dom_queue.append((child, depth + 1))
+				if not self._is_element_accepted(element):
+					# Skip element if it's not accepted
+					element.decompose()  # get rid of some memory leaks potentially
+					continue
 
-					# Check if element is interactive or leaf element
-					if self._is_interactive_element(element) or self._is_leaf_element(element):
-						if (
-							self._is_active(element)
-							and self._is_top_element(element)
-							and self._is_visible(element)
-						):
-							should_add_element = True
+				for child in element.children:
+					dom_queue.append(child)
+
+				# Check if element is interactive or leaf element
+				if self._is_interactive_element(element) or self._is_leaf_element(element):
+					if (
+						self._is_active(element)
+						and self._is_top_element(element)
+						and self._is_visible(element)
+					):
+						should_add_element = True
 
 			elif isinstance(element, NavigableString) and element.strip():
 				if self._is_visible(element):
@@ -65,15 +66,13 @@ class DomService:
 			if should_add_element:
 				if not isinstance(element, (Tag, NavigableString)):
 					continue
-				candidate_elements.append((element, depth))
+				candidate_elements.append(element)
 
 		# Process candidates
 		selector_map: dict[int, str] = {}
 		output_string = ''
 
-		for index, (element, depth) in enumerate(candidate_elements):
-			indent = '\t' * depth  # Create indentation based on depth
-
+		for index, element in enumerate(candidate_elements):
 			xpath = xpath_cache.get(element)
 			if not xpath:
 				xpath = self._generate_xpath(element)
@@ -81,27 +80,43 @@ class DomService:
 
 			# Skip text nodes that are direct children of already processed elements
 			if isinstance(element, NavigableString) and element.parent in [
-				e for e, _ in candidate_elements
+				e for e in candidate_elements
 			]:
 				continue
 
 			if isinstance(element, NavigableString):
 				text_content = element.strip()
 				if text_content:
-					output_string += f'{index}:{indent}{text_content}\n'
+					output_string += f'{index}:{text_content}\n'
 			else:
+				text_content = self._extract_text_from_all_children(element)
+
 				tag_name = element.name
 				attributes = self._get_essential_attributes(element)
 
 				opening_tag = f"<{tag_name}{' ' + attributes if attributes else ''}>"
 				closing_tag = f'</{tag_name}>'
-				text_content = element.get_text().strip() or ''
 
-				output_string += f'{index}:{indent}{opening_tag}{text_content}{closing_tag}\n'
+				output_string += f'{index}:{opening_tag}{text_content}{closing_tag}\n'
 
 			selector_map[index] = xpath
 
 		return ProcessedDomContent(output_string=output_string, selector_map=selector_map)
+
+	def _extract_text_from_all_children(self, element: Tag) -> str:
+		# Tell BeautifulSoup that button tags can contain content
+		# if not hasattr(element.parser, 'BUTTON_TAGS'):
+		# 	element.parser.BUTTON_TAGS = set()
+
+		text_content = ''
+		for child in element.descendants:
+			if isinstance(child, NavigableString):
+				current_child_text = child.strip()
+			else:
+				current_child_text = child.get_text(strip=True)
+
+			text_content += '\n' + current_child_text
+		return text_content.strip() or ''
 
 	def _is_interactive_element(self, element: Tag) -> bool:
 		"""Check if element is interactive based on tag name and attributes."""
@@ -166,7 +181,7 @@ class DomService:
 		return False
 
 	def _is_element_accepted(self, element: Tag) -> bool:
-		"""Check if element is accepted based on tag name."""
+		"""Check if element is accepted based on tag name (svg, iframe, script, style, link)."""
 		leaf_element_deny_list = {'svg', 'iframe', 'script', 'style', 'link'}
 
 		# First check if it's in deny list
