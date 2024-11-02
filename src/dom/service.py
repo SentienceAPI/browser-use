@@ -28,45 +28,63 @@ class DomService:
 		Returns:
 		    ProcessedDomContent: Processed DOM content
 		"""
-		# Parse HTML content using BeautifulSoup
 		soup = BeautifulSoup(html_content, 'html.parser')
-
 		candidate_elements: list[Tag | NavigableString] = []
-		dom_queue = [element for element in soup.body.children] if soup.body else []
 		xpath_cache = {}
 
-		# Find candidate elements
-		while dom_queue:
-			element = dom_queue.pop()
-			should_add_element = False
+		def process_element(element: PageElement) -> bool:
+			"""
+			Process element and its children, return True if this element or any of its
+			children were added to candidates
+			"""
+			has_selected_children = False
 
-			# Handle both Tag elements and text nodes
+			# Handle Tag elements
 			if isinstance(element, Tag):
 				if not self._is_element_accepted(element):
-					# Skip element if it's not accepted
-					element.decompose()  # get rid of some memory leaks potentially
-					continue
+					element.decompose()
+					return False
 
+				# Process children first (post-order traversal)
 				for child in element.children:
-					dom_queue.append(child)
+					if process_element(child):
+						has_selected_children = True
 
-				# Check if element is interactive or leaf element
-				if self._is_interactive_element(element) or self._is_leaf_element(element):
+				# Always process interactive elements regardless of children
+				is_interactive = self._is_interactive_element(element)
+				if is_interactive:
 					if (
 						self._is_active(element)
 						and self._is_top_element(element)
 						and self._is_visible(element)
 					):
-						should_add_element = True
+						candidate_elements.append(element)
+						return True
 
+				# For non-interactive elements, only add if it's a leaf and no children were selected
+				if (
+					not has_selected_children
+					and self._is_leaf_element(element)
+					and self._is_active(element)
+					and self._is_top_element(element)
+					and self._is_visible(element)
+				):
+					candidate_elements.append(element)
+					return True
+
+				return has_selected_children
+
+			# Handle text nodes
 			elif isinstance(element, NavigableString) and element.strip():
 				if self._is_visible(element):
-					should_add_element = True
+					candidate_elements.append(element)
+					return True
 
-			if should_add_element:
-				if not isinstance(element, (Tag, NavigableString)):
-					continue
-				candidate_elements.append(element)
+			return False
+
+		# Start processing from body
+		if soup.body:
+			process_element(soup.body)
 
 		# Process candidates
 		selector_map: dict[int, str] = {}
