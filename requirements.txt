@@ -17,4 +17,6 @@ Screenshot==1.0.0
 selenium==4.26.1
 tokencost==0.1.16
 webdriver-manager==4.0.2
-
+MainContentExtractor==0.0.4
+Selenium-Screenshot==2.1.0
+pytest-asyncio==0.24.0
