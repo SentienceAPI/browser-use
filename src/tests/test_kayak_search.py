@@ -1,34 +1,25 @@
-import base64
 import os
 import time
 
 import pytest
+from src.browser.service import BrowserService
+from src.planning.service import PlaningService
 
-from src.actions.browser_actions import ActionResult, BrowserActions
-from src.agent_interface.planing_agent import PlaningAgent
-from src.driver.service import DriverService
-from src.state_manager.state import PageState, StateManager
+
 from src.state_manager.utils import encode_image, save_formatted_html
+from langchain_openai import ChatOpenAI
 
 
-@pytest.fixture
-async def setup():
-	driver = DriverService().get_driver()
-	actions = BrowserActions(driver)
-	state_manager = StateManager(driver)
-	yield driver, actions, state_manager
-	driver.quit()
-
-
-@pytest.mark.skip
+# @pytest.mark.skip
 @pytest.mark.asyncio
-async def test_kayak_flight_search(setup):
-	driver, actions, state_manager = setup
+async def test_kayak_flight_search():
+	task = 'go to kayak.com andfind a flight from Bali to Kirgistan on 2024-11-25 for 2 people one way.'
+	timestamp = 'kayak_com_flight_search'
 
-	# Create run folder
-	timestamp = 'testing_prompts'
-	# task = 'go to kayak.com andfind a flight from Bali to Kirgistan on 2024-11-25 for 2 people one way.'
-	task = 'apply to a role at google for a SWE internship this summer.'
+	browser = BrowserService()
+	model = ChatOpenAI(model='gpt-4o')
+	planning_service = PlaningService(task, model, browser)
+
 	vision = True
 
 	run_folder = f'temp/{timestamp}'
