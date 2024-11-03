@@ -1,10 +1,12 @@
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import SystemMessage, HumanMessage
+
+from src.agent.views import AgentPageState
 
 
 class PlanningSystemPrompt:
-	def __init__(self, task: str, default_actions: str):
+	def __init__(self, task: str, default_action_description: str):
 		self.task = task
-		self.default_actions = default_actions
+		self.default_action_description = default_action_description
 
 	def get_system_message(self) -> SystemMessage:
 		"""
@@ -14,9 +16,9 @@ class PlanningSystemPrompt:
 		    str: Formatted system prompt
 		"""
 		# System prompts for the agent
-		output_format = """
-    {"action": "action_name", "params": {"param_name": "param_value"}, "goal": "short description what you want to achieve", "valuation_previous_goal": "Success if completed, else short sentence of why not successful."}
-    """
+		# 		output_format = """
+		# {"valuation_previous_goal": "Success if completed, else short sentence of why not successful.", "goal": "short description what you want to achieve", "action": "action_name", "params": {"param_name": "param_value"}}
+		#     """
 
 		AGENT_PROMPT = f"""
     You are an AI agent that helps users interact with websites. 
@@ -25,17 +27,19 @@ class PlanningSystemPrompt:
     
     This is how an input looks like:
     1:Interactive element
-    3:	<a href="https://www.example.de/"></a>
+    3:	<a href="https://www.ab.de/"></a>
     9:<div>Interactive element</div>
 
     Additional you get a list of previous actions and their results.
 
-    Available actions:
-    {self.default_actions}
+    Available actions (choose EXACTLY ONE, not 0 or 2):
+
+    {self.default_action_description}
 
     In the beginning the list will be empty so you have to do google search or go to url.
     To interact with elements, use their index number in the click() or text_input() actions. Make sure the index exists in the list of interactive elements.
     If you need more than the interactive elements from the page you can use the extract_content action.
+	At every step you HAVE to choose EXACTLY ONE action.
 
     Validate if the previous goal is achieved, if not, try to achieve it with the next action.
     If you get stuck, try to find a new element that can help you achieve your goal or if persistent, go back or reload the page.
@@ -43,15 +47,35 @@ class PlanningSystemPrompt:
     You can send_user_text or ask_user for clarification if you are completely stuck. 
 
     Make sure after filling a field if you need to click a suggestion or if the field is already filled.
-    
-    Response format:
-    {output_format}
-
     """
 		return SystemMessage(content=AGENT_PROMPT)
 
-	# Remember:
-	# 1. Always check if elements exist before trying to interact with them
-	# 2. Use the exact index numbers shown in the elements list
-	# 3. If you need to accept cookies, use the accept_cookies action first
-	# 4. If you can't find what you're looking for, consider scrolling or navigating to a different page
+
+class PlanningMessagePrompt:
+	def __init__(self, state: AgentPageState):
+		self.state = state
+
+	def get_user_message(self) -> HumanMessage:
+		state_description = f"""
+Currently on url: {self.state.url}
+		
+Interactive elements:
+{self.state.dom_items_to_string()}
+        """
+
+		if self.state.screenshot:
+			# Format message for vision model
+			return HumanMessage(
+				content=[
+					{'type': 'text', 'text': state_description},
+					{
+						'type': 'image_url',
+						'image_url': f'data:image/png;base64,{self.state.screenshot}',
+					},
+				]
+			)
+
+		return HumanMessage(content=state_description)
+
+	def get_message_for_history(self) -> HumanMessage:
+		return HumanMessage(content=f'Currently on url: {self.state.url}')

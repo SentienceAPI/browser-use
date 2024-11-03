@@ -90,7 +90,7 @@ class BrowserService:
 
 	def _get_driver(self) -> webdriver.Chrome:
 		if self.driver is None:
-			raise BrowserException('Driver not initialized. Call `init()` first.')
+			self.driver = self.init()
 		return self.driver
 
 	def get_updated_state(self) -> BrowserState:

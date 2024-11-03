@@ -36,6 +36,37 @@ class AgentActions(BaseModel):
 	input_text: Optional[InputTextAgentAction] = None
 	extract_page_content: Optional[Literal[True]] = None
 
+	@staticmethod
+	def description() -> str:
+		"""
+		Returns a human-readable description of available actions.
+		"""
+		return """
+- Search Google with a query
+  Example: {"search_google": {"query": "weather today"}}
+
+- Navigate directly to a URL
+  Example: {"go_to_url": {"url": "https://abc.com"}}
+
+- Do nothing/wait
+  Example: {"nothing": true}
+
+- Go back to previous page
+  Example: {"go_back": true}
+
+- Mark task as complete
+  Example: {"done": true}
+
+- Click an element by its ID
+  Example: {"click_element": {"id": 1}}
+
+- Input text into an element by its ID
+  Example: {"input_text": {"id": 1, "text": "Hello world"}}
+
+- Extract and return the page content in markdown
+  Example: {"extract_page_content": true}
+"""
+
 
 class AgentActionResult(BaseModel):
 	done: bool

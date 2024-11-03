@@ -1,79 +1,97 @@
-import decimal
-
 from dotenv import load_dotenv
+from langchain.output_parsers import PydanticOutputParser
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
-from tokencost import calculate_all_costs_and_tokens
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 
-from src.browser.service import BrowserService
-
-# from src.llm.service import LLM, AvailableModel
-from src.planning.prompts import PlanningSystemPrompt
+from src.agent.service import AgentService
+from src.agent.views import AgentActionResult, AgentPageState
+from src.planning.prompts import PlanningMessagePrompt, PlanningSystemPrompt
 from src.planning.views import PlanningAgentAction
-from src.state_manager.utils import encode_image, save_conversation
-
-from langchain.output_parsers import PydanticOutputParser
-
 
 load_dotenv()
 
 
 class PlaningService:
-	def __init__(self, task: str, model: BaseChatModel, browser: BrowserService | None = None):
+	def __init__(
+		self,
+		task: str,
+		llm: BaseChatModel,
+		agent: AgentService | None = None,
+		use_vision: bool = False,
+	):
 		"""
 		Planning service.
 
 		Args:
 			task (str): Task to be performed.
-			model (AvailableModel): Model to be used.
+			llm (AvailableModel): Model to be used.
 			browser (BrowserService | None): You can reuse an existing browser service or (automatically) create a new one.
 		"""
-		self.browser = browser or BrowserService()
+		self.agent = agent or AgentService()
 
-		self.model = model
-		# self.system_prompt = [
-		# 	{'role': 'system', 'content': PlanningSystemPrompt(task, default_actions).get_prompt()}
-		# ]
-		self.messages_all: list[BaseMessage] = []
-		self.messages: list[BaseMessage] = []
+		self.use_vision = use_vision
 
-	async def chat(
-		self, task: str, store_conversation: str = '', screenshot: str = ''
-	) -> PlanningAgentAction:
+		self.llm = llm
+		system_prompt = PlanningSystemPrompt(
+			task, self._get_action_description()
+		).get_system_message()
+		first_message = HumanMessage(content=f'Your task is: {task}')
+
+		# self.messages_all: list[BaseMessage] = []
+		self.messages: list[BaseMessage] = [system_prompt, first_message]
+
+	async def step(self) -> tuple[PlanningAgentAction, AgentActionResult]:
+		state = self.agent.get_current_state()
+		action = await self.get_next_action(state)
+
+		if action.ask_human and action.ask_human.question:
+			action = await self._take_human_input(action.ask_human.question)
+
+		result = self.agent.act(action)
+
+		return action, result
+
+	async def _take_human_input(self, question: str) -> PlanningAgentAction:
+		human_input = input(f'Human input required: {question}')
+
+		self.messages.append(HumanMessage(content=human_input))
+		# chain = (
+		# 	ChatPromptTemplate.from_messages(self.messages)
+		# 	| self.model
+		# 	| PydanticOutputParser(pydantic_object=PlanningAgentAction)
+		# )
+
+		structured_llm = self.llm.with_structured_output(PlanningAgentAction)
+		action: PlanningAgentAction = await structured_llm.ainvoke(self.messages)  # type: ignore
+
+		self.messages.append(AIMessage(content=action.model_dump_json()))
+
+		return action
+
+	async def get_next_action(self, state: AgentPageState) -> PlanningAgentAction:
 		# TODO: include state, actions, etc.
-		system_prompt = PlanningSystemPrompt(task, '{}').get_system_message()
 
-		# select next functions to call
-		if screenshot:
-			# Format message for vision model
-			new_message = HumanMessage(
-				content=[
-					{'type': 'text', 'text': task},
-					{
-						'type': 'image_url',
-						'image_url': f'data:image/png;base64,{screenshot}',
-					},
-				]
-			)
+		new_message = PlanningMessagePrompt(state).get_user_message()
 
-		else:
-			new_message = HumanMessage(content=task)
+		input_messages = self.messages + [new_message]
+		structured_llm = self.llm.with_structured_output(PlanningAgentAction)
 
-		input_messages = [system_prompt] + self.messages + [new_message]
+		print(state)
 
-		# response = await self.model.gene(input_messages, Action)
+		input('continue? ...')
 
-		prompt = ChatPromptTemplate.from_messages([system_prompt, *self.messages, new_message])
-		chain = prompt | self.model | PydanticOutputParser(pydantic_object=PlanningAgentAction)
+		response: PlanningAgentAction = await structured_llm.ainvoke(input_messages)  # type: ignore
 
-		response: PlanningAgentAction = await chain.ainvoke({})
+		print('response', response)
 
-		if store_conversation:
-			# save conversation
-			save_conversation(input_messages, response.model_dump_json(), store_conversation)
+		# if store_conversation:
+		# 	# save conversation
+		# 	save_conversation(input_messages, response.model_dump_json(), store_conversation)
 
 		# Only append the output message
+		history_new_message = PlanningMessagePrompt(state).get_message_for_history()
+		self.messages.append(history_new_message)
 		self.messages.append(AIMessage(content=response.model_dump_json()))
 
 		# try:
@@ -112,3 +130,6 @@ class PlaningService:
 		# 	self.messages = self.messages[-20:]
 
 		return response
+
+	def _get_action_description(self) -> str:
+		return PlanningAgentAction.description()
