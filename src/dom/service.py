@@ -1,22 +1,15 @@
-"""
-Dom Service
-"""
-
 from bs4 import BeautifulSoup, NavigableString, PageElement, Tag
-from pydantic import BaseModel
+
 from selenium import webdriver
 
-
-class ProcessedDomContent(BaseModel):
-	output_string: str
-	selector_map: dict[int, str]
+from src.dom.views import DomContentItem, ProcessedDomContent
 
 
 class DomService:
 	def __init__(self, driver: webdriver.Chrome):
 		self.driver = driver
 
-	def get_current_state(self) -> ProcessedDomContent:
+	def get_clickable_elements(self) -> ProcessedDomContent:
 		html_content = self.driver.page_source
 		return self._process_content(html_content)
 
@@ -27,6 +20,8 @@ class DomService:
 		    html_content: Raw HTML string to process
 		Returns:
 		    ProcessedDomContent: Processed DOM content
+
+		@dev TODO: instead of of using enumerated index, use random 4 digit numbers -> a bit more tokens BUT updates on the screen wont click on incorrect items -> tricky because you have to consider that same elements need to have the same index ...
 		"""
 		soup = BeautifulSoup(html_content, 'html.parser')
 		candidate_elements: list[Tag | NavigableString] = []
@@ -88,7 +83,7 @@ class DomService:
 
 		# Process candidates
 		selector_map: dict[int, str] = {}
-		output_string = ''
+		output_items: list[DomContentItem] = []
 
 		for index, element in enumerate(candidate_elements):
 			xpath = xpath_cache.get(element)
@@ -105,7 +100,7 @@ class DomService:
 			if isinstance(element, NavigableString):
 				text_content = element.strip()
 				if text_content:
-					output_string += f'{index}:{text_content}\n'
+					output_items.append(DomContentItem(index=index, text=text_content))
 			else:
 				text_content = self._extract_text_from_all_children(element)
 
@@ -115,11 +110,13 @@ class DomService:
 				opening_tag = f"<{tag_name}{' ' + attributes if attributes else ''}>"
 				closing_tag = f'</{tag_name}>'
 
-				output_string += f'{index}:{opening_tag}{text_content}{closing_tag}\n'
+				output_items.append(
+					DomContentItem(index=index, text=f'{opening_tag}{text_content}{closing_tag}')
+				)
 
 			selector_map[index] = xpath
 
-		return ProcessedDomContent(output_string=output_string, selector_map=selector_map)
+		return ProcessedDomContent(items=output_items, selector_map=selector_map)
 
 	def _extract_text_from_all_children(self, element: Tag) -> str:
 		# Tell BeautifulSoup that button tags can contain content

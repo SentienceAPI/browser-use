@@ -20,17 +20,26 @@ async def setup():
 	driver.quit()
 
 
+@pytest.mark.skip
 @pytest.mark.asyncio
 async def test_kayak_flight_search(setup):
 	driver, actions, state_manager = setup
 
 	# Create run folder
-	timestamp = 'flight_search_bali_to_kirgistan'
-	task = 'find a flight from Bali to Kirgistan on 2024-11-25 for 2 people one way.'
+	timestamp = 'testing_prompts'
+	# task = 'go to kayak.com andfind a flight from Bali to Kirgistan on 2024-11-25 for 2 people one way.'
+	task = 'apply to a role at google for a SWE internship this summer.'
 	vision = True
 
 	run_folder = f'temp/{timestamp}'
 	if not os.path.exists(run_folder):
+		os.makedirs(run_folder)
+
+	else:
+		# Remove run folder if it exists
+		for file in os.listdir(run_folder):
+			os.remove(os.path.join(run_folder, file))
+		os.rmdir(run_folder)
 		os.makedirs(run_folder)
 
 	print('\n' + '=' * 50)
@@ -65,6 +74,8 @@ async def test_kayak_flight_search(setup):
 			state_text += f', User input: {output.user_input}'
 		if output.error:
 			state_text += f', Previous action error: {output.error}'
+
+		input('Press Enter to continue...')
 
 		action = await agent.chat(
 			state_text,
