@@ -113,6 +113,13 @@ class BrowserService:
 		driver.quit()
 		self.driver = None
 
+	def __del__(self):
+		"""
+		Close the browser driver when instance is destroyed.
+		"""
+		if self.driver is not None:
+			self.close()
+
 	# region - Browser Actions
 
 	def search_google(self, query: str):

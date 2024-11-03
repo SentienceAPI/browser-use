@@ -37,48 +37,54 @@ async def test_kayak_flight_search():
 	url_history = []
 	# output = AgentActionResult(done)
 
-	max_steps = 50
-	for i in range(max_steps):
-		print(f'\n📍 Step {i+1}')
-		action, result = await planning_service.step()
+	try:
+		max_steps = 50
+		for i in range(max_steps):
+			print(f'\n📍 Step {i+1}')
+			action, result = await planning_service.step()
 
-		print('action:', action)
-		print('result:', result)
-		# current_state = agent.get_current_state()
-		# save_formatted_html(
-		# 	current_state.interactable_elements, f'{run_folder}/current_state_{i}.html'
-		# )
-		# # save normal html
-		# save_formatted_html(driver.page_source, f'{run_folder}/html_{i}.html')
+			print('action:', action)
+			print('result:', result)
+			# current_state = agent.get_current_state()
+			# save_formatted_html(
+			# 	current_state.interactable_elements, f'{run_folder}/current_state_{i}.html'
+			# )
+			# # save normal html
+			# save_formatted_html(driver.page_source, f'{run_folder}/html_{i}.html')
 
-		# url_history.append(driver.current_url)
+			# url_history.append(driver.current_url)
 
-		# state_text = f'Current interactive elements: {current_state.interactable_elements}'
-		# if output.extracted_content:
-		# 	state_text += f', Extracted content: {output.extracted_content}'
-		# if output.user_input:
-		# 	agent.update_system_prompt(output.user_input)
-		# 	state_text += f', User input: {output.user_input}'
-		# if output.error:
-		# 	state_text += f', Previous action error: {output.error}'
+			# state_text = f'Current interactive elements: {current_state.interactable_elements}'
+			# if output.extracted_content:
+			# 	state_text += f', Extracted content: {output.extracted_content}'
+			# if output.user_input:
+			# 	agent.update_system_prompt(output.user_input)
+			# 	state_text += f', User input: {output.user_input}'
+			# if output.error:
+			# 	state_text += f', Previous action error: {output.error}'
 
-		# input('Press Enter to continue...')
+			# input('Press Enter to continue...')
 
-		# action = await agent.chat(
-		# 	state_text,
-		# 	images=current_state.screenshot,
-		# 	store_conversation=f'{run_folder}/conversation_{i}.txt',
-		# )
-		# output: ActionResult = actions.execute_action(action, current_state.selector_map)
+			# action = await agent.chat(
+			# 	state_text,
+			# 	images=current_state.screenshot,
+			# 	store_conversation=f'{run_folder}/conversation_{i}.txt',
+			# )
+			# output: ActionResult = actions.execute_action(action, current_state.selector_map)
 
-		# # check if output is exactly True (boolean)
-		# if output.done:
-		# 	break
+			# # check if output is exactly True (boolean)
+			# if output.done:
+			# 	break
 
-		# time.sleep(0.5)
-
+			# time.sleep(0.5)
+	except KeyboardInterrupt:
+		print('\n\nReceived interrupt, closing browser...')
+		agent.browser.close()
+		raise
 	else:
 		print('\n' + '=' * 50)
 		print('❌ Failed to complete task in maximum steps')
 		print('=' * 50)
 		assert False, 'Failed to complete task in maximum steps'
+	finally:
+		agent.browser.close()
