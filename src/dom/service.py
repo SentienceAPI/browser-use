@@ -1,5 +1,6 @@
 from bs4 import BeautifulSoup, NavigableString, PageElement, Tag
 from selenium import webdriver
+from selenium.webdriver.common.by import By
 
 from src.dom.views import DomContentItem, ProcessedDomContent
 
@@ -7,10 +8,10 @@ from src.dom.views import DomContentItem, ProcessedDomContent
 class DomService:
 	def __init__(self, driver: webdriver.Chrome):
 		self.driver = driver
+		self.xpath_cache = {}  # Add cache at instance level
 
 	def get_clickable_elements(self) -> ProcessedDomContent:
 		# Clear xpath cache on each new DOM processing
-		self.xpath_cache = {}
 		html_content = self.driver.page_source
 		return self._process_content(html_content)
 
@@ -25,12 +26,12 @@ class DomService:
 		@dev TODO: instead of of using enumerated index, use random 4 digit numbers -> a bit more tokens BUT updates on the screen wont click on incorrect items -> tricky because you have to consider that same elements need to have the same index ...
 		"""
 
-		# Parse HTML content using BeautifulSoup
-		soup = BeautifulSoup(html_content, 'lxml')
+		# Parse HTML content using BeautifulSoup with html.parser
+		soup = BeautifulSoup(html_content, 'html.parser')
 
 		candidate_elements: list[Tag | NavigableString] = []
 		dom_queue = [element for element in soup.body.children] if soup.body else []
-		xpath_cache = {}
+		# xpath_cache = {}
 
 		# Find candidate elements
 		while dom_queue:
@@ -76,10 +77,10 @@ class DomService:
 		output_items: list[DomContentItem] = []
 
 		for index, element in enumerate(candidate_elements):
-			xpath = xpath_cache.get(element)
-			if not xpath:
-				xpath = self._generate_xpath(element)
-				xpath_cache[element] = xpath
+			# xpath = xpath_cache.get(element)
+			# if not xpath:
+			xpath = self._generate_xpath(element)
+			# xpath_cache[element] = xpath
 
 			# Skip text nodes that are direct children of already processed elements
 			if isinstance(element, NavigableString) and element.parent in [
@@ -218,60 +219,73 @@ class DomService:
 		return element.name not in leaf_element_deny_list
 
 	def _generate_xpath(self, element: Tag | NavigableString) -> str:
-		"""Generate XPath for given element."""
-		# Handle NavigableString - return parent's xpath
+		# Generate cache key based on element properties
+		cache_key = None
+		if isinstance(element, Tag):
+			attributes = [
+				element.get('id', ''),
+				element.get('class', ''),
+				element.name,
+				element.get_text().strip(),
+			]
+			cache_key = '|'.join(str(attr) for attr in attributes)
+
+			# Return cached xpath if exists
+			if cache_key in self.xpath_cache:
+				return self.xpath_cache[cache_key]
+
 		if isinstance(element, NavigableString):
 			if element.parent:
 				return self._generate_xpath(element.parent)
 			return ''
 
-		# Handle elements that may not have all Tag methods
 		if not hasattr(element, 'name'):
 			return ''
 
-		# Check for ID using getattr to handle elements without get() method
 		element_id = getattr(element, 'get', lambda x: None)('id')
 		if element_id:
-			return f"//*[@id='{element_id}']"
+			xpath = f"//*[@id='{element_id}']"
+			if cache_key:
+				self.xpath_cache[cache_key] = xpath
+			return xpath
 
 		parts = []
 		current = element
 
 		while current and getattr(current, 'name', None):
-			# Skip document node
 			if current.name == '[document]':
 				break
 
-			# Safely get parent and children
 			parent = getattr(current, 'parent', None)
-			siblings = list(parent.children) if parent and hasattr(parent, 'children') else []
+			if parent and hasattr(parent, 'children'):
+				# Get only visible element nodes
+				siblings = [
+					s for s in parent.find_all(current.name, recursive=False) if isinstance(s, Tag)
+				]
 
-			# Filter siblings that are elements with matching names
-			same_type_siblings = [
-				s for s in siblings if hasattr(s, 'name') and s.name == current.name
-			]
-
-			if len(same_type_siblings) > 1:
-				try:
-					index = same_type_siblings.index(current) + 1
-					# print(
-					# 	f'Debug XPath: Found {len(same_type_siblings)} siblings of type {current.name}, current index: {index}'
-					# )
-					parts.insert(0, f'{current.name}[{index}]')
-				except ValueError:
+				if len(siblings) > 1:
+					try:
+						index = siblings.index(current) + 1
+						parts.insert(0, f'{current.name}[{index}]')
+					except ValueError:
+						parts.insert(0, current.name)
+				else:
 					parts.insert(0, current.name)
-			else:
-				parts.insert(0, current.name)
 
 			current = parent
 
-		# Ensure we start with html and body tags for a complete path
 		if parts and parts[0] != 'html':
 			parts.insert(0, 'html')
 		if len(parts) > 1 and parts[1] != 'body':
 			parts.insert(1, 'body')
 
-		return '//' + '/'.join(parts) if parts else ''
+		xpath = '//' + '/'.join(parts)
+
+		# Cache the generated xpath
+		if cache_key:
+			self.xpath_cache[cache_key] = xpath
+
+		return xpath
 
 	def _get_essential_attributes(self, element: Tag) -> str:
 		"""

@@ -21,11 +21,12 @@ class ControllerService:
 		self.cached_browser_state: BrowserState | None = None
 
 	def get_cached_browser_state(self, force_update: bool = False) -> BrowserState:
-		if self.cached_browser_state is None or force_update:
-			self.cached_browser_state = self.browser.get_updated_state()
-			return self.cached_browser_state
+		# if self.cached_browser_state is None or force_update:
+		# 	self.cached_browser_state = self.browser.get_updated_state()
+		# 	return self.cached_browser_state
 
-		return self.cached_browser_state
+		# return self.cached_browser_state
+		return self.browser.get_updated_state()
 
 	def get_current_state(self, screenshot: bool = False) -> ControllerPageState:
 		browser_state = self.get_cached_browser_state(force_update=True)
@@ -45,7 +46,7 @@ class ControllerService:
 	@time_execution_sync('act')
 	def act(self, action: ControllerActions) -> ControllerActionResult:
 		try:
-			current_state = self.get_cached_browser_state(force_update=True)
+			current_state = self.get_cached_browser_state(force_update=False)
 
 			if action.search_google:
 				self.browser.search_google(action.search_google.query)

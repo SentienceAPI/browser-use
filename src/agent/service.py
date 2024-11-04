@@ -8,7 +8,7 @@ from src.agent.prompts import AgentMessagePrompt, AgentSystemPrompt
 from src.agent.views import AgentOutput, Output
 from src.controller.service import ControllerService
 from src.controller.views import ControllerActionResult, ControllerPageState
-from src.utils import time_execution_async
+from src.utils import time_execution_async, time_execution_sync
 
 load_dotenv()
 
@@ -143,6 +143,7 @@ class AgentService:
 	def _get_action_description(self) -> str:
 		return AgentOutput.description()
 
+	@time_execution_sync('_save_conversation')
 	def _save_conversation(self, input_messages: list[BaseMessage], response: Output):
 		if self.save_file is not None:
 			with open(self.save_file + f'_{self.n}.txt', 'w') as f:

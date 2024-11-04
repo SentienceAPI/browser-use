@@ -45,6 +45,7 @@ class AgentSystemPrompt:
     {self.default_action_description}
 
     To interact with elements, use their index number in the click_element() or input_text() actions. 
+	Make sure to only use indexes that are present in the list.
     If you need more text from the page you can use the extract_page_content action.
 
     If you get stuck and multiple time dont achieve the next_goal, try to find a new element that can help you achieve your task or if persistent, go back or reload the page and try a different approach.
@@ -85,5 +86,6 @@ Interactive elements:
 
 		return HumanMessage(content=state_description)
 
+	@time_execution_sync('get_message_for_history')
 	def get_message_for_history(self) -> HumanMessage:
 		return HumanMessage(content=f'Currently on url: {self.state.url}')
