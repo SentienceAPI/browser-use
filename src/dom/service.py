@@ -81,7 +81,7 @@ class DomService:
 				continue
 
 			if isinstance(element, NavigableString):
-				text_content = element.strip()
+				text_content = self._cap_text_length(element.strip())
 				if text_content:
 					output_string = f'{text_content}'
 					output_items.append(
@@ -108,6 +108,12 @@ class DomService:
 
 		return ProcessedDomContent(items=output_items, selector_map=selector_map)
 
+	def _cap_text_length(self, text: str, max_length: int = 150) -> str:
+		if len(text) > max_length:
+			half_length = max_length // 2
+			return text[:half_length] + '...' + text[-half_length:]
+		return text
+
 	def _extract_text_from_all_children(self, element: Tag) -> str:
 		# Tell BeautifulSoup that button tags can contain content
 		# if not hasattr(element.parser, 'BUTTON_TAGS'):
@@ -121,7 +127,8 @@ class DomService:
 				current_child_text = child.get_text(strip=True)
 
 			text_content += '\n' + current_child_text
-		return text_content.strip() or ''
+
+		return self._cap_text_length(text_content.strip()) or ''
 
 	def _is_interactive_element(self, element: Tag) -> bool:
 		"""Check if element is interactive based on tag name and attributes."""
@@ -266,7 +273,7 @@ class DomService:
 		"""
 		essential_attributes = [
 			'id',
-			# 'class',
+			'class',
 			'href',
 			'src',
 			'readonly',
@@ -288,7 +295,13 @@ class DomService:
 		attrs = []
 		for attr in essential_attributes:
 			if attr in element.attrs:
-				attrs.append(f'{attr}="{element[attr]}"')
+				element_attr = element[attr]
+				if isinstance(element_attr, str):
+					element_attr = element_attr[:50]
+				elif isinstance(element_attr, (list, tuple)):
+					element_attr = ' '.join(str(v)[:50] for v in element_attr)
+
+				attrs.append(f'{attr}="{element_attr}"')
 
 		state_attributes_prefixes = (
 			'aria-',
