@@ -7,6 +7,7 @@ from src.agent.service import AgentService
 from src.planning.service import PlaningService
 
 
+# run with pytest src/tests/test_kayak_search.py -v -s
 # @pytest.mark.skip
 @pytest.mark.asyncio
 async def test_kayak_flight_search():
@@ -18,7 +19,7 @@ async def test_kayak_flight_search():
 	planning_service = PlaningService(task, model, agent)
 
 	vision = True
-
+	print('starting')
 	run_folder = f'temp/{timestamp}'
 	if not os.path.exists(run_folder):
 		os.makedirs(run_folder)
