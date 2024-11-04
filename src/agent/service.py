@@ -8,6 +8,7 @@ from src.agent.prompts import AgentMessagePrompt, AgentSystemPrompt
 from src.agent.views import AgentAction
 from src.controller.service import ControllerService
 from src.controller.views import ControllerActionResult, ControllerPageState
+from src.utils import time_execution_async
 
 load_dotenv()
 
@@ -68,6 +69,7 @@ class AgentService:
 
 		return action
 
+	@time_execution_async('get_next_action')
 	async def get_next_action(self, state: ControllerPageState) -> AgentAction:
 		# TODO: include state, actions, etc.
 

@@ -8,6 +8,7 @@ from tokencost import count_string_tokens
 from src.browser.service import BrowserService
 
 from src.dom.service import DomService
+from src.utils import time_execution_sync
 
 
 # @pytest.mark.skip("slow af")
@@ -34,13 +35,11 @@ def test_process_html_file():
 	# 	)
 	# )
 
-	start_time = time.time()
-	elements = dom_service.get_clickable_elements().dom_items_to_string()
-	elapsed_time = time.time() - start_time
+	elements = time_execution_sync('get_clickable_elements')(
+		dom_service.get_clickable_elements().dom_items_to_string
+	)()
 
-	print(f'get_clickable_elements took {elapsed_time:.2f} seconds')
-
-	# print(elements)
+	print(elements)
 
 	# for item in result.items:
 	# 	print(item)

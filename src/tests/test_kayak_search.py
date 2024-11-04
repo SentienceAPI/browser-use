@@ -3,6 +3,7 @@ import os
 
 import pytest
 from langchain_anthropic import ChatAnthropic
+from langchain_fireworks import ChatFireworks
 from langchain_openai import ChatOpenAI
 from langfuse import Langfuse
 from langfuse.decorators import observe
@@ -46,7 +47,7 @@ async def test_kayak_flight_search():
 	)
 	model = ChatOpenAI(model='gpt-4o', temperature=0.0)
 
-	agent = AgentService(task, model, controller, use_vision=True)
+	agent = AgentService(task, model, controller, use_vision=False)
 
 	print('\n' + '=' * 50)
 	print('🚀 Starting flight search task')
