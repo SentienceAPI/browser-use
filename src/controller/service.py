@@ -1,4 +1,5 @@
 from src.browser.service import BrowserService
+from src.browser.views import BrowserState
 from src.controller.views import ControllerActionResult, ControllerActions, ControllerPageState
 
 
@@ -16,9 +17,17 @@ class ControllerService:
 
 	def __init__(self):
 		self.browser = BrowserService()
+		self.cached_browser_state: BrowserState | None = None
+
+	def get_cached_browser_state(self, force_update: bool = False) -> BrowserState:
+		if self.cached_browser_state is None or force_update:
+			self.cached_browser_state = self.browser.get_updated_state()
+
+		return self.cached_browser_state
 
 	def get_current_state(self, screenshot: bool = False) -> ControllerPageState:
-		browser_state = self.browser.get_updated_state()
+		browser_state = self.get_cached_browser_state(force_update=True)
+
 		screenshot_b64 = None
 		if screenshot:
 			screenshot_b64 = self.browser.take_screenshot()
@@ -46,9 +55,13 @@ class ControllerService:
 			elif action.done:
 				return ControllerActionResult(done=True)
 			elif action.click_element:
-				self.browser.click_element_by_index(action.click_element.id)
+				self.browser.click_element_by_index(
+					action.click_element.id, self.get_cached_browser_state()
+				)
 			elif action.input_text:
-				self.browser.input_text_by_index(action.input_text.id, action.input_text.text)
+				self.browser.input_text_by_index(
+					action.input_text.id, action.input_text.text, self.get_cached_browser_state()
+				)
 			elif action.extract_page_content:
 				content = self.browser.extract_page_content()
 				return ControllerActionResult(done=False, extracted_content=content)

@@ -49,7 +49,6 @@ class AgentService:
 			action = await self._take_human_input(action.ask_human.question)
 
 		result = self.controller.act(action)
-		input('continue? ...')
 
 		return action, result
 

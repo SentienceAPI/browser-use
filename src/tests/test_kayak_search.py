@@ -1,11 +1,12 @@
 import datetime
 import os
+import time
 
 import pytest
 from langchain_openai import ChatOpenAI
 
-from src.controller.service import ControllerService
 from src.agent.service import AgentService
+from src.controller.service import ControllerService
 
 
 def setup_run_folder(timestamp_prefix: str) -> str:
@@ -45,6 +46,9 @@ async def test_kayak_flight_search():
 
 			print('action:\n', action)
 			print('result:\n', result)
+
+			time.sleep(0.5)
+
 			# current_state = agent.get_current_state()
 			# save_formatted_html(
 			# 	current_state.interactable_elements, f'{run_folder}/current_state_{i}.html'

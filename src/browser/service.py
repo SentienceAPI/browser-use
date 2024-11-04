@@ -5,6 +5,7 @@ Selenium browser on steroids.
 import base64
 import os
 import tempfile
+import time
 from typing import Literal
 
 from main_content_extractor import MainContentExtractor
@@ -27,6 +28,8 @@ class BrowserService:
 		self.headless = headless
 		self.driver: webdriver.Chrome | None = None
 		self._ob = Screenshot.Screenshot()
+		self.MINIMUM_WAIT_TIME = 1
+		self.MAXIMUM_WAIT_TIME = 10
 
 	def init(self) -> webdriver.Chrome:
 		"""
@@ -93,10 +96,44 @@ class BrowserService:
 			self.driver = self.init()
 		return self.driver
 
+	def wait_for_page_load(self):
+		"""
+		Ensures page is fully loaded before continuing.
+		Waits for either document.readyState to be complete or minimum WAIT_TIME, whichever is longer.
+		"""
+		driver = self._get_driver()
+
+		# Start timing
+		start_time = time.time()
+
+		# Wait for page load
+		try:
+			WebDriverWait(driver, 5).until(
+				lambda d: d.execute_script('return document.readyState') == 'complete'
+			)
+		except Exception:
+			pass
+
+		# Calculate remaining time to meet minimum WAIT_TIME
+		elapsed = time.time() - start_time
+		remaining = self.MINIMUM_WAIT_TIME - elapsed
+
+		print(
+			f'Page loaded in {elapsed:.2f} seconds, waiting for additional {remaining:.2f} seconds'
+		)
+
+		# Sleep remaining time if needed
+		if remaining > 0:
+			time.sleep(remaining)
+
 	def get_updated_state(self) -> BrowserState:
 		"""
 		Update and return state.
 		"""
+		import time
+
+		start_time = time.time()
+
 		driver = self._get_driver()
 		dom_service = DomService(driver)
 		content = dom_service.get_clickable_elements()
@@ -106,6 +143,10 @@ class BrowserService:
 			url=driver.current_url,
 			title=driver.title,
 		)
+
+		elapsed_time = time.time() - start_time
+		print(f'get_updated_state took {elapsed_time:.2f} seconds')
+
 		return self.current_state
 
 	def close(self):
@@ -128,18 +169,22 @@ class BrowserService:
 		"""
 		driver = self._get_driver()
 		driver.get(f'https://www.google.com/search?q={query}')
+		self.wait_for_page_load()
 
 	def go_to_url(self, url: str):
 		driver = self._get_driver()
 		driver.get(url)
+		self.wait_for_page_load()
 
 	def go_back(self):
 		driver = self._get_driver()
 		driver.back()
+		self.wait_for_page_load()
 
 	def refresh(self):
 		driver = self._get_driver()
 		driver.refresh()
+		self.wait_for_page_load()
 
 	def extract_page_content(self, value: Literal['text', 'markdown'] = 'markdown') -> str:
 		"""
@@ -200,14 +245,14 @@ class BrowserService:
 			# Then send keys
 			element.send_keys(text)
 
+			self.wait_for_page_load()
+
 		except Exception as e:
 			raise Exception(
 				f'Failed to input text into element with xpath: {xpath}. Error: {str(e)}'
 			)
 
-	def input_text_by_index(self, index: int, text: str):
-		state = self.get_updated_state()
-
+	def input_text_by_index(self, index: int, text: str, state: BrowserState):
 		if index not in state.selector_map:
 			raise Exception(f'Element index {index} not found in selector map')
 
@@ -262,6 +307,8 @@ class BrowserService:
 							driver.execute_script('arguments[0].click();', element)
 						except Exception:
 							element.click()
+						finally:
+							self.wait_for_page_load()
 						return
 				except Exception:
 					continue
@@ -271,12 +318,10 @@ class BrowserService:
 		except Exception as e:
 			raise Exception(f'Failed to click element with xpath: {xpath}. Error: {str(e)}')
 
-	def click_element_by_index(self, index: int):
+	def click_element_by_index(self, index: int, state: BrowserState):
 		"""
 		Clicks an element using its index from the selector map.
 		"""
-		state = self.get_updated_state()
-
 		if index not in state.selector_map:
 			raise Exception(f'Element index {index} not found in selector map')
 
