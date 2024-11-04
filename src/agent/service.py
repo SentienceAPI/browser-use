@@ -4,13 +4,13 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from src.controller.service import ControllerService
 from src.controller.views import ControllerActionResult, ControllerPageState
-from src.planning.prompts import PlanningMessagePrompt, PlanningSystemPrompt
-from src.planning.views import PlanningControllerAction
+from src.agent.prompts import AgentMessagePrompt, AgentSystemPrompt
+from src.agent.views import AgentAction
 
 load_dotenv()
 
 
-class PlaningService:
+class AgentService:
 	def __init__(
 		self,
 		task: str,
@@ -19,27 +19,25 @@ class PlaningService:
 		use_vision: bool = False,
 	):
 		"""
-		Planning service.
+		Agent service.
 
 		Args:
 			task (str): Task to be performed.
 			llm (AvailableModel): Model to be used.
-			browser (BrowserService | None): You can reuse an existing browser service or (automatically) create a new one.
+			controller (ControllerService | None): You can reuse an existing or (automatically) create a new one.
 		"""
 		self.controller = controller or ControllerService()
 
 		self.use_vision = use_vision
 
 		self.llm = llm
-		system_prompt = PlanningSystemPrompt(
-			task, self._get_action_description()
-		).get_system_message()
+		system_prompt = AgentSystemPrompt(task, self._get_action_description()).get_system_message()
 		first_message = HumanMessage(content=f'Your task is: {task}')
 
 		# self.messages_all: list[BaseMessage] = []
 		self.messages: list[BaseMessage] = [system_prompt, first_message]
 
-	async def step(self) -> tuple[PlanningControllerAction, ControllerActionResult]:
+	async def step(self) -> tuple[AgentAction, ControllerActionResult]:
 		state = self.controller.get_current_state(screenshot=self.use_vision)
 		action = await self.get_next_action(state)
 
@@ -51,26 +49,22 @@ class PlaningService:
 
 		return action, result
 
-	async def _take_human_input(self, question: str) -> PlanningControllerAction:
+	async def _take_human_input(self, question: str) -> AgentAction:
 		human_input = input(f'Human input required: {question}')
 
 		self.messages.append(HumanMessage(content=human_input))
-		# chain = (
-		# 	ChatPromptTemplate.from_messages(self.messages)
-		# 	| self.model
-		# 	| PydanticOutputParser(pydantic_object=PlanningAgentAction)
-		# )
-		structured_llm = self.llm.with_structured_output(PlanningControllerAction)
-		action: PlanningControllerAction = await structured_llm.ainvoke(self.messages)  # type: ignore
+
+		structured_llm = self.llm.with_structured_output(AgentAction)
+		action: AgentAction = await structured_llm.ainvoke(self.messages)  # type: ignore
 
 		self.messages.append(AIMessage(content=action.model_dump_json()))
 
 		return action
 
-	async def get_next_action(self, state: ControllerPageState) -> PlanningControllerAction:
+	async def get_next_action(self, state: ControllerPageState) -> AgentAction:
 		# TODO: include state, actions, etc.
 
-		new_message = PlanningMessagePrompt(state).get_user_message()
+		new_message = AgentMessagePrompt(state).get_user_message()
 
 		input_messages = self.messages + [new_message]
 		if self.use_vision:
@@ -78,11 +72,11 @@ class PlaningService:
 		else:
 			print(f'model input: {new_message}')
 
-		structured_llm = self.llm.with_structured_output(PlanningControllerAction)
+		structured_llm = self.llm.with_structured_output(AgentAction)
 
 		# print(f'state:\n{state}')
 
-		response: PlanningControllerAction = await structured_llm.ainvoke(input_messages)  # type: ignore
+		response: AgentAction = await structured_llm.ainvoke(input_messages)  # type: ignore
 
 		# print('response', response)
 
@@ -91,7 +85,7 @@ class PlaningService:
 		# 	save_conversation(input_messages, response.model_dump_json(), store_conversation)
 
 		# Only append the output message
-		history_new_message = PlanningMessagePrompt(state).get_message_for_history()
+		history_new_message = AgentMessagePrompt(state).get_message_for_history()
 		self.messages.append(history_new_message)
 		self.messages.append(AIMessage(content=response.model_dump_json()))
 
@@ -133,4 +127,4 @@ class PlaningService:
 		return response
 
 	def _get_action_description(self) -> str:
-		return PlanningControllerAction.description()
+		return AgentAction.description()

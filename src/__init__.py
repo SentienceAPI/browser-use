@@ -1,4 +1,4 @@
-from src.planning.service import PlaningService as PlanningAgent
 from src.agent.service import AgentService as WebAgent
+from src.controller.service import ControllerService as WebController
 
-__all__ = ['PlanningAgent', 'WebAgent']
+__all__ = ['WebAgent', 'WebController']

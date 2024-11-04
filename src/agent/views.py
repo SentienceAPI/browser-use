@@ -5,15 +5,15 @@ from pydantic import BaseModel
 from src.controller.views import ControllerActions
 
 
-class AskHumanPlanningAgentAction(BaseModel):
+class AskHumanAgentAction(BaseModel):
 	question: str
 
 
-class PlanningControllerAction(ControllerActions):
+class AgentAction(ControllerActions):
 	valuation_previous_goal: str
 	goal: str
 
-	ask_human: Optional[AskHumanPlanningAgentAction] = None
+	ask_human: Optional[AskHumanAgentAction] = None
 
 	@staticmethod
 	def description() -> str:

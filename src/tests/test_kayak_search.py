@@ -5,7 +5,7 @@ import pytest
 from langchain_openai import ChatOpenAI
 
 from src.controller.service import ControllerService
-from src.planning.service import PlaningService
+from src.agent.service import AgentService
 
 
 def setup_run_folder(timestamp_prefix: str) -> str:
@@ -31,7 +31,7 @@ async def test_kayak_flight_search():
 
 	controller = ControllerService()
 	model = ChatOpenAI(model='gpt-4o')
-	planning_service = PlaningService(task, model, controller, use_vision=True)
+	agent = AgentService(task, model, controller, use_vision=True)
 
 	print('\n' + '=' * 50)
 	print('🚀 Starting flight search task')
@@ -41,7 +41,7 @@ async def test_kayak_flight_search():
 		max_steps = 50
 		for i in range(max_steps):
 			print(f'\n📍 Step {i+1}')
-			action, result = await planning_service.step()
+			action, result = await agent.step()
 
 			print('action:\n', action)
 			print('result:\n', result)
