@@ -77,7 +77,7 @@ class PlaningService:
 		input_messages = self.messages + [new_message]
 		structured_llm = self.llm.with_structured_output(PlanningAgentAction)
 
-		# print(state)
+		print(f'state:\n{state}')
 
 		input('continue? ...')
 

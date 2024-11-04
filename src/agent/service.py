@@ -53,7 +53,9 @@ class AgentService:
 				content = self.browser.extract_page_content()
 				return AgentActionResult(done=False, extracted_content=content)
 			else:
-				return AgentActionResult(done=False)
+				raise ValueError(f'Unknown action: {action}')
+
+			return AgentActionResult(done=False)
 
 		except Exception as e:
 			return AgentActionResult(done=False, error=str(e))

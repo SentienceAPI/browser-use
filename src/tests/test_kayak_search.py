@@ -31,7 +31,7 @@ async def test_kayak_flight_search():
 
 	agent = AgentService()
 	model = ChatOpenAI(model='gpt-4o')
-	planning_service = PlaningService(task, model, agent, use_vision=True)
+	planning_service = PlaningService(task, model, agent, use_vision=False)
 
 	print('\n' + '=' * 50)
 	print('🚀 Starting flight search task')
