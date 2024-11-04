@@ -1,6 +1,7 @@
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.controller.views import ControllerPageState
+from src.utils import time_execution_sync
 
 
 class AgentSystemPrompt:
@@ -62,6 +63,7 @@ class AgentMessagePrompt:
 	def __init__(self, state: ControllerPageState):
 		self.state = state
 
+	@time_execution_sync('get_user_message')
 	def get_user_message(self) -> HumanMessage:
 		state_description = f"""
 Current url: {self.state.url}

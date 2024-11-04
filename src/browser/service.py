@@ -320,6 +320,7 @@ class BrowserService:
 		except Exception as e:
 			raise Exception(f'Failed to click element with xpath: {xpath}. Error: {str(e)}')
 
+	@time_execution_sync('click')
 	def click_element_by_index(self, index: int, state: BrowserState):
 		"""
 		Clicks an element using its index from the selector map.

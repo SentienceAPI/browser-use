@@ -9,7 +9,8 @@ class DomService:
 		self.driver = driver
 
 	def get_clickable_elements(self) -> ProcessedDomContent:
-		# Get current state of DOM by executing JavaScript
+		# Clear xpath cache on each new DOM processing
+		self.xpath_cache = {}
 		html_content = self.driver.page_source
 		return self._process_content(html_content)
 
@@ -253,6 +254,9 @@ class DomService:
 			if len(same_type_siblings) > 1:
 				try:
 					index = same_type_siblings.index(current) + 1
+					# print(
+					# 	f'Debug XPath: Found {len(same_type_siblings)} siblings of type {current.name}, current index: {index}'
+					# )
 					parts.insert(0, f'{current.name}[{index}]')
 				except ValueError:
 					parts.insert(0, current.name)

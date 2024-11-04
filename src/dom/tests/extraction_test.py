@@ -5,8 +5,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from tokencost import count_string_tokens
-from src.browser.service import BrowserService
 
+from src.browser.service import BrowserService
 from src.dom.service import DomService
 from src.utils import time_execution_sync
 

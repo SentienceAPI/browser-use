@@ -1,6 +1,7 @@
 from src.browser.service import BrowserService
 from src.browser.views import BrowserState
 from src.controller.views import ControllerActionResult, ControllerActions, ControllerPageState
+from src.utils import time_execution_sync
 
 
 class ControllerService:
@@ -41,6 +42,7 @@ class ControllerService:
 			screenshot=screenshot_b64,
 		)
 
+	@time_execution_sync('act')
 	def act(self, action: ControllerActions) -> ControllerActionResult:
 		try:
 			current_state = self.get_cached_browser_state(force_update=True)
