@@ -1,5 +1,4 @@
 from bs4 import BeautifulSoup, NavigableString, PageElement, Tag
-
 from selenium import webdriver
 
 from src.dom.views import DomContentItem, ProcessedDomContent
@@ -32,6 +31,21 @@ class DomService:
 			Process element and its children, return True if this element or any of its
 			children were added to candidates
 			"""
+			# Debug cookie consent elements
+			if isinstance(element, Tag):
+				classes = element.get('class', [])
+				if isinstance(classes, str):
+					classes = classes.split()
+				if 'RxNS' in classes or 'P4zO' in classes:
+					print(f'\nDEBUG Cookie Element: {element.name}')
+					print(f'Accepted: {self._is_element_accepted(element)}')
+					print(f'Interactive: {self._is_interactive_element(element)}')
+					if self._is_interactive_element(element):
+						print(f'Active: {self._is_active(element)}')
+						print(f'Top Element: {self._is_top_element(element)}')
+						print(f'Visible: {self._is_visible(element)}')
+					print(f'XPath: {self._generate_xpath(element)}\n')
+
 			has_selected_children = False
 
 			# Handle Tag elements
@@ -148,7 +162,10 @@ class DomService:
 			'select',
 			'textarea',
 			'summary',
+			'dialog',
+			# 'div',  # added
 		}
+
 		interactive_roles = {
 			'button',
 			'menu',
@@ -172,12 +189,18 @@ class DomService:
 			'treeitem',
 			'spinbutton',
 			'tooltip',
+			'dialog',  # added
+			'alertdialog',  # added
+			'menuitemcheckbox',
+			'menuitemradio',
+			'option',
 		}
 
 		return (
 			element.name in interactive_elements
 			or element.get('role') in interactive_roles
 			or element.get('aria-role') in interactive_roles
+			or element.get('tabindex') == '0'
 		)
 
 	def _is_leaf_element(self, element: Tag) -> bool:
@@ -196,8 +219,8 @@ class DomService:
 		return False
 
 	def _is_element_accepted(self, element: Tag) -> bool:
-		"""Check if element is accepted based on tag name (svg, iframe, script, style, link)."""
-		leaf_element_deny_list = {'svg', 'iframe', 'script', 'style', 'link'}
+		"""Check if element is accepted based on tag name and special cases."""
+		leaf_element_deny_list = {'svg', 'iframe', 'script', 'style', 'link', 'meta'}
 
 		# First check if it's in deny list
 		if element.name in leaf_element_deny_list:
@@ -305,7 +328,6 @@ class DomService:
 		return ' '.join(attrs)
 
 	def _is_visible(self, element: Tag | NavigableString) -> bool:
-		"""Check if element is visible using JavaScript."""
 		if not isinstance(element, Tag):
 			return self._is_text_visible(element)
 
@@ -411,6 +433,7 @@ class DomService:
 			is_top = self.driver.execute_script(check_top)
 			return bool(is_top)
 		except Exception:
+			print(f'Error checking top element: {element}')
 			return False
 
 	def _is_active(self, element: Tag) -> bool:
