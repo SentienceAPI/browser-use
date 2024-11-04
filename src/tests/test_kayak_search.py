@@ -4,7 +4,7 @@ import os
 import pytest
 from langchain_openai import ChatOpenAI
 
-from src.agent.service import AgentService
+from src.controller.service import ControllerService
 from src.planning.service import PlaningService
 
 
@@ -29,9 +29,9 @@ async def test_kayak_flight_search():
 	task = 'go to kayak.com andfind a flight from Bali to Kirgistan on 2024-11-25 for 2 people one way.'
 	run_folder = setup_run_folder('kayak_com_flight_search2')
 
-	agent = AgentService()
+	controller = ControllerService()
 	model = ChatOpenAI(model='gpt-4o')
-	planning_service = PlaningService(task, model, agent, use_vision=True)
+	planning_service = PlaningService(task, model, controller, use_vision=True)
 
 	print('\n' + '=' * 50)
 	print('🚀 Starting flight search task')
@@ -80,7 +80,7 @@ async def test_kayak_flight_search():
 			# time.sleep(0.5)
 	except KeyboardInterrupt:
 		print('\n\nReceived interrupt, closing browser...')
-		agent.browser.close()
+		controller.browser.close()
 		raise
 	else:
 		print('\n' + '=' * 50)
@@ -88,4 +88,4 @@ async def test_kayak_flight_search():
 		print('=' * 50)
 		assert False, 'Failed to complete task in maximum steps'
 	finally:
-		agent.browser.close()
+		controller.browser.close()

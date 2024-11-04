@@ -1,10 +1,10 @@
-from src.agent.views import AgentActionResult, AgentActions, AgentPageState
 from src.browser.service import BrowserService
+from src.controller.views import ControllerActionResult, ControllerActions, ControllerPageState
 
 
-class AgentService:
+class ControllerService:
 	"""
-	Agent service that interacts with the browser.
+	Controller service that interacts with the browser.
 
 	Right now this is just a LLM friendly wrapper around the browser service.
 	In the future we can add the functionality that this is a self-contained agent that can plan and act single steps.
@@ -17,13 +17,13 @@ class AgentService:
 	def __init__(self):
 		self.browser = BrowserService()
 
-	def get_current_state(self, screenshot: bool = False) -> AgentPageState:
+	def get_current_state(self, screenshot: bool = False) -> ControllerPageState:
 		browser_state = self.browser.get_updated_state()
 		screenshot_b64 = None
 		if screenshot:
 			screenshot_b64 = self.browser.take_screenshot()
 
-		return AgentPageState(
+		return ControllerPageState(
 			items=browser_state.items,
 			url=browser_state.url,
 			title=browser_state.title,
@@ -31,7 +31,7 @@ class AgentService:
 			screenshot=screenshot_b64,
 		)
 
-	def act(self, action: AgentActions) -> AgentActionResult:
+	def act(self, action: ControllerActions) -> ControllerActionResult:
 		try:
 			if action.search_google:
 				self.browser.search_google(action.search_google.query)
@@ -44,18 +44,18 @@ class AgentService:
 			elif action.go_back:
 				self.browser.go_back()
 			elif action.done:
-				return AgentActionResult(done=True)
+				return ControllerActionResult(done=True)
 			elif action.click_element:
 				self.browser.click_element_by_index(action.click_element.id)
 			elif action.input_text:
 				self.browser.input_text_by_index(action.input_text.id, action.input_text.text)
 			elif action.extract_page_content:
 				content = self.browser.extract_page_content()
-				return AgentActionResult(done=False, extracted_content=content)
+				return ControllerActionResult(done=False, extracted_content=content)
 			else:
 				raise ValueError(f'Unknown action: {action}')
 
-			return AgentActionResult(done=False)
+			return ControllerActionResult(done=False)
 
 		except Exception as e:
-			return AgentActionResult(done=False, error=str(e))
+			return ControllerActionResult(done=False, error=str(e))

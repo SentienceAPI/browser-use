@@ -2,14 +2,14 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from src.agent.views import AgentActions
+from src.controller.views import ControllerActions
 
 
 class AskHumanPlanningAgentAction(BaseModel):
 	question: str
 
 
-class PlanningAgentAction(AgentActions):
+class PlanningControllerAction(ControllerActions):
 	valuation_previous_goal: str
 	goal: str
 
@@ -18,6 +18,6 @@ class PlanningAgentAction(AgentActions):
 	@staticmethod
 	def description() -> str:
 		return (
-			AgentActions.description()
+			ControllerActions.description()
 			+ '\n\nAsk human for help\nExample: {"ask_human": {"question": "To clarify ..."}}'
 		)

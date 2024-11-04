@@ -1,13 +1,11 @@
 from dotenv import load_dotenv
-from langchain.output_parsers import PydanticOutputParser
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
-from langchain_core.prompts import ChatPromptTemplate
 
-from src.agent.service import AgentService
-from src.agent.views import AgentActionResult, AgentPageState
+from src.controller.service import ControllerService
+from src.controller.views import ControllerActionResult, ControllerPageState
 from src.planning.prompts import PlanningMessagePrompt, PlanningSystemPrompt
-from src.planning.views import PlanningAgentAction
+from src.planning.views import PlanningControllerAction
 
 load_dotenv()
 
@@ -17,7 +15,7 @@ class PlaningService:
 		self,
 		task: str,
 		llm: BaseChatModel,
-		agent: AgentService | None = None,
+		controller: ControllerService | None = None,
 		use_vision: bool = False,
 	):
 		"""
@@ -28,7 +26,7 @@ class PlaningService:
 			llm (AvailableModel): Model to be used.
 			browser (BrowserService | None): You can reuse an existing browser service or (automatically) create a new one.
 		"""
-		self.agent = agent or AgentService()
+		self.controller = controller or ControllerService()
 
 		self.use_vision = use_vision
 
@@ -41,19 +39,19 @@ class PlaningService:
 		# self.messages_all: list[BaseMessage] = []
 		self.messages: list[BaseMessage] = [system_prompt, first_message]
 
-	async def step(self) -> tuple[PlanningAgentAction, AgentActionResult]:
-		state = self.agent.get_current_state(screenshot=self.use_vision)
+	async def step(self) -> tuple[PlanningControllerAction, ControllerActionResult]:
+		state = self.controller.get_current_state(screenshot=self.use_vision)
 		action = await self.get_next_action(state)
 
 		if action.ask_human and action.ask_human.question:
 			action = await self._take_human_input(action.ask_human.question)
 
-		result = self.agent.act(action)
+		result = self.controller.act(action)
 		input('continue? ...')
 
 		return action, result
 
-	async def _take_human_input(self, question: str) -> PlanningAgentAction:
+	async def _take_human_input(self, question: str) -> PlanningControllerAction:
 		human_input = input(f'Human input required: {question}')
 
 		self.messages.append(HumanMessage(content=human_input))
@@ -62,14 +60,14 @@ class PlaningService:
 		# 	| self.model
 		# 	| PydanticOutputParser(pydantic_object=PlanningAgentAction)
 		# )
-		structured_llm = self.llm.with_structured_output(PlanningAgentAction)
-		action: PlanningAgentAction = await structured_llm.ainvoke(self.messages)  # type: ignore
+		structured_llm = self.llm.with_structured_output(PlanningControllerAction)
+		action: PlanningControllerAction = await structured_llm.ainvoke(self.messages)  # type: ignore
 
 		self.messages.append(AIMessage(content=action.model_dump_json()))
 
 		return action
 
-	async def get_next_action(self, state: AgentPageState) -> PlanningAgentAction:
+	async def get_next_action(self, state: ControllerPageState) -> PlanningControllerAction:
 		# TODO: include state, actions, etc.
 
 		new_message = PlanningMessagePrompt(state).get_user_message()
@@ -80,11 +78,11 @@ class PlaningService:
 		else:
 			print(f'model input: {new_message}')
 
-		structured_llm = self.llm.with_structured_output(PlanningAgentAction)
+		structured_llm = self.llm.with_structured_output(PlanningControllerAction)
 
 		# print(f'state:\n{state}')
 
-		response: PlanningAgentAction = await structured_llm.ainvoke(input_messages)  # type: ignore
+		response: PlanningControllerAction = await structured_llm.ainvoke(input_messages)  # type: ignore
 
 		# print('response', response)
 
@@ -135,4 +133,4 @@ class PlaningService:
 		return response
 
 	def _get_action_description(self) -> str:
-		return PlanningAgentAction.description()
+		return PlanningControllerAction.description()

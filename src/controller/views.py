@@ -5,35 +5,35 @@ from pydantic import BaseModel
 from src.browser.views import BrowserState
 
 
-class SearchGoogleAgentAction(BaseModel):
+class SearchGoogleControllerAction(BaseModel):
 	query: str
 
 
-class GoToUrlAgentAction(BaseModel):
+class GoToUrlControllerAction(BaseModel):
 	url: str
 
 
-class ClickElementAgentAction(BaseModel):
+class ClickElementControllerAction(BaseModel):
 	id: int
 
 
-class InputTextAgentAction(BaseModel):
+class InputTextControllerAction(BaseModel):
 	id: int
 	text: str
 
 
-class AgentActions(BaseModel):
+class ControllerActions(BaseModel):
 	"""
-	Agent actions you can use to interact with the agent.
+	Controller actions you can use to interact.
 	"""
 
-	search_google: Optional[SearchGoogleAgentAction] = None
-	go_to_url: Optional[GoToUrlAgentAction] = None
+	search_google: Optional[SearchGoogleControllerAction] = None
+	go_to_url: Optional[GoToUrlControllerAction] = None
 	nothing: Optional[Literal[True]] = None
 	go_back: Optional[Literal[True]] = None
 	done: Optional[Literal[True]] = None
-	click_element: Optional[ClickElementAgentAction] = None
-	input_text: Optional[InputTextAgentAction] = None
+	click_element: Optional[ClickElementControllerAction] = None
+	input_text: Optional[InputTextControllerAction] = None
 	extract_page_content: Optional[Literal[True]] = None
 
 	@staticmethod
@@ -68,11 +68,11 @@ class AgentActions(BaseModel):
 """
 
 
-class AgentActionResult(BaseModel):
+class ControllerActionResult(BaseModel):
 	done: bool
 	extracted_content: Optional[str] = None
 	error: Optional[str] = None
 
 
-class AgentPageState(BrowserState):
+class ControllerPageState(BrowserState):
 	screenshot: Optional[str] = None
