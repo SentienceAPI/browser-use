@@ -5,7 +5,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from src.agent.prompts import AgentMessagePrompt, AgentSystemPrompt
-from src.agent.views import AgentAction
+from src.agent.views import AgentOutput, Output
 from src.controller.service import ControllerService
 from src.controller.views import ControllerActionResult, ControllerPageState
 from src.utils import time_execution_async
@@ -45,8 +45,11 @@ class AgentService:
 		# self.messages_all: list[BaseMessage] = []
 		self.messages: list[BaseMessage] = [system_prompt, first_message]
 		self.save_file = save_file
+		if save_file is not None:
+			print(f'Saving conversation to {save_file}')
+		self.n = 0
 
-	async def step(self) -> tuple[AgentAction, ControllerActionResult]:
+	async def step(self) -> tuple[AgentOutput, ControllerActionResult]:
 		state = self.controller.get_current_state(screenshot=self.use_vision)
 		action = await self.get_next_action(state)
 
@@ -54,23 +57,24 @@ class AgentService:
 			action = await self._take_human_input(action.ask_human.question)
 
 		result = self.controller.act(action)
+		self.n += 1
 
 		return action, result
 
-	async def _take_human_input(self, question: str) -> AgentAction:
+	async def _take_human_input(self, question: str) -> AgentOutput:
 		human_input = input(f'Human input required: {question}')
 
 		self.messages.append(HumanMessage(content=human_input))
 
-		structured_llm = self.llm.with_structured_output(AgentAction)
-		action: AgentAction = await structured_llm.ainvoke(self.messages)  # type: ignore
+		structured_llm = self.llm.with_structured_output(AgentOutput)
+		action: AgentOutput = await structured_llm.ainvoke(self.messages)  # type: ignore
 
 		self.messages.append(AIMessage(content=action.model_dump_json()))
 
 		return action
 
 	@time_execution_async('get_next_action')
-	async def get_next_action(self, state: ControllerPageState) -> AgentAction:
+	async def get_next_action(self, state: ControllerPageState) -> AgentOutput:
 		# TODO: include state, actions, etc.
 
 		new_message = AgentMessagePrompt(state).get_user_message()
@@ -81,11 +85,11 @@ class AgentService:
 		# else:
 		# 	print(f'model input: {new_message}')
 
-		structured_llm = self.llm.with_structured_output(AgentAction, include_raw=False)
+		structured_llm = self.llm.with_structured_output(Output, include_raw=False)
 
 		# print(f'state:\n{state}')
 		#
-		response: AgentAction = await structured_llm.ainvoke(input_messages)  # type: ignore
+		response: Output = await structured_llm.ainvoke(input_messages)  # type: ignore
 		# raw_response, response = invoke_response
 		# if store_conversation:
 		# 	# save conversation
@@ -133,12 +137,35 @@ class AgentService:
 		# if len(self.messages) > 20:
 		# 	self.messages = self.messages[-20:]
 
-		return response
+		return response.action
 
 	def _get_action_description(self) -> str:
-		return AgentAction.description()
+		return AgentOutput.description()
 
-	def _save_conversation(self, input_messages: list[BaseMessage], response: AgentAction):
-		if self.save_file:
-			with open(self.save_file, 'w') as f:
-				json.dump({'input_messages': input_messages, 'response': response}, f, indent=4)
+	def _save_conversation(self, input_messages: list[BaseMessage], response: Output):
+		if self.save_file is not None:
+			with open(self.save_file + f'_{self.n}.txt', 'w') as f:
+				# Write messages with proper formatting
+				for message in input_messages:
+					f.write('=' * 33 + f' {message.__class__.__name__} ' + '=' * 33 + '\n\n')
+
+					# Handle different content types
+					if isinstance(message.content, list):
+						# Handle vision model messages
+						for item in message.content:
+							if item['type'] == 'text':
+								f.write(item['text'].strip() + '\n')
+					elif isinstance(message.content, str):
+						try:
+							# Try to parse and format JSON content
+							content = json.loads(message.content)
+							f.write(json.dumps(content, indent=2) + '\n')
+						except json.JSONDecodeError:
+							# If not JSON, write as regular text
+							f.write(message.content.strip() + '\n')
+
+					f.write('\n')
+
+				# Write final response as formatted JSON
+				f.write('=' * 33 + ' Response ' + '=' * 33 + '\n\n')
+				f.write(json.dumps(json.loads(response.model_dump_json()), indent=2))

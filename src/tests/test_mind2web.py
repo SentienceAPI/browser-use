@@ -13,7 +13,7 @@ from src.controller.service import ControllerService
 
 
 def setup_run_folder(timestamp_prefix: str) -> str:
-	timestamp = f'{timestamp_prefix}_{datetime.datetime.now().strftime("%Y-%m-%d")}'
+	timestamp = f'{timestamp_prefix}_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}'
 	run_folder = f'temp/{timestamp}'
 	if not os.path.exists(run_folder):
 		os.makedirs(run_folder)

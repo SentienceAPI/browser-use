@@ -9,12 +9,13 @@ class AskHumanAgentAction(BaseModel):
 	question: str
 
 
-class AgentOnlyAction(BaseModel):
-	# TODO this is not really and action with function, but more an output only
+class AgentState(BaseModel):
 	valuation_previous_goal: str
 	memory: str
 	next_goal: str
 
+
+class AgentOnlyAction(BaseModel):
 	ask_human: Optional[AskHumanAgentAction] = None
 
 	@staticmethod
@@ -25,11 +26,24 @@ class AgentOnlyAction(BaseModel):
 """
 
 
-class AgentAction(ControllerActions, AgentOnlyAction):
+class AgentOutput(ControllerActions, AgentOnlyAction):
 	@staticmethod
 	def description() -> str:
 		return AgentOnlyAction.description() + ControllerActions.description()
+		#
+
+
+class Output(BaseModel):
+	current_state: AgentState
+	action: AgentOutput
 
 
 if __name__ == '__main__':
-	print(AgentAction(valuation_previous_goal='Failed', next_goal='Click', memory=''))
+	print(
+		Output(
+			current_state=AgentState(
+				valuation_previous_goal='Failed', next_goal='Click', memory=''
+			),
+			action=AgentOutput(),
+		)
+	)

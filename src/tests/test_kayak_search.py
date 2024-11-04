@@ -19,7 +19,7 @@ langfuse = Langfuse(
 
 
 def setup_run_folder(timestamp_prefix: str) -> str:
-	timestamp = f'{timestamp_prefix}_{datetime.datetime.now().strftime("%Y-%m-%d")}'
+	timestamp = f'{timestamp_prefix}_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}'
 	run_folder = f'temp/{timestamp}'
 	if not os.path.exists(run_folder):
 		os.makedirs(run_folder)
@@ -47,7 +47,13 @@ async def test_kayak_flight_search():
 	)
 	model = ChatOpenAI(model='gpt-4o', temperature=0.0)
 
-	agent = AgentService(task, model, controller, use_vision=False)
+	agent = AgentService(
+		task,
+		model,
+		controller,
+		use_vision=True,
+		save_file=f'{run_folder}/conversation',
+	)
 
 	print('\n' + '=' * 50)
 	print('🚀 Starting flight search task')

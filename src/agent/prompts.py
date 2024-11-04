@@ -33,18 +33,18 @@ class AgentSystemPrompt:
     
 	Additional you get a list of your previous actions.
 
-    Available actions (choose EXACTLY ONE, not 0 or 2):
+    
+	Respond with a valid JSON object, containing the current_state and action.
+    In current_state you need to provide:
+	valuation_previous_goal: valuation of the previous goal if it is achieved or what went wrong.
+	memory: This you can use as a memory to store where you are in your overall task. E.g. if you need to find 10 jobs, you can store the already found jobs here.
+	next_goal: Short description of the next goal you need to achieve.
 
+	In action choose EXACTLY ONE from the following list:
     {self.default_action_description}
 
     To interact with elements, use their index number in the click_element() or input_text() actions. 
     If you need more text from the page you can use the extract_page_content action.
-
-	Respond with a valid JSON object, containing the valuation_previous_goal, memory, next_goal and your next action to achieve the next goal.
-    
-	valuation_previous_goal: valuation of the previous goal if it is achieved or what went wrong.
-	memory: This you can use as a memory to store where you are in your overall task. E.g. if you need to find 10 jobs, you can store the already found jobs here.
-	next_goal: Short description of the next goal you need to achieve.
 
     If you get stuck and multiple time dont achieve the next_goal, try to find a new element that can help you achieve your task or if persistent, go back or reload the page and try a different approach.
     
