@@ -1,3 +1,5 @@
+import json
+
 from dotenv import load_dotenv
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
@@ -17,6 +19,7 @@ class AgentService:
 		llm: BaseChatModel,
 		controller: ControllerService | None = None,
 		use_vision: bool = False,
+		save_file: str | None = None,
 	):
 		"""
 		Agent service.
@@ -40,6 +43,7 @@ class AgentService:
 
 		# self.messages_all: list[BaseMessage] = []
 		self.messages: list[BaseMessage] = [system_prompt, first_message]
+		self.save_file = save_file
 
 	async def step(self) -> tuple[AgentAction, ControllerActionResult]:
 		state = self.controller.get_current_state(screenshot=self.use_vision)
@@ -75,14 +79,12 @@ class AgentService:
 		# else:
 		# 	print(f'model input: {new_message}')
 
-		structured_llm = self.llm.with_structured_output(AgentAction)
+		structured_llm = self.llm.with_structured_output(AgentAction, include_raw=False)
 
 		# print(f'state:\n{state}')
-
+		#
 		response: AgentAction = await structured_llm.ainvoke(input_messages)  # type: ignore
-
-		# print('response', response)
-
+		# raw_response, response = invoke_response
 		# if store_conversation:
 		# 	# save conversation
 		# 	save_conversation(input_messages, response.model_dump_json(), store_conversation)
@@ -91,6 +93,8 @@ class AgentService:
 		history_new_message = AgentMessagePrompt(state).get_message_for_history()
 		self.messages.append(history_new_message)
 		self.messages.append(AIMessage(content=response.model_dump_json()))
+
+		self._save_conversation(input_messages, response)
 
 		# try:
 		# 	# Calculate total cost for all messages
@@ -131,3 +135,8 @@ class AgentService:
 
 	def _get_action_description(self) -> str:
 		return AgentAction.description()
+
+	def _save_conversation(self, input_messages: list[BaseMessage], response: AgentAction):
+		if self.save_file:
+			with open(self.save_file, 'w') as f:
+				json.dump({'input_messages': input_messages, 'response': response}, f, indent=4)

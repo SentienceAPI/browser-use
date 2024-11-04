@@ -41,8 +41,10 @@ async def test_kayak_flight_search():
 
 	controller = ControllerService()
 
-	# model = ChatOpenAI(model='gpt-4o')
-	model = ChatAnthropic(model_name='claude-3-5-sonnet-20240620', timeout=25, stop=None)
+	model = ChatAnthropic(
+		model_name='claude-3-5-sonnet-20240620', timeout=25, stop=None, temperature=0.0
+	)
+	model = ChatOpenAI(model='gpt-4o', temperature=0.0)
 
 	agent = AgentService(task, model, controller, use_vision=True)
 
