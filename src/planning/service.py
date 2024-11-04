@@ -42,7 +42,7 @@ class PlaningService:
 		self.messages: list[BaseMessage] = [system_prompt, first_message]
 
 	async def step(self) -> tuple[PlanningAgentAction, AgentActionResult]:
-		state = self.agent.get_current_state()
+		state = self.agent.get_current_state(screenshot=self.use_vision)
 		action = await self.get_next_action(state)
 
 		if action.ask_human and action.ask_human.question:
@@ -77,13 +77,13 @@ class PlaningService:
 		input_messages = self.messages + [new_message]
 		structured_llm = self.llm.with_structured_output(PlanningAgentAction)
 
-		print(state)
+		# print(state)
 
 		input('continue? ...')
 
 		response: PlanningAgentAction = await structured_llm.ainvoke(input_messages)  # type: ignore
 
-		print('response', response)
+		# print('response', response)
 
 		# if store_conversation:
 		# 	# save conversation

@@ -1,3 +1,4 @@
+import datetime
 import os
 
 import pytest
@@ -7,36 +8,34 @@ from src.agent.service import AgentService
 from src.planning.service import PlaningService
 
 
-# run with pytest src/tests/test_kayak_search.py -v -s
-# @pytest.mark.skip
-@pytest.mark.asyncio
-async def test_kayak_flight_search():
-	task = 'go to kayak.com andfind a flight from Bali to Kirgistan on 2024-11-25 for 2 people one way.'
-	timestamp = 'kayak_com_flight_search'
-
-	agent = AgentService()
-	model = ChatOpenAI(model='gpt-4o')
-	planning_service = PlaningService(task, model, agent)
-
-	vision = True
-	print('starting')
+def setup_run_folder(timestamp_prefix: str) -> str:
+	timestamp = f'{timestamp_prefix}_{datetime.datetime.now().strftime("%Y-%m-%d")}'
 	run_folder = f'temp/{timestamp}'
 	if not os.path.exists(run_folder):
 		os.makedirs(run_folder)
-
 	else:
 		# Remove run folder if it exists
 		for file in os.listdir(run_folder):
 			os.remove(os.path.join(run_folder, file))
 		os.rmdir(run_folder)
 		os.makedirs(run_folder)
+	return run_folder
+
+
+# run with pytest src/tests/test_kayak_search.py -v -s
+# @pytest.mark.skip
+@pytest.mark.asyncio
+async def test_kayak_flight_search():
+	task = 'go to kayak.com andfind a flight from Bali to Kirgistan on 2024-11-25 for 2 people one way.'
+	run_folder = setup_run_folder('kayak_com_flight_search2')
+
+	agent = AgentService()
+	model = ChatOpenAI(model='gpt-4o')
+	planning_service = PlaningService(task, model, agent, use_vision=True)
 
 	print('\n' + '=' * 50)
 	print('🚀 Starting flight search task')
 	print('=' * 50)
-
-	url_history = []
-	# output = AgentActionResult(done)
 
 	try:
 		max_steps = 50
@@ -44,8 +43,8 @@ async def test_kayak_flight_search():
 			print(f'\n📍 Step {i+1}')
 			action, result = await planning_service.step()
 
-			print('action:', action)
-			print('result:', result)
+			print('action:\n', action)
+			print('result:\n', result)
 			# current_state = agent.get_current_state()
 			# save_formatted_html(
 			# 	current_state.interactable_elements, f'{run_folder}/current_state_{i}.html'
@@ -74,8 +73,9 @@ async def test_kayak_flight_search():
 			# output: ActionResult = actions.execute_action(action, current_state.selector_map)
 
 			# # check if output is exactly True (boolean)
-			# if output.done:
-			# 	break
+			if result.done:
+				print('\n✅ Task completed successfully')
+				break
 
 			# time.sleep(0.5)
 	except KeyboardInterrupt:

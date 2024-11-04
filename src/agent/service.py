@@ -44,20 +44,16 @@ class AgentService:
 			elif action.go_back:
 				self.browser.go_back()
 			elif action.done:
-				# TODO: implement
-				# self.browser.done()
-				pass
+				return AgentActionResult(done=True)
 			elif action.click_element:
 				self.browser.click_element_by_index(action.click_element.id)
 			elif action.input_text:
 				self.browser.input_text_by_index(action.input_text.id, action.input_text.text)
 			elif action.extract_page_content:
 				content = self.browser.extract_page_content()
-				return AgentActionResult(done=True, extracted_content=content)
+				return AgentActionResult(done=False, extracted_content=content)
 			else:
 				return AgentActionResult(done=False)
-
-			return AgentActionResult(done=True)
 
 		except Exception as e:
 			return AgentActionResult(done=False, error=str(e))
