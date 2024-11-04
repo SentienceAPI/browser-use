@@ -22,6 +22,7 @@ class ControllerService:
 	def get_cached_browser_state(self, force_update: bool = False) -> BrowserState:
 		if self.cached_browser_state is None or force_update:
 			self.cached_browser_state = self.browser.get_updated_state()
+			return self.cached_browser_state
 
 		return self.cached_browser_state
 
@@ -42,6 +43,8 @@ class ControllerService:
 
 	def act(self, action: ControllerActions) -> ControllerActionResult:
 		try:
+			current_state = self.get_cached_browser_state(force_update=True)
+
 			if action.search_google:
 				self.browser.search_google(action.search_google.query)
 			elif action.go_to_url:
@@ -56,12 +59,10 @@ class ControllerService:
 				self.browser.done(action.done.text)
 				return ControllerActionResult(done=True, extracted_content=action.done.text)
 			elif action.click_element:
-				self.browser.click_element_by_index(
-					action.click_element.id, self.get_cached_browser_state()
-				)
+				self.browser.click_element_by_index(action.click_element.id, current_state)
 			elif action.input_text:
 				self.browser.input_text_by_index(
-					action.input_text.id, action.input_text.text, self.get_cached_browser_state()
+					action.input_text.id, action.input_text.text, current_state
 				)
 			elif action.extract_page_content:
 				content = self.browser.extract_page_content()
