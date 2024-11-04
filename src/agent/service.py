@@ -1,61 +1,130 @@
-from src.agent.views import AgentActionResult, AgentActions, AgentPageState
-from src.browser.service import BrowserService
+from dotenv import load_dotenv
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+
+from src.controller.service import ControllerService
+from src.controller.views import ControllerActionResult, ControllerPageState
+from src.agent.prompts import AgentMessagePrompt, AgentSystemPrompt
+from src.agent.views import AgentAction
+
+load_dotenv()
 
 
 class AgentService:
-	"""
-	Agent service that interacts with the browser.
+	def __init__(
+		self,
+		task: str,
+		llm: BaseChatModel,
+		controller: ControllerService | None = None,
+		use_vision: bool = False,
+	):
+		"""
+		Agent service.
 
-	Right now this is just a LLM friendly wrapper around the browser service.
-	In the future we can add the functionality that this is a self-contained agent that can plan and act single steps.
+		Args:
+			task (str): Task to be performed.
+			llm (AvailableModel): Model to be used.
+			controller (ControllerService | None): You can reuse an existing or (automatically) create a new one.
+		"""
+		self.controller = controller or ControllerService()
 
-	TODO: easy hanging fruit: pass in a list of actions, compare html that changed and self assess if goal is done -> makes clicking MUCH MUCH faster and cheaper.
+		self.use_vision = use_vision
 
-	TODO#2: from the state generate functions that can be passed directly into the LLM as function calls. Then it could actually in the same call request for example multiple actions and new state.
-	"""
+		self.llm = llm
+		system_prompt = AgentSystemPrompt(task, self._get_action_description()).get_system_message()
+		first_message = HumanMessage(content=f'Your task is: {task}')
 
-	def __init__(self):
-		self.browser = BrowserService()
+		# self.messages_all: list[BaseMessage] = []
+		self.messages: list[BaseMessage] = [system_prompt, first_message]
 
-	def get_current_state(self, screenshot: bool = False) -> AgentPageState:
-		browser_state = self.browser.get_updated_state()
-		screenshot_b64 = None
-		if screenshot:
-			screenshot_b64 = self.browser.take_screenshot()
+	async def step(self) -> tuple[AgentAction, ControllerActionResult]:
+		state = self.controller.get_current_state(screenshot=self.use_vision)
+		action = await self.get_next_action(state)
 
-		return AgentPageState(
-			items=browser_state.items,
-			url=browser_state.url,
-			title=browser_state.title,
-			selector_map=browser_state.selector_map,
-			screenshot=screenshot_b64,
-		)
+		if action.ask_human and action.ask_human.question:
+			action = await self._take_human_input(action.ask_human.question)
 
-	def act(self, action: AgentActions) -> AgentActionResult:
-		try:
-			if action.search_google:
-				self.browser.search_google(action.search_google.query)
-			elif action.go_to_url:
-				self.browser.go_to_url(action.go_to_url.url)
-			elif action.nothing:
-				# self.browser.nothing()
-				# TODO: implement
-				pass
-			elif action.go_back:
-				self.browser.go_back()
-			elif action.done:
-				return AgentActionResult(done=True)
-			elif action.click_element:
-				self.browser.click_element_by_index(action.click_element.id)
-			elif action.input_text:
-				self.browser.input_text_by_index(action.input_text.id, action.input_text.text)
-			elif action.extract_page_content:
-				content = self.browser.extract_page_content()
-				return AgentActionResult(done=False, extracted_content=content)
-			else:
-				raise ValueError(f'Unknown action: {action}')
+		result = self.controller.act(action)
+		input('continue? ...')
 
-			return AgentActionResult(done=False)
+		return action, result
 
-		except Exception as e:
-			return AgentActionResult(done=False, error=str(e))
+	async def _take_human_input(self, question: str) -> AgentAction:
+		human_input = input(f'Human input required: {question}')
+
+		self.messages.append(HumanMessage(content=human_input))
+
+		structured_llm = self.llm.with_structured_output(AgentAction)
+		action: AgentAction = await structured_llm.ainvoke(self.messages)  # type: ignore
+
+		self.messages.append(AIMessage(content=action.model_dump_json()))
+
+		return action
+
+	async def get_next_action(self, state: ControllerPageState) -> AgentAction:
+		# TODO: include state, actions, etc.
+
+		new_message = AgentMessagePrompt(state).get_user_message()
+
+		input_messages = self.messages + [new_message]
+		if self.use_vision:
+			print(f'model input content with image: {new_message.content[0]}')
+		else:
+			print(f'model input: {new_message}')
+
+		structured_llm = self.llm.with_structured_output(AgentAction)
+
+		# print(f'state:\n{state}')
+
+		response: AgentAction = await structured_llm.ainvoke(input_messages)  # type: ignore
+
+		# print('response', response)
+
+		# if store_conversation:
+		# 	# save conversation
+		# 	save_conversation(input_messages, response.model_dump_json(), store_conversation)
+
+		# Only append the output message
+		history_new_message = AgentMessagePrompt(state).get_message_for_history()
+		self.messages.append(history_new_message)
+		self.messages.append(AIMessage(content=response.model_dump_json()))
+
+		# try:
+		# 	# Calculate total cost for all messages
+
+		# 	# check if multiple input
+
+		# 	# can not handly list of content
+		# 	output = calculate_all_costs_and_tokens(
+		# 		[system_prompt] + self.messages + [new_message],
+		# 		response.model_dump_json(),
+		# 		self.model,
+		# 	)
+		# 	if images:
+		# 		# resolution 1512 x 767
+		# 		image_cost = 0.000213
+		# 		total_cost = (
+		# 			output['prompt_cost']
+		# 			+ output['completion_cost']
+		# 			+ decimal.Decimal(str(image_cost))
+		# 		)
+		# 		print(
+		# 			f'Text ${output["prompt_cost"]:,.4f} + Image ${image_cost:,.4f} = ${total_cost:,.4f} for {output["prompt_tokens"] + output["completion_tokens"]}  tokens'
+		# 		)
+		# 	else:
+		# 		total_cost = output['prompt_cost'] + output['completion_cost']
+		# 		print(
+		# 			f'Total cost: ${total_cost:,.4f} for {output["prompt_tokens"] + output["completion_tokens"]} tokens'
+		# 		)
+
+		# except Exception as e:
+		# 	print(f'Error calculating prompt cost: {e}')
+
+		# # keep newest 20 messages
+		# if len(self.messages) > 20:
+		# 	self.messages = self.messages[-20:]
+
+		return response
+
+	def _get_action_description(self) -> str:
+		return AgentAction.description()

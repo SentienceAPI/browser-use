@@ -4,6 +4,7 @@ from pydantic import BaseModel
 class DomContentItem(BaseModel):
 	index: int
 	text: str
+	clickable: bool
 
 
 class ProcessedDomContent(BaseModel):
@@ -12,4 +13,10 @@ class ProcessedDomContent(BaseModel):
 
 	def dom_items_to_string(self) -> str:
 		"""Convert the processed DOM content to HTML."""
-		return '\n'.join([f'{item.index}:{item.text}' for item in self.items])
+		formatted_text = ''
+		for item in self.items:
+			if item.clickable:
+				formatted_text += f'{item.index}:{item.text}\n'
+			else:
+				formatted_text += f'_:{item.text}\n'
+		return formatted_text

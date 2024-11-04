@@ -1,9 +1,9 @@
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from src.agent.views import AgentPageState
+from src.controller.views import ControllerPageState
 
 
-class PlanningSystemPrompt:
+class AgentSystemPrompt:
 	def __init__(self, task: str, default_action_description: str):
 		self.task = task
 		self.default_action_description = default_action_description
@@ -51,8 +51,8 @@ class PlanningSystemPrompt:
 		return SystemMessage(content=AGENT_PROMPT)
 
 
-class PlanningMessagePrompt:
-	def __init__(self, state: AgentPageState):
+class AgentMessagePrompt:
+	def __init__(self, state: ControllerPageState):
 		self.state = state
 
 	def get_user_message(self) -> HumanMessage:

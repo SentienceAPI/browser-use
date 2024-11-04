@@ -9,6 +9,7 @@ class DomService:
 		self.driver = driver
 
 	def get_clickable_elements(self) -> ProcessedDomContent:
+		# Get current state of DOM by executing JavaScript
 		html_content = self.driver.page_source
 		return self._process_content(html_content)
 
@@ -22,78 +23,46 @@ class DomService:
 
 		@dev TODO: instead of of using enumerated index, use random 4 digit numbers -> a bit more tokens BUT updates on the screen wont click on incorrect items -> tricky because you have to consider that same elements need to have the same index ...
 		"""
+
+		# Parse HTML content using BeautifulSoup
 		soup = BeautifulSoup(html_content, 'html.parser')
+
 		candidate_elements: list[Tag | NavigableString] = []
+		dom_queue = [element for element in soup.body.children] if soup.body else []
 		xpath_cache = {}
 
-		def process_element(element: PageElement) -> bool:
-			"""
-			Process element and its children, return True if this element or any of its
-			children were added to candidates
-			"""
-			# Debug cookie consent elements
-			if isinstance(element, Tag):
-				classes = element.get('class', [])
-				if isinstance(classes, str):
-					classes = classes.split()
-				if 'RxNS' in classes or 'P4zO' in classes:
-					print(f'\nDEBUG Cookie Element: {element.name}')
-					print(f'Accepted: {self._is_element_accepted(element)}')
-					print(f'Interactive: {self._is_interactive_element(element)}')
-					if self._is_interactive_element(element):
-						print(f'Active: {self._is_active(element)}')
-						print(f'Top Element: {self._is_top_element(element)}')
-						print(f'Visible: {self._is_visible(element)}')
-					print(f'XPath: {self._generate_xpath(element)}\n')
+		# Find candidate elements
+		while dom_queue:
+			element = dom_queue.pop()
+			should_add_element = False
 
-			has_selected_children = False
-
-			# Handle Tag elements
+			# Handle both Tag elements and text nodes
 			if isinstance(element, Tag):
 				if not self._is_element_accepted(element):
-					element.decompose()
-					return False
+					# Skip element if it's not accepted
+					element.decompose()  # get rid of some memory leaks potentially
+					continue
 
-				# Process children first (post-order traversal)
 				for child in element.children:
-					if process_element(child):
-						has_selected_children = True
+					dom_queue.append(child)
 
-				# Always process interactive elements regardless of children
-				is_interactive = self._is_interactive_element(element)
-				if is_interactive:
+				# Check if element is interactive or leaf element
+				if self._is_interactive_element(element) or self._is_leaf_element(element):
 					if (
 						self._is_active(element)
 						and self._is_top_element(element)
 						and self._is_visible(element)
 					):
-						candidate_elements.append(element)
-						return True
+						should_add_element = True
 
-				# For non-interactive elements, only add if it's a leaf and no children were selected
-				if (
-					not has_selected_children
-					and self._is_leaf_element(element)
-					and self._is_active(element)
-					and self._is_top_element(element)
-					and self._is_visible(element)
-				):
-					candidate_elements.append(element)
-					return True
-
-				return has_selected_children
-
-			# Handle text nodes
 			elif isinstance(element, NavigableString) and element.strip():
 				if self._is_visible(element):
-					candidate_elements.append(element)
-					return True
+					should_add_element = True
 
-			return False
-
-		# Start processing from body
-		if soup.body:
-			process_element(soup.body)
+			if should_add_element:
+				if not isinstance(element, (Tag, NavigableString)):
+					continue
+				candidate_elements.append(element)
 
 		# Process candidates
 		selector_map: dict[int, str] = {}
@@ -114,7 +83,15 @@ class DomService:
 			if isinstance(element, NavigableString):
 				text_content = element.strip()
 				if text_content:
-					output_items.append(DomContentItem(index=index, text=text_content))
+					output_string = f'{text_content}'
+					output_items.append(
+						DomContentItem(index=index, text=output_string, clickable=False)
+					)
+					continue
+				else:
+					# don't add empty text nodes
+					continue
+
 			else:
 				text_content = self._extract_text_from_all_children(element)
 
@@ -124,9 +101,8 @@ class DomService:
 				opening_tag = f"<{tag_name}{' ' + attributes if attributes else ''}>"
 				closing_tag = f'</{tag_name}>'
 
-				output_items.append(
-					DomContentItem(index=index, text=f'{opening_tag}{text_content}{closing_tag}')
-				)
+				output_string = f'{opening_tag}{text_content}{closing_tag}'
+				output_items.append(DomContentItem(index=index, text=output_string, clickable=True))
 
 			selector_map[index] = xpath
 
@@ -162,8 +138,8 @@ class DomService:
 			'select',
 			'textarea',
 			'summary',
-			'dialog',
-			# 'div',  # added
+			# 'dialog',
+			# 'div',
 		}
 
 		interactive_roles = {
@@ -189,11 +165,10 @@ class DomService:
 			'treeitem',
 			'spinbutton',
 			'tooltip',
-			'dialog',  # added
-			'alertdialog',  # added
+			# 'dialog',  # added
+			# 'alertdialog',  # added
 			'menuitemcheckbox',
 			'menuitemradio',
-			'option',
 		}
 
 		return (
