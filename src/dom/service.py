@@ -36,6 +36,12 @@ class DomService:
 			element = dom_queue.pop()
 			should_add_element = False
 
+			# Add quick filter before expensive checks
+			if not self._quick_element_filter(element):
+				if isinstance(element, Tag):
+					element.decompose()
+				continue
+
 			# Handle both Tag elements and text nodes
 			if isinstance(element, Tag):
 				if not self._is_element_accepted(element):
@@ -431,3 +437,40 @@ class DomService:
 			or element.get('hidden') is not None
 			or element.get('aria-disabled') == 'true'
 		)
+
+	def _quick_element_filter(self, element: PageElement) -> bool:
+		"""
+		Quick pre-filter to eliminate elements before expensive checks.
+		Returns True if element passes initial filtering.
+		"""
+		if isinstance(element, NavigableString):
+			# Quick check for empty or whitespace-only strings
+			return bool(element.strip())
+
+		if not isinstance(element, Tag):
+			return False
+
+		style = element.get('style')
+
+		# Quick attribute checks that would make element invisible/non-interactive
+		if any(
+			[
+				element.get('aria-hidden') == 'true',
+				element.get('hidden') is not None,
+				element.get('disabled') is not None,
+				style and ('display: none' in style or 'visibility: hidden' in style),
+				element.has_attr('class')
+				and any(cls in element['class'] for cls in ['hidden', 'invisible']),
+				# Common hidden class patterns
+				element.get('type') == 'hidden',
+			]
+		):
+			return False
+
+		# Skip elements that definitely won't be interactive or visible
+		non_interactive_display = ['none', 'hidden']
+		computed_style = element.get('style', '') or ''
+		if any(display in computed_style for display in non_interactive_display):
+			return False
+
+		return True

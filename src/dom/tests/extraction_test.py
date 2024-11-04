@@ -40,7 +40,7 @@ def test_process_html_file():
 
 	print(f'get_clickable_elements took {elapsed_time:.2f} seconds')
 
-	print(elements)
+	# print(elements)
 
 	# for item in result.items:
 	# 	print(item)
@@ -60,4 +60,4 @@ def test_process_html_file():
 
 	# print('Tokens:', count_string_tokens(result.output_html, 'gpt-4o'))
 
-	input('Press enter to exit')
+	# input('Press enter to exit')
