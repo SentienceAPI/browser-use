@@ -25,7 +25,7 @@ class DomService:
 		"""
 
 		# Parse HTML content using BeautifulSoup
-		soup = BeautifulSoup(html_content, 'html.parser')
+		soup = BeautifulSoup(html_content, 'lxml')
 
 		candidate_elements: list[Tag | NavigableString] = []
 		dom_queue = [element for element in soup.body.children] if soup.body else []
