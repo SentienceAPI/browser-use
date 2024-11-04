@@ -49,6 +49,7 @@ class PlaningService:
 			action = await self._take_human_input(action.ask_human.question)
 
 		result = self.agent.act(action)
+		input('continue? ...')
 
 		return action, result
 
@@ -82,8 +83,6 @@ class PlaningService:
 		structured_llm = self.llm.with_structured_output(PlanningAgentAction)
 
 		# print(f'state:\n{state}')
-
-		input('continue? ...')
 
 		response: PlanningAgentAction = await structured_llm.ainvoke(input_messages)  # type: ignore
 
