@@ -1,0 +1,21 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Debug Tests",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/.venv/bin/pytest",
+            "args": [
+                "src/tests/test_kayak_search.py",
+                "-v",
+                "-s"
+            ],
+            "console": "integratedTerminal",
+			"justMyCode": false,
+			"env": {
+				"PYTHONPATH": "${workspaceFolder}"
+			}
+		}
+	]
+}
