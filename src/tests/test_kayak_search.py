@@ -65,8 +65,8 @@ async def test_kayak_flight_search():
 			print(f'\n📍 Step {i+1}')
 			action, result = await agent.step()
 
-			print('action:\n', action)
-			print('result:\n', result)
+			# print('action:\n', action)
+			print('result:\n', result.model_dump_json(indent=4))
 
 			# current_state = agent.get_current_state()
 			# save_formatted_html(

@@ -99,7 +99,8 @@ class AgentService:
 		history_new_message = AgentMessagePrompt(state).get_message_for_history()
 		self.messages.append(history_new_message)
 		self.messages.append(AIMessage(content=response.model_dump_json()))
-
+		print(f'current state\n: {response.current_state.model_dump_json(indent=4)}')
+		print(f'action\n: {response.action.model_dump_json(indent=4)}')
 		self._save_conversation(input_messages, response)
 
 		# try:
