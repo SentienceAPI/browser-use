@@ -21,6 +21,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 from src.browser.views import BrowserState
 from src.dom.service import DomService
+from src.utils import time_execution_sync
 
 
 class BrowserService:
@@ -126,14 +127,11 @@ class BrowserService:
 		if remaining > 0:
 			time.sleep(remaining)
 
+	@time_execution_sync('get_updated_state')
 	def get_updated_state(self) -> BrowserState:
 		"""
 		Update and return state.
 		"""
-		import time
-
-		start_time = time.time()
-
 		driver = self._get_driver()
 		dom_service = DomService(driver)
 		content = dom_service.get_clickable_elements()
@@ -143,9 +141,6 @@ class BrowserService:
 			url=driver.current_url,
 			title=driver.title,
 		)
-
-		elapsed_time = time.time() - start_time
-		print(f'get_updated_state took {elapsed_time:.2f} seconds')
 
 		return self.current_state
 
