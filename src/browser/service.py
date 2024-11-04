@@ -28,8 +28,8 @@ class BrowserService:
 		self.headless = headless
 		self.driver: webdriver.Chrome | None = None
 		self._ob = Screenshot.Screenshot()
-		self.MINIMUM_WAIT_TIME = 1
-		self.MAXIMUM_WAIT_TIME = 10
+		self.MINIMUM_WAIT_TIME = 0.5
+		self.MAXIMUM_WAIT_TIME = 5
 
 	def init(self) -> webdriver.Chrome:
 		"""
@@ -116,7 +116,7 @@ class BrowserService:
 
 		# Calculate remaining time to meet minimum WAIT_TIME
 		elapsed = time.time() - start_time
-		remaining = self.MINIMUM_WAIT_TIME - elapsed
+		remaining = max(self.MINIMUM_WAIT_TIME - elapsed, 0)
 
 		print(
 			f'Page loaded in {elapsed:.2f} seconds, waiting for additional {remaining:.2f} seconds'

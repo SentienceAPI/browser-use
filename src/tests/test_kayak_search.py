@@ -1,8 +1,8 @@
 import datetime
 import os
-import time
 
 import pytest
+from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
 
 from src.agent.service import AgentService
@@ -31,7 +31,10 @@ async def test_kayak_flight_search():
 	run_folder = setup_run_folder('kayak_com_flight_search2')
 
 	controller = ControllerService()
-	model = ChatOpenAI(model='gpt-4o')
+
+	# model = ChatOpenAI(model='gpt-4o')
+	model = ChatAnthropic(model_name='claude-3-5-sonnet-20240620', timeout=25, stop=None)
+
 	agent = AgentService(task, model, controller, use_vision=True)
 
 	print('\n' + '=' * 50)
@@ -46,8 +49,6 @@ async def test_kayak_flight_search():
 
 			print('action:\n', action)
 			print('result:\n', result)
-
-			time.sleep(0.5)
 
 			# current_state = agent.get_current_state()
 			# save_formatted_html(

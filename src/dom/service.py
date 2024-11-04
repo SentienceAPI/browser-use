@@ -25,7 +25,7 @@ class DomService:
 		"""
 
 		# Parse HTML content using BeautifulSoup
-		soup = BeautifulSoup(html_content, 'html.parser')
+		soup = BeautifulSoup(html_content, 'lxml')
 
 		candidate_elements: list[Tag | NavigableString] = []
 		dom_queue = [element for element in soup.body.children] if soup.body else []
@@ -35,6 +35,12 @@ class DomService:
 		while dom_queue:
 			element = dom_queue.pop()
 			should_add_element = False
+
+			# Add quick filter before expensive checks
+			if not self._quick_element_filter(element):
+				if isinstance(element, Tag):
+					element.decompose()
+				continue
 
 			# Handle both Tag elements and text nodes
 			if isinstance(element, Tag):
@@ -81,7 +87,7 @@ class DomService:
 				continue
 
 			if isinstance(element, NavigableString):
-				text_content = element.strip()
+				text_content = self._cap_text_length(element.strip())
 				if text_content:
 					output_string = f'{text_content}'
 					output_items.append(
@@ -108,6 +114,12 @@ class DomService:
 
 		return ProcessedDomContent(items=output_items, selector_map=selector_map)
 
+	def _cap_text_length(self, text: str, max_length: int = 150) -> str:
+		if len(text) > max_length:
+			half_length = max_length // 2
+			return text[:half_length] + '...' + text[-half_length:]
+		return text
+
 	def _extract_text_from_all_children(self, element: Tag) -> str:
 		# Tell BeautifulSoup that button tags can contain content
 		# if not hasattr(element.parser, 'BUTTON_TAGS'):
@@ -121,7 +133,8 @@ class DomService:
 				current_child_text = child.get_text(strip=True)
 
 			text_content += '\n' + current_child_text
-		return text_content.strip() or ''
+
+		return self._cap_text_length(text_content.strip()) or ''
 
 	def _is_interactive_element(self, element: Tag) -> bool:
 		"""Check if element is interactive based on tag name and attributes."""
@@ -266,7 +279,7 @@ class DomService:
 		"""
 		essential_attributes = [
 			'id',
-			# 'class',
+			'class',
 			'href',
 			'src',
 			'readonly',
@@ -288,7 +301,13 @@ class DomService:
 		attrs = []
 		for attr in essential_attributes:
 			if attr in element.attrs:
-				attrs.append(f'{attr}="{element[attr]}"')
+				element_attr = element[attr]
+				if isinstance(element_attr, str):
+					element_attr = element_attr[:50]
+				elif isinstance(element_attr, (list, tuple)):
+					element_attr = ' '.join(str(v)[:50] for v in element_attr)
+
+				attrs.append(f'{attr}="{element_attr}"')
 
 		state_attributes_prefixes = (
 			'aria-',
@@ -418,3 +437,40 @@ class DomService:
 			or element.get('hidden') is not None
 			or element.get('aria-disabled') == 'true'
 		)
+
+	def _quick_element_filter(self, element: PageElement) -> bool:
+		"""
+		Quick pre-filter to eliminate elements before expensive checks.
+		Returns True if element passes initial filtering.
+		"""
+		if isinstance(element, NavigableString):
+			# Quick check for empty or whitespace-only strings
+			return bool(element.strip())
+
+		if not isinstance(element, Tag):
+			return False
+
+		style = element.get('style')
+
+		# Quick attribute checks that would make element invisible/non-interactive
+		if any(
+			[
+				element.get('aria-hidden') == 'true',
+				element.get('hidden') is not None,
+				element.get('disabled') is not None,
+				style and ('display: none' in style or 'visibility: hidden' in style),
+				element.has_attr('class')
+				and any(cls in element['class'] for cls in ['hidden', 'invisible']),
+				# Common hidden class patterns
+				element.get('type') == 'hidden',
+			]
+		):
+			return False
+
+		# Skip elements that definitely won't be interactive or visible
+		non_interactive_display = ['none', 'hidden']
+		computed_style = element.get('style', '') or ''
+		if any(display in computed_style for display in non_interactive_display):
+			return False
+
+		return True
