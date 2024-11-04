@@ -18,7 +18,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 
-from src.browser.views import BrowserException, BrowserState
+from src.browser.views import BrowserState
 from src.dom.service import DomService
 
 
@@ -45,7 +45,7 @@ class BrowserService:
 		chrome_options.add_experimental_option('useAutomationExtension', False)
 
 		# Additional stealth settings
-		chrome_options.add_argument('--start-maximized')
+		chrome_options.add_argument('--window-size=1024,1024')
 		chrome_options.add_argument('--disable-extensions')
 		chrome_options.add_argument('--no-sandbox')
 		chrome_options.add_argument('--disable-infobars')
