@@ -1,4 +1,4 @@
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.agent.views import AgentPageState
 
@@ -57,7 +57,7 @@ class PlanningMessagePrompt:
 
 	def get_user_message(self) -> HumanMessage:
 		state_description = f"""
-Currently on url: {self.state.url}
+Current url: {self.state.url}
 		
 Interactive elements:
 {self.state.dom_items_to_string()}

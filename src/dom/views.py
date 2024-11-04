@@ -12,4 +12,4 @@ class ProcessedDomContent(BaseModel):
 
 	def dom_items_to_string(self) -> str:
 		"""Convert the processed DOM content to HTML."""
-		return '\n'.join([item.text for item in self.items])
+		return '\n'.join([f'{item.index}:{item.text}' for item in self.items])

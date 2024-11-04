@@ -61,7 +61,6 @@ class PlaningService:
 		# 	| self.model
 		# 	| PydanticOutputParser(pydantic_object=PlanningAgentAction)
 		# )
-
 		structured_llm = self.llm.with_structured_output(PlanningAgentAction)
 		action: PlanningAgentAction = await structured_llm.ainvoke(self.messages)  # type: ignore
 
@@ -75,9 +74,10 @@ class PlaningService:
 		new_message = PlanningMessagePrompt(state).get_user_message()
 
 		input_messages = self.messages + [new_message]
+		print(f'model input: {input_messages}')
 		structured_llm = self.llm.with_structured_output(PlanningAgentAction)
 
-		print(f'state:\n{state}')
+		# print(f'state:\n{state}')
 
 		input('continue? ...')
 
