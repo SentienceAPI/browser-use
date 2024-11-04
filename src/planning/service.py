@@ -74,7 +74,11 @@ class PlaningService:
 		new_message = PlanningMessagePrompt(state).get_user_message()
 
 		input_messages = self.messages + [new_message]
-		print(f'model input: {input_messages}')
+		if self.use_vision:
+			print(f'model input content with image: {new_message.content[0]}')
+		else:
+			print(f'model input: {new_message}')
+
 		structured_llm = self.llm.with_structured_output(PlanningAgentAction)
 
 		# print(f'state:\n{state}')

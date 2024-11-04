@@ -70,7 +70,7 @@ Interactive elements:
 					{'type': 'text', 'text': state_description},
 					{
 						'type': 'image_url',
-						'image_url': f'data:image/png;base64,{self.state.screenshot}',
+						'image_url': {'url': f'data:image/png;base64,{self.state.screenshot}'},
 					},
 				]
 			)
