@@ -4,9 +4,17 @@ import os
 import pytest
 from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
+from langfuse import Langfuse
+from langfuse.decorators import observe
 
 from src.agent.service import AgentService
 from src.controller.service import ControllerService
+
+langfuse = Langfuse(
+	secret_key=os.getenv('LANGFUSE_SECRET_KEY'),
+	public_key=os.getenv('LANGFUSE_PUBLIC_KEY'),
+	host=os.getenv('LANGFUSE_HOST'),
+)
 
 
 def setup_run_folder(timestamp_prefix: str) -> str:
@@ -26,6 +34,7 @@ def setup_run_folder(timestamp_prefix: str) -> str:
 # run with pytest src/tests/test_kayak_search.py -v -s
 # @pytest.mark.skip
 @pytest.mark.asyncio
+@observe()
 async def test_kayak_flight_search():
 	task = 'go to kayak.com andfind a flight from Bali to Kirgistan on 2024-11-25 for 2 people one way.'
 	run_folder = setup_run_folder('kayak_com_flight_search2')
