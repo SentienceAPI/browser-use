@@ -7,7 +7,9 @@ import pytest
 from langchain_openai import ChatOpenAI
 
 from src.agent.service import AgentService
-from src.planning.service import PlaningService
+from src.controller.service import ControllerService
+
+#
 
 
 def setup_run_folder(timestamp_prefix: str) -> str:
@@ -56,9 +58,9 @@ async def test_mind2web_samples():
 		print('-' * 50)
 
 		# Initialize new agent and model for each sample
-		agent = AgentService()
+		controller = ControllerService()
 		model = ChatOpenAI(model='gpt-4o')
-		planning_service = PlaningService(task=task, llm=model, agent=agent, use_vision=True)
+		agent = AgentService(task, model, controller, use_vision=True)
 
 		try:
 			max_steps = 50
@@ -66,7 +68,7 @@ async def test_mind2web_samples():
 
 			for step in range(max_steps):
 				print(f'\n📍 Step {step+1}')
-				action, result = await planning_service.step()
+				action, result = await agent.step()
 
 				print('Action:', action)
 				print('Result:', result)
@@ -93,14 +95,14 @@ async def test_mind2web_samples():
 
 		except KeyboardInterrupt:
 			print('\nReceived interrupt, closing browser...')
-			agent.browser.close()
+			controller.browser.close()
 			raise
 		except Exception as e:
 			print(f'\n❌ Error processing sample: {str(e)}')
 			results['failed'] += 1
 			results['errors'].append({'sample': i, 'task': sample['task'], 'error': str(e)})
 		finally:
-			agent.browser.close()
+			controller.browser.close()
 
 	# Save final results
 	results_file = f'{run_folder}/results.json'
@@ -145,15 +147,15 @@ async def test_single_mind2web_sample():
 	print(f'Task: {task}')
 	print('=' * 50)
 
-	agent = AgentService()
+	controller = ControllerService()
 	model = ChatOpenAI(model='gpt-4o')
-	planning_service = PlaningService(task=task, llm=model, agent=agent, use_vision=True)
+	agent = AgentService(task, model, controller, use_vision=True)
 
 	try:
 		max_steps = 50
 		for step in range(max_steps):
 			print(f'\n📍 Step {step+1}')
-			action, result = await planning_service.step()
+			action, result = await agent.step()
 
 			print('Action:', action)
 			print('Result:', result)
@@ -172,10 +174,10 @@ async def test_single_mind2web_sample():
 
 	except KeyboardInterrupt:
 		print('\nReceived interrupt, closing browser...')
-		agent.browser.close()
+		controller.browser.close()
 		raise
 	finally:
-		agent.browser.close()
+		controller.browser.close()
 
 
 if __name__ == '__main__':

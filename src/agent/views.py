@@ -1,6 +1,8 @@
 from typing import Optional
 
+from litellm import ConfigDict
 from pydantic import BaseModel
+from typing_extensions import Unpack
 
 from src.controller.views import ControllerActions
 
@@ -9,7 +11,7 @@ class AskHumanAgentAction(BaseModel):
 	question: str
 
 
-class AgentAction(ControllerActions):
+class AgentOnlyAction(BaseModel):
 	valuation_previous_goal: str
 	goal: str
 
@@ -17,7 +19,17 @@ class AgentAction(ControllerActions):
 
 	@staticmethod
 	def description() -> str:
-		return (
-			ControllerActions.description()
-			+ '\n\nAsk human for help\nExample: {"ask_human": {"question": "To clarify ..."}}'
-		)
+		return """
+- Ask human for help
+  Example: {"ask_human": {"question": "To clarify ..."}}
+"""
+
+
+class AgentAction(ControllerActions, AgentOnlyAction):
+	@staticmethod
+	def description() -> str:
+		return AgentOnlyAction.description() + ControllerActions.description()
+
+
+if __name__ == '__main__':
+	print(AgentAction(valuation_previous_goal='Failed', goal='Click'))

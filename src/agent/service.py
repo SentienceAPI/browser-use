@@ -2,10 +2,10 @@ from dotenv import load_dotenv
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
-from src.controller.service import ControllerService
-from src.controller.views import ControllerActionResult, ControllerPageState
 from src.agent.prompts import AgentMessagePrompt, AgentSystemPrompt
 from src.agent.views import AgentAction
+from src.controller.service import ControllerService
+from src.controller.views import ControllerActionResult, ControllerPageState
 
 load_dotenv()
 
@@ -31,7 +31,11 @@ class AgentService:
 		self.use_vision = use_vision
 
 		self.llm = llm
-		system_prompt = AgentSystemPrompt(task, self._get_action_description()).get_system_message()
+		system_prompt = AgentSystemPrompt(
+			task, default_action_description=self._get_action_description()
+		).get_system_message()
+
+		print(system_prompt)
 		first_message = HumanMessage(content=f'Your task is: {task}')
 
 		# self.messages_all: list[BaseMessage] = []
@@ -67,10 +71,10 @@ class AgentService:
 		new_message = AgentMessagePrompt(state).get_user_message()
 
 		input_messages = self.messages + [new_message]
-		if self.use_vision:
-			print(f'model input content with image: {new_message.content[0]}')
-		else:
-			print(f'model input: {new_message}')
+		# if self.use_vision:
+		# 	print(f'model input content with image: {new_message.content[0]}')
+		# else:
+		# 	print(f'model input: {new_message}')
 
 		structured_llm = self.llm.with_structured_output(AgentAction)
 
