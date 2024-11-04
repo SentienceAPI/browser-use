@@ -36,7 +36,7 @@ class AgentService:
 		).get_system_message()
 
 		print(system_prompt)
-		first_message = HumanMessage(content=f'Your task is: {task}')
+		first_message = HumanMessage(content=f'Your main task is: {task}')
 
 		# self.messages_all: list[BaseMessage] = []
 		self.messages: list[BaseMessage] = [system_prompt, first_message]

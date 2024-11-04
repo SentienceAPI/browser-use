@@ -82,6 +82,7 @@ async def test_mind2web_samples():
 
 				if result.done:
 					print('\n✅ Sample completed successfully')
+					print('Extracted content:', result.extracted_content)
 					results['successful'] += 1
 					sample_success = True
 					break
@@ -167,6 +168,7 @@ async def test_single_mind2web_sample():
 
 			if result.done:
 				print('\n✅ Task completed successfully')
+				print('Extracted content:', result.extracted_content)
 				break
 		else:
 			print('\n❌ Failed to complete task in maximum steps')

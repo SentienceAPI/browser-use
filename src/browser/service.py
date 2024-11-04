@@ -194,6 +194,13 @@ class BrowserService:
 		content = MainContentExtractor.extract(driver.page_source, output_format=value)  # type: ignore TODO
 		return content
 
+	def done(self, text: str):
+		"""
+		Ends the task and waits for further instructions.
+		"""
+		print(f'Done on page {self.current_state.url}\n\n: {text}')
+		return text
+
 	def take_screenshot(self, full_page: bool = False) -> str:
 		"""
 		Returns a base64 encoded screenshot of the current page.

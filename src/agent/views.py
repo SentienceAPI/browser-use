@@ -12,8 +12,10 @@ class AskHumanAgentAction(BaseModel):
 
 
 class AgentOnlyAction(BaseModel):
+	# TODO this is not really and action with function, but more an output only
 	valuation_previous_goal: str
-	goal: str
+	memory: str
+	next_goal: str
 
 	ask_human: Optional[AskHumanAgentAction] = None
 
@@ -32,4 +34,4 @@ class AgentAction(ControllerActions, AgentOnlyAction):
 
 
 if __name__ == '__main__':
-	print(AgentAction(valuation_previous_goal='Failed', goal='Click'))
+	print(AgentAction(valuation_previous_goal='Failed', next_goal='Click', memory=''))

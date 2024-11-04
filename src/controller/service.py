@@ -53,7 +53,8 @@ class ControllerService:
 			elif action.go_back:
 				self.browser.go_back()
 			elif action.done:
-				return ControllerActionResult(done=True)
+				self.browser.done(action.done.text)
+				return ControllerActionResult(done=True, extracted_content=action.done.text)
 			elif action.click_element:
 				self.browser.click_element_by_index(
 					action.click_element.id, self.get_cached_browser_state()

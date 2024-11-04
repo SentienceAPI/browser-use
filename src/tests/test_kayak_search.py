@@ -79,6 +79,7 @@ async def test_kayak_flight_search():
 			# # check if output is exactly True (boolean)
 			if result.done:
 				print('\n✅ Task completed successfully')
+				print('Extracted content:', result.extracted_content)
 				break
 
 			# time.sleep(0.5)

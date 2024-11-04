@@ -22,6 +22,10 @@ class InputTextControllerAction(BaseModel):
 	text: str
 
 
+class DoneControllerAction(BaseModel):
+	text: str
+
+
 class ControllerActions(BaseModel):
 	"""
 	Controller actions you can use to interact.
@@ -31,7 +35,7 @@ class ControllerActions(BaseModel):
 	go_to_url: Optional[GoToUrlControllerAction] = None
 	nothing: Optional[Literal[True]] = None
 	go_back: Optional[Literal[True]] = None
-	done: Optional[Literal[True]] = None
+	done: Optional[DoneControllerAction] = None
 	click_element: Optional[ClickElementControllerAction] = None
 	input_text: Optional[InputTextControllerAction] = None
 	extract_page_content: Optional[Literal[True]] = None
@@ -51,7 +55,7 @@ class ControllerActions(BaseModel):
 - Go back to previous page
   Example: {"go_back": true}
 - Mark entire task as complete
-  Example: {"done": true}
+  Example: {"done": {"text": "This is the requested result of the task..."}}
 - Click an element by its ID
   Example: {"click_element": {"id": 1}}
 - Input text into an element by its ID
