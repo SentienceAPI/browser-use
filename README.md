@@ -133,8 +133,9 @@ All LangChain chat models are supported. Tested with:
 - [x] Save agent actions and execute them deterministically
 - [ ] Pydantic forced output
 - [ ] Third party SERP API for faster Google Search results
-- [ ] Multi-step action execution
-- [ ] Add more browser actions
+- [ ] Multi-step action execution to increase speed
+- [ ] Test on mind2web dataset
+- [ ] Add more browser actions 
 
 ## Contributing
 
@@ -146,10 +147,4 @@ Contributions are welcome! Feel free to open issues for bugs or feature requests
   <b>Star ⭐ this repo if you find it useful!</b><br>
   Made with ❤️ by the Browser-Use team
 </div>
-
-# Future Roadmap
-
-- [x] Save agent actions and execute them deterministically (for QA testing etc)
-- [ ] Pydantic forced output
-- [ ] Third party SERP API for faster Google Search results
 
