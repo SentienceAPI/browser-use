@@ -56,9 +56,9 @@ class ControllerActions(BaseModel):
   Example: {"go_back": true}
 - Mark entire task as complete
   Example: {"done": {"text": "This is the requested result of the task..."}}
-- Click an element by its ID
+- Click an interactive element by its given ID
   Example: {"click_element": {"id": 1}}
-- Input text into an element by its ID
+- Input text into an interactiveelement by its ID
   Example: {"input_text": {"id": 1, "text": "Hello world"}}
 - Get the page content in markdown
   Example: {"extract_page_content": true}

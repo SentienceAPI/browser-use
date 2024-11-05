@@ -22,8 +22,7 @@ class AgentOnlyAction(BaseModel):
 	def description() -> str:
 		return """
 - Ask human for help
-  Example: {"ask_human": {"question": "To clarify ..."}}
-"""
+  Example: {"ask_human": {"question": "To clarify ..."}}"""
 
 
 class AgentOutput(ControllerActions, AgentOnlyAction):
