@@ -48,17 +48,11 @@ Watch Browser-Use tackle real-world tasks:
 
 ## 💻 Quick Start
 
-Create a virtual environment:
+Create a virtual environment and install the dependencies:
 
 ```bash
-uv venv
-```
-
-Then install the dependencies:
-
-```bash
-# Install with uv (recommended)
-uv pip install -r requirements.txt
+# I recommend using uv
+pip install -r requirements.txt
 ```
 
 Add your API keys to the `.env` file.
