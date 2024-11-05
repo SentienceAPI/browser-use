@@ -157,6 +157,8 @@ class BrowserService:
 			self.driver = None
 		else:
 			input('Press Enter to close Browser...')
+			self.keep_open = False
+			self.close()
 
 	def __del__(self):
 		"""
@@ -344,47 +346,66 @@ class BrowserService:
 	# endregion
 
 	def handle_new_tab(self) -> dict:
-		"""Get info about newly opened tab without switching"""
+		"""Handle newly opened tab and switch to it"""
 		driver = self._get_driver()
 		handles = driver.window_handles
-		new_handle = handles[-1]
+		new_handle = handles[-1]  # Get most recently opened handle
 
-		# Only switch if we need to get info about the new tab
-		current_handle = driver.current_window_handle
+		# Switch to new tab
 		driver.switch_to.window(new_handle)
+		self._current_handle = new_handle  # Update current handle
 
+		# Wait for page load
+		self.wait_for_page_load()
+
+		# Get and cache tab info
 		tab_info = {
 			'handle': new_handle,
 			'url': driver.current_url,
 			'title': driver.title,
+			'is_current': True,
 		}
-
-		# Cache the info
 		self._tab_cache[new_handle] = tab_info
 
-		# Switch back
-		driver.switch_to.window(current_handle)
+		# Update is_current for all tabs
+		for handle in self._tab_cache:
+			self._tab_cache[handle]['is_current'] = handle == new_handle
+
 		return tab_info
 
 	def get_tabs_info(self) -> list[dict]:
-		"""Get cached information about all tabs"""
+		"""Get information about all tabs"""
 		driver = self._get_driver()
 		current_handle = driver.current_window_handle
+		self._current_handle = current_handle  # Update current handle
 
-		# Update cache for current tab
-		self._tab_cache[current_handle] = {
-			'handle': current_handle,
-			'url': driver.current_url,
-			'title': driver.title,
-			'is_current': True,
-		}
+		tabs_info = []
+		for handle in driver.window_handles:
+			is_current = handle == current_handle
 
-		# Return all cached tab info
-		return [
-			{**tab_info, 'is_current': handle == current_handle}
-			for handle, tab_info in self._tab_cache.items()
-			if handle in driver.window_handles  # Only return existing tabs
-		]
+			# Use cached info if available, otherwise get new info
+			if handle in self._tab_cache:
+				tab_info = self._tab_cache[handle]
+				tab_info['is_current'] = is_current
+			else:
+				# Only switch if we need to get info
+				if not is_current:
+					driver.switch_to.window(handle)
+				tab_info = {
+					'handle': handle,
+					'url': driver.current_url,
+					'title': driver.title,
+					'is_current': is_current,
+				}
+				self._tab_cache[handle] = tab_info
+
+			tabs_info.append(tab_info)
+
+		# Switch back to current tab if we moved
+		if driver.current_window_handle != current_handle:
+			driver.switch_to.window(current_handle)
+
+		return tabs_info
 
 	def switch_tab(self, handle: str) -> dict:
 		"""Switch to specified tab and return its info"""

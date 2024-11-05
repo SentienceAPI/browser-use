@@ -132,13 +132,13 @@ async def test_wikipedia_tabs():
 @observe()
 async def test_albert_image_search():
 	# task = 'open 3 wikipedia pages in different tabs and then go back to the first one and summarize me the content of the page.'
-	task = 'find an image of albert einstein and ask me for further instructions.'
+	task = 'find an image of albert einstein, elon musk, julius caesar and steve jobs in new tabs and ask me for further instructions.'
 	run_folder = setup_run_folder('albert_einstein_image_search')
 
 	controller = ControllerService(keep_open=True)
 
 	model = ChatAnthropic(
-		model_name='claude-3-5-sonnet-20240620', timeout=25, stop=None, temperature=0.3
+		model_name='claude-3-5-sonnet-20240620', timeout=60, stop=None, temperature=0.3
 	)
 	model = ChatOpenAI(model='gpt-4o', temperature=0.3)
 
