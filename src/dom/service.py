@@ -1,9 +1,14 @@
+import logging
+
 from bs4 import BeautifulSoup, NavigableString, PageElement, Tag
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 
 from src.dom.views import DomContentItem, ProcessedDomContent
 from src.utils import time_execution_sync
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 class DomService:
@@ -445,7 +450,7 @@ class DomService:
 			is_top = self.driver.execute_script(check_top)
 			return bool(is_top)
 		except Exception:
-			print(f'Error checking top element: {element}')
+			logger.error(f'Error checking top element: {element}')
 			return False
 
 	def _is_active(self, element: Tag) -> bool:

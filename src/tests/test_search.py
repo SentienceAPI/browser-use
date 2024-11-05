@@ -3,7 +3,6 @@ import os
 
 import pytest
 from langchain_anthropic import ChatAnthropic
-from langchain_fireworks import ChatFireworks
 from langchain_openai import ChatOpenAI
 
 from src.agent.service import AgentService

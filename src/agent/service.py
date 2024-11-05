@@ -1,4 +1,5 @@
 import json
+import logging
 
 from dotenv import load_dotenv
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -11,6 +12,11 @@ from src.controller.views import ControllerActionResult, ControllerPageState
 from src.utils import time_execution_async
 
 load_dotenv()
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+	level=logging.INFO,
+	force=True,  # Prevent changing root logger config
+)
 
 
 class AgentService:
@@ -30,23 +36,52 @@ class AgentService:
 			llm (AvailableModel): Model to be used.
 			controller (ControllerService | None): You can reuse an existing or (automatically) create a new one.
 		"""
-		self.controller = controller or ControllerService()
-
+		self.task = task
 		self.use_vision = use_vision
+
+		self.controller = controller or ControllerService()
 
 		self.llm = llm
 		system_prompt = AgentSystemPrompt(
 			task, default_action_description=self._get_action_description()
 		).get_system_message()
 
+		# Init messages
 		first_message = HumanMessage(content=f'Your main task is: {task}')
-
-		# self.messages_all: list[BaseMessage] = []
 		self.messages: list[BaseMessage] = [system_prompt, first_message]
+		self.n = 0
+
 		self.save_conversation_path = save_conversation_path
 		if save_conversation_path is not None:
-			print(f'Saving conversation to {save_conversation_path}')
-		self.n = 0
+			logger.info(f'Saving conversation to {save_conversation_path}')
+
+	async def run(self, max_steps: int = 100):
+		"""
+		Execute the task.
+
+		@dev ctrl+c to interrupt
+		"""
+		try:
+			logger.info('\n' + '=' * 50)
+			logger.info(f'🚀 Starting task: {self.task}')
+			logger.info('=' * 50)
+
+			for i in range(max_steps):
+				logger.info(f'\n📍 Step {i+1}')
+
+				action, result = await self.step()
+
+				if result.done:
+					logger.info('\n✅ Task completed successfully')
+					logger.info(f'Extracted content: {result.extracted_content}')
+					return action.done
+
+			logger.info('\n' + '=' * 50)
+			logger.info('❌ Failed to complete task in maximum steps')
+			logger.info('=' * 50)
+			return None
+		finally:
+			self.controller.browser.close()
 
 	@time_execution_async('--step')
 	async def step(self) -> tuple[AgentOutput, ControllerActionResult]:
@@ -70,10 +105,11 @@ class AgentService:
 
 	async def _take_human_input(self, question: str) -> AgentOutput:
 		human_input = input(f'Human input required: {question}\n\n')
-		print('-' * 50)
+		logger.info('-' * 50)
 		self.messages.append(HumanMessage(content=human_input))
 
 		structured_llm = self.llm.with_structured_output(AgentOutput)
+
 		action: AgentOutput = await structured_llm.ainvoke(self.messages)  # type: ignore
 
 		self.messages.append(AIMessage(content=action.model_dump_json()))
@@ -85,7 +121,7 @@ class AgentService:
 		# TODO: include state, actions, etc.
 
 		new_message = AgentMessagePrompt(state).get_user_message()
-		print(f'current tabs: {state.tabs}')
+		logger.info(f'current tabs: {state.tabs}')
 		input_messages = self.messages + [new_message]
 
 		structured_llm = self.llm.with_structured_output(Output, include_raw=False)
@@ -97,8 +133,8 @@ class AgentService:
 		history_new_message = AgentMessagePrompt(state).get_message_for_history()
 		self.messages.append(history_new_message)
 		self.messages.append(AIMessage(content=response.model_dump_json()))
-		print(f'current state\n: {response.current_state.model_dump_json(indent=4)}')
-		print(f'action\n: {response.action.model_dump_json(indent=4)}')
+		logger.info(f'current state\n: {response.current_state.model_dump_json(indent=4)}')
+		logger.info(f'action\n: {response.action.model_dump_json(indent=4)}')
 		self._save_conversation(input_messages, response)
 
 		return response.action

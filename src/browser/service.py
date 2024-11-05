@@ -8,6 +8,8 @@ import tempfile
 import time
 from typing import Literal
 
+import logging
+
 from main_content_extractor import MainContentExtractor
 from Screenshot import Screenshot
 from selenium import webdriver
@@ -22,6 +24,9 @@ from webdriver_manager.chrome import ChromeDriverManager
 from src.browser.views import BrowserState
 from src.dom.service import DomService
 from src.utils import time_execution_sync
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 class BrowserService:
@@ -52,8 +57,8 @@ class BrowserService:
 		chrome_options.add_experimental_option('useAutomationExtension', False)
 
 		# Additional stealth settings
-		chrome_options.add_argument('--start-maximized')
-		# chrome_options.add_argument('--window-size=1024,1024')
+		# chrome_options.add_argument('--start-maximized')
+		chrome_options.add_argument('--window-size=1280,1024')
 		chrome_options.add_argument('--disable-extensions')
 		chrome_options.add_argument('--no-sandbox')
 		chrome_options.add_argument('--disable-infobars')
@@ -126,7 +131,7 @@ class BrowserService:
 		elapsed = time.time() - start_time
 		remaining = max(self.MINIMUM_WAIT_TIME - elapsed, 0)
 
-		print(
+		logger.info(
 			f'--Page loaded in {elapsed:.2f} seconds, waiting for additional {remaining:.2f} seconds'
 		)
 
@@ -204,7 +209,7 @@ class BrowserService:
 		"""
 		Ends the task and waits for further instructions.
 		"""
-		print(f'Done on page {self.current_state.url}\n\n: {text}')
+		logger.info(f'Done on page {self.current_state.url}\n\n: {text}')
 		return text
 
 	def take_screenshot(self, full_page: bool = False) -> str:
