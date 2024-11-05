@@ -8,7 +8,7 @@
   <img src="assets/demo.gif" alt="Browser-Use Demo" width="600">
 </p> -->
 
-[![GitHub stars](https://img.shields.io/github/stars/yourusername/browser-use?style=social)](https://github.com/yourusername/browser-use/stargazers)
+[![GitHub stars](https://img.shields.io/github/stars/gregpr07/browser-use?style=social)](https://github.com/gregpr07/browser-use/stargazers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
@@ -158,7 +158,6 @@ Contributions are welcome! Also feel free to open issues for any bugs or feature
 
 # Future Roadmap
 
-- [ ] Pydantic forced output
 - [x] Save agent actions and execute them deterministically (for QA testing etc)
+- [ ] Pydantic forced output
 - [ ] Third party SERP API for faster Google Search results
-- [ ]
