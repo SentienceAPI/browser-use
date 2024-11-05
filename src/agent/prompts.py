@@ -27,19 +27,20 @@ class AgentSystemPrompt:
     
     This is how an input looks like:
     33: <button>Clickable element</button>
-    _: Not clickable, only for context
+    _: Not clickable, only for your context
 
     In the beginning the list will be empty.
 	On elements with _ you can not click.
+	On elements with a index you can click.
     
 	Additional you get a list of your previous actions.
 
     
-	Respond with a valid JSON object, containing the current_state and action.
-    In current_state you need to provide:
-	valuation_previous_goal: valuation of the previous goal if it is achieved or what went wrong.
+	Respond with a valid JSON object, containing 2 keys: current_state and action.
+    In current_state there are 3 keys:
+	valuation_previous_goal: Evaluate if the previous goal was achieved or what went wrong so that you know in the future what to change.
 	memory: This you can use as a memory to store where you are in your overall task. E.g. if you need to find 10 jobs, you can store the already found jobs here.
-	next_goal: Short description of the next goal you need to achieve.
+	next_goal: Description of the next goal you want to achieve e.g. which elements to click.
 
 	In action choose EXACTLY ONE from the following list:
     {self.default_action_description}
@@ -48,7 +49,7 @@ class AgentSystemPrompt:
 	Make sure to only use indexes that are present in the list.
     If you need more text from the page you can use the extract_page_content action.
 
-    If you get stuck and multiple time dont achieve the next_goal, try to find a new element that can help you achieve your task or if persistent, go back or reload the page and try a different approach.
+    If you evaluate repeatedly that you dont achieve the next_goal, try to find a new element that can help you achieve your task or if persistent, go back or reload the page and try a different approach.
     
 	You can ask_human for clarification if you are completely stuck or if you really need more information. 
 
@@ -64,7 +65,6 @@ class AgentMessagePrompt:
 	def __init__(self, state: ControllerPageState):
 		self.state = state
 
-	@time_execution_sync('get_user_message')
 	def get_user_message(self) -> HumanMessage:
 		state_description = f"""
 Current url: {self.state.url}
@@ -86,6 +86,5 @@ Interactive elements:
 
 		return HumanMessage(content=state_description)
 
-	@time_execution_sync('get_message_for_history')
 	def get_message_for_history(self) -> HumanMessage:
 		return HumanMessage(content=f'Currently on url: {self.state.url}')
