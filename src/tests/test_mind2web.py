@@ -135,6 +135,7 @@ async def test_mind2web_samples():
 	), f'Success rate {results["successful"] / len(samples):.2f} below minimum {min_success_rate}'
 
 
+# python -m pytest src/tests/test_mind2web.py::test_single_mind2web_sample -v -s
 @pytest.mark.asyncio
 async def test_single_mind2web_sample():
 	"""Test a single sample from mind2web dataset for debugging"""
