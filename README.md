@@ -35,7 +35,17 @@ Watch Browser-Use tackle real-world tasks:
       <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/3ddba106c1fd4fd38c314881fb7d3d78-7d8bc50585272d46-full-play.gif">
     </a>
   </div>
-  <div style="position: relative; padding-bottom: 64.92178098676294%; height: 0;"><iframe src="https://www.loom.com/embed/93015893157249d39d96a8de604e3719?sid=715c9d5e-a204-4a49-a4db-c9b0fea572ff" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe></div>
+  <div align="center">
+    <iframe 
+      width="640" 
+      height="415"
+      src="https://www.loom.com/embed/93015893157249d39d96a8de604e3719?sid=715c9d5e-a204-4a49-a4db-c9b0fea572ff"
+      frameborder="0"
+      webkitallowfullscreen 
+      mozallowfullscreen 
+      allowfullscreen>
+    </iframe>
+  </div>
   
 
 ## 🚀 Key Features
