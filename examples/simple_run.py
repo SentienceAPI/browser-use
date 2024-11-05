@@ -1,4 +1,9 @@
-import logging
+"""
+Simple try of the agent.
+
+@dev You need to add OPENAI_API_KEY to your environment variables.
+"""
+
 import os
 import sys
 
@@ -10,12 +15,9 @@ from langchain_openai import ChatOpenAI
 
 from src import Agent
 
-logging.basicConfig(level=logging.INFO)
-
-
 llm = ChatOpenAI(model='gpt-4o')
 agent = Agent(
-	task='find and open the websites of 5 kantonschulen in switzerland and return the urls.',
+	task='Find cheapest flights on Google Flights from London to Kyrgyzstan and return the url.',
 	llm=llm,
 )
 

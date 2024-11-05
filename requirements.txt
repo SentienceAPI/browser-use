@@ -1,5 +1,4 @@
 MainContentExtractor==0.0.4
-Screenshot==1.0.0
 Selenium-Screenshot==2.1.0
 beautifulsoup4==4.12.3
 langchain==0.3.7
