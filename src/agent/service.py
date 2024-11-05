@@ -20,7 +20,7 @@ class AgentService:
 		llm: BaseChatModel,
 		controller: ControllerService | None = None,
 		use_vision: bool = False,
-		save_file: str | None = None,
+		save_conversation_path: str | None = None,
 	):
 		"""
 		Agent service.
@@ -39,14 +39,13 @@ class AgentService:
 			task, default_action_description=self._get_action_description()
 		).get_system_message()
 
-		print(system_prompt)
 		first_message = HumanMessage(content=f'Your main task is: {task}')
 
 		# self.messages_all: list[BaseMessage] = []
 		self.messages: list[BaseMessage] = [system_prompt, first_message]
-		self.save_file = save_file
-		if save_file is not None:
-			print(f'Saving conversation to {save_file}')
+		self.save_conversation_path = save_conversation_path
+		if save_conversation_path is not None:
+			print(f'Saving conversation to {save_conversation_path}')
 		self.n = 0
 
 	@time_execution_async('--step')
@@ -108,8 +107,8 @@ class AgentService:
 		return AgentOutput.description()
 
 	def _save_conversation(self, input_messages: list[BaseMessage], response: Output):
-		if self.save_file is not None:
-			with open(self.save_file + f'_{self.n}.txt', 'w') as f:
+		if self.save_conversation_path is not None:
+			with open(self.save_conversation_path + f'_{self.n}.txt', 'w') as f:
 				# Write messages with proper formatting
 				for message in input_messages:
 					f.write('=' * 33 + f' {message.__class__.__name__} ' + '=' * 33 + '\n\n')

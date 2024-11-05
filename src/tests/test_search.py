@@ -43,7 +43,7 @@ async def test_kayak_flight_search():
 		model,
 		controller,
 		use_vision=True,
-		save_file=f'{run_folder}/conversation',
+		save_conversation_path=f'{run_folder}/conversation',
 	)
 
 	print('\n' + '=' * 50)
@@ -90,7 +90,11 @@ async def test_wikipedia_tabs():
 	model = ChatOpenAI(model='gpt-4o', temperature=0.3)
 
 	agent = AgentService(
-		task, model, controller, use_vision=True, save_file=f'{run_folder}/conversation'
+		task,
+		model,
+		controller,
+		use_vision=True,
+		save_conversation_path=f'{run_folder}/conversation',
 	)
 
 	try:
@@ -132,7 +136,11 @@ async def test_albert_image_search():
 	model = ChatOpenAI(model='gpt-4o', temperature=0.3)
 
 	agent = AgentService(
-		task, model, controller, use_vision=True, save_file=f'{run_folder}/conversation'
+		task,
+		model,
+		controller,
+		use_vision=True,
+		save_conversation_path=f'{run_folder}/conversation',
 	)
 
 	try:
