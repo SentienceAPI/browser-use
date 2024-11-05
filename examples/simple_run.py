@@ -20,7 +20,7 @@ logging.basicConfig(level=logging.INFO)
 
 llm = ChatOpenAI(model='gpt-4o')
 agent = Agent(
-	task='Find cheapest flights on Google Flights from London to Kyrgyzstan and return the url.',
+	task='Find cheapest flights on kayak.com from London to Kyrgyzstan and return the url.',
 	llm=llm,
 )
 
