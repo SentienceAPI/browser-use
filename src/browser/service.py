@@ -127,7 +127,6 @@ class BrowserService:
 		if remaining > 0:
 			time.sleep(remaining)
 
-	@time_execution_sync('get_updated_state')
 	def get_updated_state(self) -> BrowserState:
 		"""
 		Update and return state.
@@ -263,59 +262,51 @@ class BrowserService:
 
 	def _click_element_by_xpath(self, xpath: str):
 		"""
-		Internal method to click an element using its xpath with improved element finding strategies.
+		Optimized method to click an element using xpath.
 		"""
 		driver = self._get_driver()
 		wait = self._webdriver_wait()
 
-		# Wait for any overlays/popups to disappear
-		# time.sleep(0.5)  # Brief wait for page to stabilize
-
 		try:
-			# Try multiple strategies to find the element
-			for strategy in [
-				lambda: wait.until(EC.element_to_be_clickable((By.XPATH, xpath))),
-				lambda: wait.until(EC.presence_of_element_located((By.XPATH, xpath))),
-				lambda: driver.find_element(By.XPATH, xpath),
-				# Try with simplified XPath
-				lambda: wait.until(
-					EC.element_to_be_clickable(
-						(
-							By.XPATH,
-							f"//*[@id='{xpath.split('id=')[-1].split(']')[0]}']"
-							if 'id=' in xpath
-							else xpath,
-						)
-					)
-				),
-				# Try finding by any visible matching element
-				lambda: next(
-					elem
-					for elem in driver.find_elements(
-						By.XPATH, "//*[not(ancestor-or-self::*[@style='display: none'])]"
-					)
-					if elem.is_displayed() and elem.is_enabled()
-				),
-			]:
-				try:
-					element = strategy()
-					if element and element.is_displayed() and element.is_enabled():
-						# Scroll element into view using ActionChains for smoother scrolling
-						actions = ActionChains(driver)
-						actions.move_to_element(element).perform()
+			# First try the direct approach with a shorter timeout
+			try:
+				element = wait.until(
+					EC.element_to_be_clickable((By.XPATH, xpath)),
+					message=f'Element not clickable: {xpath}',
+				)
+				driver.execute_script('arguments[0].click();', element)
+				self.wait_for_page_load()
+				return
+			except Exception:
+				pass
 
-						# Try both JavaScript click and regular click
-						try:
-							driver.execute_script('arguments[0].click();', element)
-						except Exception:
-							element.click()
-						finally:
-							self.wait_for_page_load()
+			# If that fails, try a simplified approach
+			try:
+				# Try with ID if present in xpath
+				if 'id=' in xpath:
+					id_value = xpath.split('id=')[-1].split(']')[0]
+					element = driver.find_element(By.ID, id_value)
+					if element.is_displayed() and element.is_enabled():
+						driver.execute_script('arguments[0].click();', element)
+						self.wait_for_page_load()
 						return
-				except Exception:
-					continue
+			except Exception:
+				pass
 
-			raise Exception(f'Could not find clickable element with xpath: {xpath}')
+			# Last resort: force click with JavaScript
+			try:
+				element = driver.find_element(By.XPATH, xpath)
+				driver.execute_script(
+					"""
+					arguments[0].scrollIntoView({behavior: 'instant', block: 'center'});
+					arguments[0].click();
+				""",
+					element,
+				)
+				self.wait_for_page_load()
+				return
+			except Exception as e:
+				raise Exception(f'Failed to click element: {str(e)}')
 
 		except Exception as e:
 			raise Exception(f'Failed to click element with xpath: {xpath}. Error: {str(e)}')

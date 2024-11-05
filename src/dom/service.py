@@ -12,6 +12,7 @@ class DomService:
 
 	def get_clickable_elements(self) -> ProcessedDomContent:
 		# Clear xpath cache on each new DOM processing
+		self.xpath_cache = {}
 		html_content = self.driver.page_source
 		return self._process_content(html_content)
 
@@ -77,10 +78,7 @@ class DomService:
 		output_items: list[DomContentItem] = []
 
 		for index, element in enumerate(candidate_elements):
-			# xpath = xpath_cache.get(element)
-			# if not xpath:
 			xpath = self._generate_xpath(element)
-			# xpath_cache[element] = xpath
 
 			# Skip text nodes that are direct children of already processed elements
 			if isinstance(element, NavigableString) and element.parent in [

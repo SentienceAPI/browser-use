@@ -67,7 +67,7 @@ async def test_kayak_flight_search():
 
 			# print('action:\n', action)
 			print('result:\n', result.model_dump_json(indent=4))
-			input('Press Enter to continue...')
+			# input('Press Enter to continue...')
 
 			# current_state = agent.get_current_state()
 			# save_formatted_html(
