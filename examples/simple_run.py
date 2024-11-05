@@ -4,6 +4,7 @@ Simple try of the agent.
 @dev You need to add OPENAI_API_KEY to your environment variables.
 """
 
+import logging
 import os
 import sys
 
@@ -17,6 +18,8 @@ from langchain_openai import ChatOpenAI
 
 from src import Agent
 
+logging.basicConfig(level=logging.INFO)
+
 llm = ChatOpenAI(model='gpt-4o')
 agent = Agent(
 	task='Opening new tabs to search for images of Albert Einstein, Oprah Winfrey, and Steve Jobs. Then ask user for further instructions.',
@@ -25,7 +28,9 @@ agent = Agent(
 
 
 async def main():
-	await agent.run()
+	result, history = await agent.run()
+	print(result)
+	print(history)
 
 
 asyncio.run(main())

@@ -2,7 +2,11 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from src.controller.views import ControllerActions
+from src.controller.views import (
+	ClickElementControllerAction,
+	ControllerActions,
+	InputTextControllerAction,
+)
 
 
 class AskHumanAgentAction(BaseModel):
@@ -37,12 +41,15 @@ class Output(BaseModel):
 	action: AgentOutput
 
 
-if __name__ == '__main__':
-	print(
-		Output(
-			current_state=AgentState(
-				valuation_previous_goal='Failed', next_goal='Click', memory=''
-			),
-			action=AgentOutput(),
-		)
-	)
+class ClickElementControllerHistoryItem(ClickElementControllerAction):
+	xpath: str | None
+
+
+class InputTextControllerHistoryItem(InputTextControllerAction):
+	xpath: str | None
+
+
+class AgentHistory(AgentOutput):
+	click_element: Optional[ClickElementControllerHistoryItem] = None
+	input_text: Optional[InputTextControllerHistoryItem] = None
+	url: str
