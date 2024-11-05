@@ -49,6 +49,7 @@ class AgentService:
 			print(f'Saving conversation to {save_file}')
 		self.n = 0
 
+	@time_execution_async('--step')
 	async def step(self) -> tuple[AgentOutput, ControllerActionResult]:
 		state = self.controller.get_current_state(screenshot=self.use_vision)
 		action = await self.get_next_action(state)
@@ -59,6 +60,13 @@ class AgentService:
 		result = self.controller.act(action)
 		self.n += 1
 
+		if result.error:
+			self.messages.append(HumanMessage(content=f'Error: {result.error}'))
+
+		if result.extracted_content:
+			self.messages.append(
+				HumanMessage(content=f'Extracted content: {result.extracted_content}')
+			)
 		return action, result
 
 	async def _take_human_input(self, question: str) -> AgentOutput:
@@ -73,7 +81,7 @@ class AgentService:
 
 		return action
 
-	@time_execution_async('get_next_action')
+	@time_execution_async('--get_next_action')
 	async def get_next_action(self, state: ControllerPageState) -> AgentOutput:
 		# TODO: include state, actions, etc.
 
@@ -143,7 +151,6 @@ class AgentService:
 	def _get_action_description(self) -> str:
 		return AgentOutput.description()
 
-	@time_execution_sync('_save_conversation')
 	def _save_conversation(self, input_messages: list[BaseMessage], response: Output):
 		if self.save_file is not None:
 			with open(self.save_file + f'_{self.n}.txt', 'w') as f:
