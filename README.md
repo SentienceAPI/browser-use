@@ -28,14 +28,14 @@ _Let LLMs interact with websites naturally_
 
 Watch Browser-Use tackle real-world tasks:
 
-<div>
-    <a href="https://www.loom.com/share/3ddba106c1fd4fd38c314881fb7d3d78">
-      <p>Library | Loom - 5 November 2024 - Watch Video</p>
-    </a>
-    <a href="https://www.loom.com/share/3ddba106c1fd4fd38c314881fb7d3d78">
-      <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/3ddba106c1fd4fd38c314881fb7d3d78-7d8bc50585272d46-full-play.gif">
-    </a>
+<div style="display: flex; justify-content: space-between;">
+  <div style="flex: 1; margin-right: 10px;">
+    <img style="max-width:100%;" src="./static/kayak.gif" alt="Kayak flight search demo">
   </div>
+  <div style="flex: 1; margin-left: 10px;">
+    <img style="max-width:100%;" src="./static/photos.gif" alt="Photos search demo">
+  </div>
+</div>
 
 ## 🚀 Key Features
 
