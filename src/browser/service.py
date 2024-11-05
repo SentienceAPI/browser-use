@@ -25,14 +25,15 @@ from src.utils import time_execution_sync
 
 
 class BrowserService:
-	def __init__(self, headless: bool = False):
+	def __init__(self, headless: bool = False, keep_open: bool = False):
 		self.headless = headless
 		self.driver: webdriver.Chrome | None = None
 		self._ob = Screenshot.Screenshot()
 		self.MINIMUM_WAIT_TIME = 0.5
 		self.MAXIMUM_WAIT_TIME = 5
 		self._current_handle = None  # Track current handle
-		self._tab_cache = {}  # Cache tab info
+		self._tab_cache = {}
+		self.keep_open = keep_open
 
 	def init(self) -> webdriver.Chrome:
 		"""
@@ -93,6 +94,9 @@ class BrowserService:
 		)
 
 		self.driver = driver
+
+		# driver.get('https://www.google.com')
+
 		return driver
 
 	def _get_driver(self) -> webdriver.Chrome:
@@ -147,9 +151,12 @@ class BrowserService:
 		return self.current_state
 
 	def close(self):
-		driver = self._get_driver()
-		driver.quit()
-		self.driver = None
+		if not self.keep_open:
+			driver = self._get_driver()
+			driver.quit()
+			self.driver = None
+		else:
+			input('Press Enter to close Browser...')
 
 	def __del__(self):
 		"""

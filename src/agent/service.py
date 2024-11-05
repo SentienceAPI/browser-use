@@ -70,8 +70,8 @@ class AgentService:
 		return action, result
 
 	async def _take_human_input(self, question: str) -> AgentOutput:
-		human_input = input(f'Human input required: {question}')
-
+		human_input = input(f'Human input required: {question}\n\n')
+		print('-' * 50)
 		self.messages.append(HumanMessage(content=human_input))
 
 		structured_llm = self.llm.with_structured_output(AgentOutput)

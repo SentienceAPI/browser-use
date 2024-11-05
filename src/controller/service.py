@@ -16,8 +16,8 @@ class ControllerService:
 	TODO#2: from the state generate functions that can be passed directly into the LLM as function calls. Then it could actually in the same call request for example multiple actions and new state.
 	"""
 
-	def __init__(self):
-		self.browser = BrowserService()
+	def __init__(self, keep_open: bool = False):
+		self.browser = BrowserService(keep_open=keep_open)
 		self.cached_browser_state: BrowserState | None = None
 
 	@time_execution_sync('--get_cached_browser_state')
