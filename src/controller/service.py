@@ -57,6 +57,8 @@ class ControllerService:
 				self.browser.search_google(action.search_google.query)
 			elif action.switch_tab:
 				self.browser.switch_tab(action.switch_tab.handle)
+			elif action.open_tab:
+				self.browser.open_tab(action.open_tab.url)
 			elif action.go_to_url:
 				self.browser.go_to_url(action.go_to_url.url)
 			elif action.nothing:

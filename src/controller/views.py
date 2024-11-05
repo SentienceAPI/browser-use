@@ -30,6 +30,10 @@ class SwitchTabControllerAction(BaseModel):
 	handle: str  # The window handle to switch to
 
 
+class OpenTabControllerAction(BaseModel):
+	url: str
+
+
 class ControllerActions(BaseModel):
 	"""
 	Controller actions you can use to interact.
@@ -43,7 +47,8 @@ class ControllerActions(BaseModel):
 	click_element: Optional[ClickElementControllerAction] = None
 	input_text: Optional[InputTextControllerAction] = None
 	extract_page_content: Optional[Literal[True]] = None
-	switch_tab: Optional[SwitchTabControllerAction] = None  # New action
+	switch_tab: Optional[SwitchTabControllerAction] = None
+	open_tab: Optional[OpenTabControllerAction] = None
 
 	@staticmethod
 	def description() -> str:
@@ -69,6 +74,8 @@ class ControllerActions(BaseModel):
   Example: {"extract_page_content": true}
 - Switch to a different browser tab
   Example: {"switch_tab": {"handle": "CDwindow-1234..."}}
+- Open a new tab
+  Example: {"open_tab": {"url": "https://abc.com"}}
 """
 
 

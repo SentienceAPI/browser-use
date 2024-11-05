@@ -403,3 +403,9 @@ class BrowserService:
 		}
 		self._tab_cache[handle] = tab_info
 		return tab_info
+
+	def open_tab(self, url: str):
+		driver = self._get_driver()
+		driver.execute_script(f'window.open("{url}", "_blank");')
+		self.wait_for_page_load()
+		return self.handle_new_tab()
