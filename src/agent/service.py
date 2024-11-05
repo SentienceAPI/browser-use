@@ -8,7 +8,7 @@ from src.agent.prompts import AgentMessagePrompt, AgentSystemPrompt
 from src.agent.views import AgentOutput, Output
 from src.controller.service import ControllerService
 from src.controller.views import ControllerActionResult, ControllerPageState
-from src.utils import time_execution_async, time_execution_sync
+from src.utils import time_execution_async
 
 load_dotenv()
 
@@ -88,20 +88,11 @@ class AgentService:
 		new_message = AgentMessagePrompt(state).get_user_message()
 		print(f'current tabs: {state.tabs}')
 		input_messages = self.messages + [new_message]
-		# if self.use_vision:
-		# 	print(f'model input content with image: {new_message.content[0]}')
-		# else:
-		# 	print(f'model input: {new_message}')
 
 		structured_llm = self.llm.with_structured_output(Output, include_raw=False)
 
-		# print(f'state:\n{state}')
 		#
 		response: Output = await structured_llm.ainvoke(input_messages)  # type: ignore
-		# raw_response, response = invoke_response
-		# if store_conversation:
-		# 	# save conversation
-		# 	save_conversation(input_messages, response.model_dump_json(), store_conversation)
 
 		# Only append the output message
 		history_new_message = AgentMessagePrompt(state).get_message_for_history()
@@ -110,41 +101,6 @@ class AgentService:
 		print(f'current state\n: {response.current_state.model_dump_json(indent=4)}')
 		print(f'action\n: {response.action.model_dump_json(indent=4)}')
 		self._save_conversation(input_messages, response)
-
-		# try:
-		# 	# Calculate total cost for all messages
-
-		# 	# check if multiple input
-
-		# 	# can not handly list of content
-		# 	output = calculate_all_costs_and_tokens(
-		# 		[system_prompt] + self.messages + [new_message],
-		# 		response.model_dump_json(),
-		# 		self.model,
-		# 	)
-		# 	if images:
-		# 		# resolution 1512 x 767
-		# 		image_cost = 0.000213
-		# 		total_cost = (
-		# 			output['prompt_cost']
-		# 			+ output['completion_cost']
-		# 			+ decimal.Decimal(str(image_cost))
-		# 		)
-		# 		print(
-		# 			f'Text ${output["prompt_cost"]:,.4f} + Image ${image_cost:,.4f} = ${total_cost:,.4f} for {output["prompt_tokens"] + output["completion_tokens"]}  tokens'
-		# 		)
-		# 	else:
-		# 		total_cost = output['prompt_cost'] + output['completion_cost']
-		# 		print(
-		# 			f'Total cost: ${total_cost:,.4f} for {output["prompt_tokens"] + output["completion_tokens"]} tokens'
-		# 		)
-
-		# except Exception as e:
-		# 	print(f'Error calculating prompt cost: {e}')
-
-		# # keep newest 20 messages
-		# if len(self.messages) > 20:
-		# 	self.messages = self.messages[-20:]
 
 		return response.action
 

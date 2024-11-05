@@ -1,7 +1,6 @@
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.controller.views import ControllerPageState
-from src.utils import time_execution_sync
 
 
 class AgentSystemPrompt:
