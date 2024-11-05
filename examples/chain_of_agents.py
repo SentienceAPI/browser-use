@@ -2,6 +2,8 @@ import logging
 import os
 import sys
 
+from langchain_openai import ChatOpenAI
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import asyncio
@@ -16,19 +18,17 @@ logging.basicConfig(level=logging.INFO)
 # Persist the browser state across agents
 controller = Controller()
 
+model = ChatOpenAI(model='gpt-4o')
+
 # Initialize browser agent
 agent1 = Agent(
-	task='Open 5 VCs websites in the New York area.',
-	llm=ChatAnthropic(
-		model_name='claude-3-5-sonnet-20240620', timeout=25, stop=None, temperature=0.3
-	),
+	task='Open 3 wikipedia articles about the history of the internet.',
+	llm=model,
 	controller=controller,
 )
 agent2 = Agent(
-	task='Give me the names of the founders of the companies in all tabs.',
-	llm=ChatAnthropic(
-		model_name='claude-3-5-sonnet-20240620', timeout=25, stop=None, temperature=0.3
-	),
+	task='Considering all open tabs give me the names of 2 founders of the companies.',
+	llm=model,
 	controller=controller,
 )
 

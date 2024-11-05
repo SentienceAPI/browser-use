@@ -39,6 +39,7 @@ class AgentService:
 		self.task = task
 		self.use_vision = use_vision
 
+		self.controller_injected = controller is not None
 		self.controller = controller or ControllerService()
 
 		self.llm = llm
@@ -81,7 +82,8 @@ class AgentService:
 			logger.info('=' * 50)
 			return None
 		finally:
-			self.controller.browser.close()
+			if not self.controller_injected:
+				self.controller.browser.close()
 
 	@time_execution_async('--step')
 	async def step(self) -> tuple[AgentOutput, ControllerActionResult]:
