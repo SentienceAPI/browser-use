@@ -86,7 +86,7 @@ class AgentService:
 		# TODO: include state, actions, etc.
 
 		new_message = AgentMessagePrompt(state).get_user_message()
-
+		print(f'current tabs: {state.tabs}')
 		input_messages = self.messages + [new_message]
 		# if self.use_vision:
 		# 	print(f'model input content with image: {new_message.content[0]}')

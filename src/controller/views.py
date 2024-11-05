@@ -26,6 +26,10 @@ class DoneControllerAction(BaseModel):
 	text: str
 
 
+class SwitchTabControllerAction(BaseModel):
+	handle: str  # The window handle to switch to
+
+
 class ControllerActions(BaseModel):
 	"""
 	Controller actions you can use to interact.
@@ -39,6 +43,7 @@ class ControllerActions(BaseModel):
 	click_element: Optional[ClickElementControllerAction] = None
 	input_text: Optional[InputTextControllerAction] = None
 	extract_page_content: Optional[Literal[True]] = None
+	switch_tab: Optional[SwitchTabControllerAction] = None  # New action
 
 	@staticmethod
 	def description() -> str:
@@ -62,6 +67,8 @@ class ControllerActions(BaseModel):
   Example: {"input_text": {"id": 1, "text": "Hello world"}}
 - Get the page content in markdown
   Example: {"extract_page_content": true}
+- Switch to a different browser tab
+  Example: {"switch_tab": {"handle": "CDwindow-1234..."}}
 """
 
 
@@ -73,3 +80,13 @@ class ControllerActionResult(BaseModel):
 
 class ControllerPageState(BrowserState):
 	screenshot: Optional[str] = None
+	tabs: list[dict] = []  # Add tabs info to state
+
+	def model_dump(self) -> dict:
+		dump = super().model_dump()
+		# Add a summary of available tabs
+		if self.tabs:
+			dump['available_tabs'] = [
+				f"Tab {i+1}: {tab['title']} ({tab['url']})" for i, tab in enumerate(self.tabs)
+			]
+		return dump

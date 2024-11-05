@@ -31,6 +31,8 @@ class BrowserService:
 		self._ob = Screenshot.Screenshot()
 		self.MINIMUM_WAIT_TIME = 0.5
 		self.MAXIMUM_WAIT_TIME = 5
+		self._current_handle = None  # Track current handle
+		self._tab_cache = {}  # Cache tab info
 
 	def init(self) -> webdriver.Chrome:
 		"""
@@ -320,7 +322,84 @@ class BrowserService:
 		if index not in state.selector_map:
 			raise Exception(f'Element index {index} not found in selector map')
 
+		# Store current number of tabs before clicking
+		driver = self._get_driver()
+		initial_handles = len(driver.window_handles)
+
 		xpath = state.selector_map[index]
 		self._click_element_by_xpath(xpath)
 
+		# Check if new tab was opened
+		current_handles = len(driver.window_handles)
+		if current_handles > initial_handles:
+			return self.handle_new_tab()
+
 	# endregion
+
+	def handle_new_tab(self) -> dict:
+		"""Get info about newly opened tab without switching"""
+		driver = self._get_driver()
+		handles = driver.window_handles
+		new_handle = handles[-1]
+
+		# Only switch if we need to get info about the new tab
+		current_handle = driver.current_window_handle
+		driver.switch_to.window(new_handle)
+
+		tab_info = {
+			'handle': new_handle,
+			'url': driver.current_url,
+			'title': driver.title,
+		}
+
+		# Cache the info
+		self._tab_cache[new_handle] = tab_info
+
+		# Switch back
+		driver.switch_to.window(current_handle)
+		return tab_info
+
+	def get_tabs_info(self) -> list[dict]:
+		"""Get cached information about all tabs"""
+		driver = self._get_driver()
+		current_handle = driver.current_window_handle
+
+		# Update cache for current tab
+		self._tab_cache[current_handle] = {
+			'handle': current_handle,
+			'url': driver.current_url,
+			'title': driver.title,
+			'is_current': True,
+		}
+
+		# Return all cached tab info
+		return [
+			{**tab_info, 'is_current': handle == current_handle}
+			for handle, tab_info in self._tab_cache.items()
+			if handle in driver.window_handles  # Only return existing tabs
+		]
+
+	def switch_tab(self, handle: str) -> dict:
+		"""Switch to specified tab and return its info"""
+		driver = self._get_driver()
+
+		# Verify handle exists
+		if handle not in driver.window_handles:
+			raise ValueError(f'Tab handle {handle} not found')
+
+		# Only switch if we're not already on that tab
+		current_handle = driver.current_window_handle
+		if handle != current_handle:
+			driver.switch_to.window(handle)
+			# Wait for tab to be ready
+			self.wait_for_page_load()
+
+		# Update and return tab info
+		tab_info = {
+			'handle': handle,
+			'url': driver.current_url,
+			'title': driver.title,
+			'is_current': True,
+		}
+		self._tab_cache[handle] = tab_info
+		return tab_info

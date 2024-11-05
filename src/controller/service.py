@@ -31,6 +31,10 @@ class ControllerService:
 
 	def get_current_state(self, screenshot: bool = False) -> ControllerPageState:
 		browser_state = self.get_cached_browser_state(force_update=True)
+
+		# Get tab information without switching
+		tabs = self.browser.get_tabs_info()
+
 		screenshot_b64 = None
 		if screenshot:
 			screenshot_b64 = self.browser.take_screenshot()
@@ -41,6 +45,7 @@ class ControllerService:
 			title=browser_state.title,
 			selector_map=browser_state.selector_map,
 			screenshot=screenshot_b64,
+			tabs=tabs,
 		)
 
 	@time_execution_sync('--act')
@@ -50,6 +55,8 @@ class ControllerService:
 
 			if action.search_google:
 				self.browser.search_google(action.search_google.query)
+			elif action.switch_tab:
+				self.browser.switch_tab(action.switch_tab.handle)
 			elif action.go_to_url:
 				self.browser.go_to_url(action.go_to_url.url)
 			elif action.nothing:
@@ -76,4 +83,4 @@ class ControllerService:
 			return ControllerActionResult(done=False)
 
 		except Exception as e:
-			return ControllerActionResult(done=False, error=str(e))
+			return ControllerActionResult(done=False, error=f'Error executing action: {str(e)}')

@@ -68,6 +68,8 @@ class AgentMessagePrompt:
 	def get_user_message(self) -> HumanMessage:
 		state_description = f"""
 Current url: {self.state.url}
+Available tabs:
+{self.state.tabs}
 Interactive elements:
 {self.state.dom_items_to_string()}
         """
