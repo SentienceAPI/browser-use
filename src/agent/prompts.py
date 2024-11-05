@@ -47,6 +47,8 @@ class AgentSystemPrompt:
 	Make sure to only use indexes that are present in the list.
     If you need more text from the page you can use the extract_page_content action.
 
+	If you see any cookie or accept privacy policy please always just accepted them without hesitation.
+
     If you evaluate repeatedly that you dont achieve the next_goal, try to find a new element that can help you achieve your task or if persistent, go back or reload the page and try a different approach.
     
 	You can ask_human for clarification if you are completely stuck or if you really need more information. 

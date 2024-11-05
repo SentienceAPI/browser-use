@@ -6,9 +6,15 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from src.agent.prompts import AgentMessagePrompt, AgentSystemPrompt
-from src.agent.views import AgentOutput, Output
+from src.agent.views import (
+	AgentHistory,
+	AgentOutput,
+	ClickElementControllerHistoryItem,
+	InputTextControllerHistoryItem,
+	Output,
+)
 from src.controller.service import ControllerService
-from src.controller.views import ControllerActionResult, ControllerPageState
+from src.controller.views import ControllerActionResult, ControllerActions, ControllerPageState
 from src.utils import time_execution_async
 
 load_dotenv()
@@ -56,12 +62,15 @@ class AgentService:
 		if save_conversation_path is not None:
 			logger.info(f'Saving conversation to {save_conversation_path}')
 
+		self.action_history: list[AgentHistory] = []
+
 	async def run(self, max_steps: int = 100):
 		"""
 		Execute the task.
 
 		@dev ctrl+c to interrupt
 		"""
+
 		try:
 			logger.info('\n' + '=' * 50)
 			logger.info(f'🚀 Starting task: {self.task}')
@@ -75,18 +84,18 @@ class AgentService:
 				if result.done:
 					logger.info('\n✅ Task completed successfully')
 					logger.info(f'Extracted content: {result.extracted_content}')
-					return action.done
+					return action.done, self.action_history
 
 			logger.info('\n' + '=' * 50)
 			logger.info('❌ Failed to complete task in maximum steps')
 			logger.info('=' * 50)
-			return None
+			return None, self.action_history
 		finally:
 			if not self.controller_injected:
 				self.controller.browser.close()
 
 	@time_execution_async('--step')
-	async def step(self) -> tuple[AgentOutput, ControllerActionResult]:
+	async def step(self) -> tuple[AgentHistory, ControllerActionResult]:
 		state = self.controller.get_current_state(screenshot=self.use_vision)
 		action = await self.get_next_action(state)
 
@@ -103,7 +112,38 @@ class AgentService:
 			self.messages.append(
 				HumanMessage(content=f'Extracted content: {result.extracted_content}')
 			)
-		return action, result
+
+		# Convert action to history and update click/input fields if present
+		history_item = self._make_history_item(action, state)
+		self.action_history.append(history_item)
+
+		return history_item, result
+
+	def _make_history_item(self, action: AgentOutput, state: ControllerPageState) -> AgentHistory:
+		return AgentHistory(
+			search_google=action.search_google,
+			go_to_url=action.go_to_url,
+			nothing=action.nothing,
+			go_back=action.go_back,
+			done=action.done,
+			click_element=ClickElementControllerHistoryItem(
+				id=action.click_element.id, xpath=state.selector_map.get(action.click_element.id)
+			)
+			if action.click_element and state.selector_map.get(action.click_element.id)
+			else None,
+			input_text=InputTextControllerHistoryItem(
+				id=action.input_text.id,
+				xpath=state.selector_map.get(action.input_text.id),
+				text=action.input_text.text,
+			)
+			if action.input_text and state.selector_map.get(action.input_text.id)
+			else None,
+			extract_page_content=action.extract_page_content,
+			switch_tab=action.switch_tab,
+			open_tab=action.open_tab,
+			ask_human=action.ask_human,
+			url=state.url,
+		)
 
 	async def _take_human_input(self, question: str) -> AgentOutput:
 		human_input = input(f'Human input required: {question}\n\n')

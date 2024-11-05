@@ -127,10 +127,12 @@ agent2 = Agent(
 
 # Let it work its magic
 await agent1.run()
-founders = await agent2.run()
+founders, history = await agent2.run()
 
 print(founders)
 ```
+
+You can use the `history` to run the agents again deterministically.
 
 ## 🤖 Supported Models
 
@@ -157,6 +159,6 @@ Contributions are welcome! Also feel free to open issues for any bugs or feature
 # Future Roadmap
 
 - [ ] Pydantic forced output
-- [ ] Save agent actions and execute them deterministically (for QA testing etc)
+- [x] Save agent actions and execute them deterministically (for QA testing etc)
 - [ ] Third party SERP API for faster Google Search results
 - [ ]
