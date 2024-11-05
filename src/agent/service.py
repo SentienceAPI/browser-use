@@ -106,7 +106,7 @@ class AgentService:
 		return action, result
 
 	async def _take_human_input(self, question: str) -> AgentOutput:
-		human_input = input(f'Human input required: {question}\n\n')
+		human_input = input(f'\nHi, your input is required: {question}\n\n')
 		logger.info('-' * 50)
 		self.messages.append(HumanMessage(content=human_input))
 

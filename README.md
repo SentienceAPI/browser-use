@@ -27,32 +27,15 @@ _Let LLMs interact with websites naturally_
 ## 🎥 Live Demos
 
 Watch Browser-Use tackle real-world tasks:
-
-<table>
-  <tr>
-    <td width="33%" align="center">
-      <a href="your_loom_link_1">
-        <img src="assets/jobs-demo.png" alt="Jobs Demo" width="200"><br>
-        <b>Job Applications</b>
-      </a>
-      <br>Apply to 5 SF tech jobs
-    </td>
-    <td width="33%" align="center">
-      <a href="your_loom_link_2">
-        <img src="assets/images-demo.png" alt="Images Demo" width="200"><br>
-        <b>Multi-Tab Search</b>
-      </a>
-      <br>Find images across tabs
-    </td>
-    <td width="33%" align="center">
-      <a href="your_loom_link_3">
-        <img src="assets/flights-demo.png" alt="Flights Demo" width="200"><br>
-        <b>Flight Search</b>
-      </a>
-      <br>Find cheapest flights
-    </td>
-  </tr>
-</table>
+<div>
+    <a href="https://www.loom.com/share/3ddba106c1fd4fd38c314881fb7d3d78">
+      <p>Library | Loom - 5 November 2024 - Watch Video</p>
+    </a>
+    <a href="https://www.loom.com/share/3ddba106c1fd4fd38c314881fb7d3d78">
+      <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/3ddba106c1fd4fd38c314881fb7d3d78-7d8bc50585272d46-full-play.gif">
+    </a>
+  </div>
+  
 
 ## 🚀 Key Features
 

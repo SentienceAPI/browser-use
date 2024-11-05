@@ -1,7 +1,3 @@
-"""
-@dev You need to add ANTHROPIC_API_KEY to your environment variables.
-"""
-
 import os
 import sys
 
@@ -9,17 +5,14 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import asyncio
 
-from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
 
 from src.agent.service import AgentService
 from src.controller.service import ControllerService
 
-task = 'Go to kayak.com and find a one-way flight from Zürich to San Francisco on 12 January 2025.'
-controller = ControllerService()
-# model = ChatAnthropic(
-# 	model_name='claude-3-5-sonnet-20240620', timeout=25, stop=None, temperature=0.3
-# )
+people = ['Albert Einstein', 'Oprah Winfrey', 'Steve Jobs']
+task = f'Opening new tabs and searching for images for these people: {", ".join(people)}. Then ask me for further instructions.'
+controller = ControllerService(keep_open=True)
 model = ChatOpenAI(model='gpt-4o')
 agent = AgentService(task, model, controller, use_vision=True)
 

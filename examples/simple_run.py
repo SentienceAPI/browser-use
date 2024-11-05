@@ -7,6 +7,8 @@ Simple try of the agent.
 import os
 import sys
 
+from src.controller.service import ControllerService
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import asyncio
@@ -17,7 +19,7 @@ from src import Agent
 
 llm = ChatOpenAI(model='gpt-4o')
 agent = Agent(
-	task='Find cheapest flights on Google Flights from London to Kyrgyzstan and return the url.',
+	task='Opening new tabs to search for images of Albert Einstein, Oprah Winfrey, and Steve Jobs. Then ask user for further instructions.',
 	llm=llm,
 )
 
