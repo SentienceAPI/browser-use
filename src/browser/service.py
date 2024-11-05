@@ -49,7 +49,8 @@ class BrowserService:
 		chrome_options.add_experimental_option('useAutomationExtension', False)
 
 		# Additional stealth settings
-		chrome_options.add_argument('--window-size=1024,1024')
+		chrome_options.add_argument('--start-maximized')
+		# chrome_options.add_argument('--window-size=1024,1024')
 		chrome_options.add_argument('--disable-extensions')
 		chrome_options.add_argument('--no-sandbox')
 		chrome_options.add_argument('--disable-infobars')
@@ -120,7 +121,7 @@ class BrowserService:
 		remaining = max(self.MINIMUM_WAIT_TIME - elapsed, 0)
 
 		print(
-			f'Page loaded in {elapsed:.2f} seconds, waiting for additional {remaining:.2f} seconds'
+			f'--Page loaded in {elapsed:.2f} seconds, waiting for additional {remaining:.2f} seconds'
 		)
 
 		# Sleep remaining time if needed
@@ -311,7 +312,7 @@ class BrowserService:
 		except Exception as e:
 			raise Exception(f'Failed to click element with xpath: {xpath}. Error: {str(e)}')
 
-	@time_execution_sync('click')
+	@time_execution_sync('--click')
 	def click_element_by_index(self, index: int, state: BrowserState):
 		"""
 		Clicks an element using its index from the selector map.

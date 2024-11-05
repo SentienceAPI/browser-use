@@ -48,14 +48,14 @@ class ControllerActions(BaseModel):
 		return """
 - Search Google with a query
   Example: {"search_google": {"query": "weather today"}}
-- Navigate directly to a URL
+- Navigate directly to a URL where you want to go
   Example: {"go_to_url": {"url": "https://abc.com"}}
 - Do nothing/wait
   Example: {"nothing": true}
 - Go back to previous page
   Example: {"go_back": true}
 - Mark entire task as complete
-  Example: {"done": {"text": "This is the requested result of the task..."}}
+  Example: {"done": {"text": "This is the requested result of the task which is send to the human..."}}
 - Click an interactive element by its given ID
   Example: {"click_element": {"id": 1}}
 - Input text into an interactiveelement by its ID

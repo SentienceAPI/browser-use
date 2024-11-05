@@ -38,14 +38,14 @@ class AgentSystemPrompt:
     
 	Respond with a valid JSON object, containing 2 keys: current_state and action.
     In current_state there are 3 keys:
-	valuation_previous_goal: Evaluate if the previous goal was achieved or what went wrong so that you know in the future what to change.
+	valuation_previous_goal: Evaluate if the previous goal was achieved or what went wrong. E.g. Failed because ...
 	memory: This you can use as a memory to store where you are in your overall task. E.g. if you need to find 10 jobs, you can store the already found jobs here.
-	next_goal: Description of the next goal you want to achieve e.g. which elements to click.
+	next_goal: The next goal you want to achieve e.g. clicking on ... button to ...
 
-	In action choose EXACTLY ONE from the following list:
+	For the action choose EXACTLY ONE from the following list:
     {self.default_action_description}
 
-    To interact with elements, use their index number in the click_element() or input_text() actions. 
+    To interact with elements, use their index number from the input line. Write it in the click_element() or input_text() actions. 
 	Make sure to only use indexes that are present in the list.
     If you need more text from the page you can use the extract_page_content action.
 
