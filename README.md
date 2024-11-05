@@ -30,11 +30,11 @@ await agent.run()
 <div style="display: flex; justify-content: space-between;">
   <div style="flex: 1; margin-right: 10px;">
     <img style="max-width:100%;" src="./static/kayak.gif" alt="Kayak flight search demo">
-    <p><i>Prompt: Go to kayak.com and find a one-way flight from Zürich to San Francisco on 12 January 2025.</i></p>
+    <p><i>Prompt: Go to kayak.com and find a one-way flight from Zürich to San Francisco on 12 January 2025. (2.5x speed)</i></p>
   </div>
   <div style="flex: 1; margin-left: 10px;">
     <img style="max-width:100%;" src="./static/photos.gif" alt="Photos search demo">
-    <p><i>Prompt: Opening new tabs and searching for images for these people: Albert Einstein, Oprah Winfrey, Steve Jobs.</i></p>
+    <p><i>Prompt: Opening new tabs and searching for images for these people: Albert Einstein, Oprah Winfrey, Steve Jobs. (2.5x speed)</i></p>
   </div>
 </div>
 
@@ -62,6 +62,7 @@ You can use any LLM model supported by LangChain by adding the appropriate envir
 - Vision Model Support - Process visual page information
 - Customizable Actions - Add your own browser interactions (e.g. add data to database which the LLM can use)
 - Handles dynamic content - dont worry about cookies or changing content
+- Chain-of-thought prompting with memory - Solve long-term tasks
 
 ## Advanced Examples
 
@@ -108,7 +109,7 @@ python examples/try.py "Your query here" --provider [openai|anthropic]
 You need to add `ANTHROPIC_API_KEY` to your environment variables. Example usage:
 
 ```bash
-python examples/try.py "Find cheapest flight from London to Paris" --provider anthropic
+python examples/try.py "On imdb.com get the most popular documentary tv series sorted by imdb rating, see the details of the top result." --provider anthropic
 ```
 
 ### OpenAI
