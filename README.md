@@ -31,9 +31,11 @@ Watch Browser-Use tackle real-world tasks:
 <div style="display: flex; justify-content: space-between;">
   <div style="flex: 1; margin-right: 10px;">
     <img style="max-width:100%;" src="./static/kayak.gif" alt="Kayak flight search demo">
+    <p><i>Prompt: Go to kayak.com and find a one-way flight from Zürich to San Francisco on 12 January 2025.</i></p>
   </div>
   <div style="flex: 1; margin-left: 10px;">
     <img style="max-width:100%;" src="./static/photos.gif" alt="Photos search demo">
+    <p><i>Prompt: Opening new tabs and searching for images for these people: Albert Einstein, Oprah Winfrey, Steve Jobs. Then ask me for further instructions.</i></p>
   </div>
 </div>
 
