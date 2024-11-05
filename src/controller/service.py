@@ -20,7 +20,7 @@ class ControllerService:
 		self.browser = BrowserService()
 		self.cached_browser_state: BrowserState | None = None
 
-	@time_execution_sync('get_cached_browser_state')
+	@time_execution_sync('--get_cached_browser_state')
 	def get_cached_browser_state(self, force_update: bool = False) -> BrowserState:
 		if self.cached_browser_state is None or force_update:
 			self.cached_browser_state = self.browser.get_updated_state()
@@ -43,7 +43,7 @@ class ControllerService:
 			screenshot=screenshot_b64,
 		)
 
-	@time_execution_sync('act')
+	@time_execution_sync('--act')
 	def act(self, action: ControllerActions) -> ControllerActionResult:
 		try:
 			current_state = self.get_cached_browser_state(force_update=False)

@@ -3,6 +3,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 
 from src.dom.views import DomContentItem, ProcessedDomContent
+from src.utils import time_execution_sync
 
 
 class DomService:
@@ -16,6 +17,7 @@ class DomService:
 		html_content = self.driver.page_source
 		return self._process_content(html_content)
 
+	@time_execution_sync('--_process_content')
 	def _process_content(self, html_content: str) -> ProcessedDomContent:
 		"""
 		Process HTML content to extract and clean relevant elements.
