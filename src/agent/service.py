@@ -31,7 +31,7 @@ class AgentService:
 		task: str,
 		llm: BaseChatModel,
 		controller: ControllerService | None = None,
-		use_vision: bool = False,
+		use_vision: bool = True,
 		save_conversation_path: str | None = None,
 	):
 		"""

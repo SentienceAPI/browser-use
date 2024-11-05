@@ -27,6 +27,7 @@ _Let LLMs interact with websites naturally_
 ## 🎥 Live Demos
 
 Watch Browser-Use tackle real-world tasks:
+
 <div>
     <a href="https://www.loom.com/share/3ddba106c1fd4fd38c314881fb7d3d78">
       <p>Library | Loom - 5 November 2024 - Watch Video</p>
@@ -35,15 +36,6 @@ Watch Browser-Use tackle real-world tasks:
       <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/3ddba106c1fd4fd38c314881fb7d3d78-7d8bc50585272d46-full-play.gif">
     </a>
   </div>
-<div>
-    <a href="https://www.loom.com/share/93015893157249d39d96a8de604e3719">
-      <p>Library | Loom - 5 November 2024 - Watch Video</p>
-    </a>
-    <a href="https://www.loom.com/share/93015893157249d39d96a8de604e3719">
-      <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/93015893157249d39d96a8de604e3719-cbda1dbe844472b8-full-play.gif">
-    </a>
-  </div>
-  
 
 ## 🚀 Key Features
 
@@ -124,6 +116,30 @@ print(founders)
 ```
 
 You can use the `history` to run the agents again deterministically.
+
+## Simple Run
+
+You can run any of the examples using the command line interface:
+
+```bash
+python examples/try.py "Your query here" --provider [openai|anthropic]
+```
+
+### Anthropic
+
+You need to add `ANTHROPIC_API_KEY` to your environment variables. Example usage:
+
+```bash
+python examples/try.py "Find cheapest flight from London to Paris" --provider anthropic
+```
+
+### OpenAI
+
+You need to add `OPENAI_API_KEY` to your environment variables. Example usage:
+
+```bash
+python examples/try.py "Search for top AI companies" --provider openai
+```
 
 ## 🤖 Supported Models
 
