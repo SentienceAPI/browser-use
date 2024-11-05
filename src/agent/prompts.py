@@ -44,7 +44,6 @@ class AgentSystemPrompt:
 
 	For the action choose EXACTLY ONE from the following list:
     {self.default_action_description}
-
     To interact with elements, use their index number from the input line. Write it in the click_element() or input_text() actions. 
 	Make sure to only use indexes that are present in the list.
     If you need more text from the page you can use the extract_page_content action.

@@ -45,7 +45,7 @@ async def test_kayak_flight_search():
 	model = ChatAnthropic(
 		model_name='claude-3-5-sonnet-20240620', timeout=25, stop=None, temperature=0.3
 	)
-	model = ChatOpenAI(model='gpt-4o', temperature=0.3)
+	# model = ChatOpenAI(model='gpt-4o', temperature=0.3)
 
 	agent = AgentService(
 		task,

@@ -162,7 +162,7 @@ class AgentService:
 					if isinstance(message.content, list):
 						# Handle vision model messages
 						for item in message.content:
-							if item['type'] == 'text':
+							if isinstance(item, dict) and item.get('type') == 'text':
 								f.write(item['text'].strip() + '\n')
 					elif isinstance(message.content, str):
 						try:

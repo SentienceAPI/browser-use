@@ -10,6 +10,4 @@ pytest-asyncio==0.24.0
 python-dotenv==1.0.1
 requests==2.32.3
 selenium==4.26.1
-tokencost==0.1.16
 webdriver-manager==4.0.2
-langfuse==2.53.5 # TODO: remove in prod
