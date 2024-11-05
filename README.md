@@ -61,6 +61,7 @@ You can use any LLM model supported by LangChain by adding the appropriate envir
 - XPath Extraction for scraping functions - No more manual DevTools inspection
 - Vision Model Support - Process visual page information
 - Customizable Actions - Add your own browser interactions (e.g. add data to database which the LLM can use)
+- Handles dynamic content - dont worry about cookies or changing content
 
 ## Advanced Examples
 
