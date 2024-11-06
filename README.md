@@ -18,7 +18,7 @@ from src import Agent
 from langchain_openai import ChatOpenAI
 
 agent = Agent(
-    task='Go to hackernews on show hn and give me top 10 post titels, their points and hours. Calculate for each the ratio of points per hour. All in a json format title, points, hours, ratio. Then ask me for further instructions.',
+    task='Go to hackernews on show hn and give me top 10 post titels, their points and hours. Calculate for each the ratio of points per hour.',
     llm=ChatOpenAI(model='gpt-4o'),
 )
 
@@ -26,13 +26,15 @@ await agent.run()
 ```
 
 ## Demo
-<div style="position: relative; padding-bottom: 64.92178098676294%; height: 0;"><iframe src="https://www.loom.com/embed/2af938b9f8024647950a9e18b3946054?sid=d95ece0b-6a17-477e-a223-b558645e6e89" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe>
+
+<div>
+    <a href="https://www.loom.com/share/63612b5994164cb1bb36938d62fe9983">
+      <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/63612b5994164cb1bb36938d62fe9983-11f47a9490613568-full-play.gif">
+    </a>
+    <p><i>Prompt: Go to hackernews on show hn and give me top 10 post titels, their points and hours. Calculate for each the ratio of points per hour. </i></p>
 </div>
 
 <div>
-    <a href="https://www.loom.com/share/2af938b9f8024647950a9e18b3946054">
-      <p>gregpr07/browser-use at Example-improvement - 6 November 2024 - Watch Video</p>
-    </a>
     <a href="https://www.loom.com/share/2af938b9f8024647950a9e18b3946054">
       <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/2af938b9f8024647950a9e18b3946054-b99c733cf670e568-full-play.gif">
     </a>
@@ -131,7 +133,7 @@ python examples/try.py "Search the top 3 AI companies 2024 and find out in 3 new
 You need to add `OPENAI_API_KEY` to your environment variables. Example usage:
 
 ```bash
-python examples/try.py "Go to hackernews on show hn and give me top 10 post titels, their points and hours. Calculate for each the ratio of points per hour. Then ask me for further instructions." --provider anthropic
+python examples/try.py "Go to hackernews on show hn and give me top 10 post titels, their points and hours. Calculate for each the ratio of points per hour. " --provider anthropic
 ```
 
 ## 🤖 Supported Models
