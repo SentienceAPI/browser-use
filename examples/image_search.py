@@ -7,8 +7,8 @@ import asyncio
 
 from langchain_openai import ChatOpenAI
 
-from src.agent.service import AgentService
-from src.controller.service import ControllerService
+from browser_use.agent.service import AgentService
+from browser_use.controller.service import ControllerService
 
 people = ['Albert Einstein', 'Oprah Winfrey', 'Steve Jobs']
 task = f'Opening new tabs and searching for images for these people: {", ".join(people)}. Then ask me for further instructions.'

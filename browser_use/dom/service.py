@@ -4,8 +4,8 @@ from bs4 import BeautifulSoup, NavigableString, PageElement, Tag
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 
-from src.dom.views import DomContentItem, ProcessedDomContent
-from src.utils import time_execution_sync
+from browser_use.dom.views import DomContentItem, ProcessedDomContent
+from browser_use.utils import time_execution_sync
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)

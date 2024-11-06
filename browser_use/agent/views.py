@@ -2,7 +2,7 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from src.controller.views import (
+from browser_use.controller.views import (
 	ClickElementControllerAction,
 	ControllerActions,
 	InputTextControllerAction,

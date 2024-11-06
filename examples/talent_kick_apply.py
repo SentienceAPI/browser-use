@@ -14,7 +14,7 @@ import asyncio
 
 from langchain_openai import ChatOpenAI
 
-from src import Agent
+from browser_use import Agent
 
 logging.basicConfig(level=logging.INFO)
 

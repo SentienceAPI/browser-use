@@ -1,4 +1,4 @@
-from src.dom.views import ProcessedDomContent
+from browser_use.dom.views import ProcessedDomContent
 
 
 # Exceptions

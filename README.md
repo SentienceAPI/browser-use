@@ -15,8 +15,12 @@ Let LLMs interact with websites through a simple interface.
 
 ## Short Example
 
+```bash
+pip install browser-use
+```
+
 ```python
-from src import Agent
+from browser_use import Agent
 from langchain_openai import ChatOpenAI
 
 agent = Agent(
@@ -55,13 +59,13 @@ await agent.run()
 </div>
 </div>
 
-## Setup
+## Local Setup
 
 1. Create a virtual environment and install dependencies:
 
 ```bash
 # I recommend using uv
-pip install -r requirements.txt
+pip install .
 ```
 
 2. Add your API keys to the `.env` file:
@@ -92,7 +96,7 @@ You can persist the browser across multiple agents and chain them together.
 
 ```python
 from langchain_anthropic import ChatAnthropic
-from src import Agent, Controller
+from browser_use import Agent, Controller
 
 # Persist browser state across agents
 controller = Controller()

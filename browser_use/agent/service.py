@@ -5,17 +5,17 @@ from dotenv import load_dotenv
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
-from src.agent.prompts import AgentMessagePrompt, AgentSystemPrompt
-from src.agent.views import (
+from browser_use.agent.prompts import AgentMessagePrompt, AgentSystemPrompt
+from browser_use.agent.views import (
 	AgentHistory,
 	AgentOutput,
 	ClickElementControllerHistoryItem,
 	InputTextControllerHistoryItem,
 	Output,
 )
-from src.controller.service import ControllerService
-from src.controller.views import ControllerActionResult, ControllerActions, ControllerPageState
-from src.utils import time_execution_async
+from browser_use.controller.service import ControllerService
+from browser_use.controller.views import ControllerActionResult, ControllerActions, ControllerPageState
+from browser_use.utils import time_execution_async
 
 load_dotenv()
 logger = logging.getLogger(__name__)
