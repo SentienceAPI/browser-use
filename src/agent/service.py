@@ -83,7 +83,7 @@ class AgentService:
 
 				if result.done:
 					logger.info('\n✅ Task completed successfully')
-					logger.info(f'Extracted content: {result.extracted_content}')
+					logger.info(f'Extracted content: \n{result.extracted_content}')
 					return action.done, self.action_history
 
 			logger.info('\n' + '=' * 50)
@@ -110,7 +110,7 @@ class AgentService:
 
 		if result.extracted_content:
 			self.messages.append(
-				HumanMessage(content=f'Extracted content: {result.extracted_content}')
+				HumanMessage(content=f'Extracted content:\n {result.extracted_content}')
 			)
 
 		# Convert action to history and update click/input fields if present

@@ -17,6 +17,7 @@ import argparse
 import asyncio
 
 from src import Agent
+from src.controller.service import ControllerService
 
 logging.basicConfig(level=logging.INFO)
 
@@ -49,6 +50,7 @@ llm = get_llm(args.provider)
 agent = Agent(
 	task=args.query,
 	llm=llm,
+	controller=ControllerService(keep_open=True),
 )
 
 
