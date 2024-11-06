@@ -7,8 +7,8 @@ import asyncio
 
 from langchain_anthropic import ChatAnthropic
 
-from src.agent.service import AgentService
-from src.controller.service import ControllerService
+from browser_use.agent.service import AgentService
+from browser_use.controller.service import ControllerService
 
 task = 'Open 3 wikipedia pages in different tabs and summarize the content of all pages.'
 controller = ControllerService()

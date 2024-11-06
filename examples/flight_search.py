@@ -12,8 +12,8 @@ import asyncio
 from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
 
-from src.agent.service import AgentService
-from src.controller.service import ControllerService
+from browser_use.agent.service import AgentService
+from browser_use.controller.service import ControllerService
 
 task = 'Go to kayak.com and find a one-way flight from Zürich to San Francisco on 12 January 2025.'
 controller = ControllerService()

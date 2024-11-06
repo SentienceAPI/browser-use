@@ -16,7 +16,7 @@ Let LLMs interact with websites through a simple interface.
 ## Short Example
 
 ```python
-from src import Agent
+from browser_use import Agent
 from langchain_openai import ChatOpenAI
 
 agent = Agent(
@@ -92,7 +92,7 @@ You can persist the browser across multiple agents and chain them together.
 
 ```python
 from langchain_anthropic import ChatAnthropic
-from src import Agent, Controller
+from browser_use import Agent, Controller
 
 # Persist browser state across agents
 controller = Controller()

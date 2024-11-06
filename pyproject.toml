@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Open-Source Web Automation with LLMs"
 readme = "README.md"
 requires-python = ">=3.11"
+
 dependencies = []
 
 [tool.ruff]

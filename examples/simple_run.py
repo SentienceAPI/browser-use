@@ -8,7 +8,7 @@ import logging
 import os
 import sys
 
-from src.controller.service import ControllerService
+from browser_use.controller.service import ControllerService
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -16,7 +16,7 @@ import asyncio
 
 from langchain_openai import ChatOpenAI
 
-from src import Agent
+from browser_use import Agent
 
 logging.basicConfig(level=logging.INFO)
 

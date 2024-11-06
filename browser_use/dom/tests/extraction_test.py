@@ -1,8 +1,8 @@
 import time
 
-from src.browser.service import BrowserService
-from src.dom.service import DomService
-from src.utils import time_execution_sync
+from browser_use.browser.service import BrowserService
+from browser_use.dom.service import DomService
+from browser_use.utils import time_execution_sync
 
 
 # @pytest.mark.skip("slow af")

@@ -1,7 +1,7 @@
-from src.browser.service import BrowserService
-from src.browser.views import BrowserState
-from src.controller.views import ControllerActionResult, ControllerActions, ControllerPageState
-from src.utils import time_execution_sync
+from browser_use.browser.service import BrowserService
+from browser_use.browser.views import BrowserState
+from browser_use.controller.views import ControllerActionResult, ControllerActions, ControllerPageState
+from browser_use.utils import time_execution_sync
 
 
 class ControllerService:

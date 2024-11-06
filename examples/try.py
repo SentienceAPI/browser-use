@@ -16,8 +16,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import argparse
 import asyncio
 
-from src import Agent
-from src.controller.service import ControllerService
+from browser_use import Agent
+from browser_use.controller.service import ControllerService
 
 logging.basicConfig(level=logging.INFO)
 

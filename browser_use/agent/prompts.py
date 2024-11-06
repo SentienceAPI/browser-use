@@ -1,6 +1,6 @@
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from src.controller.views import ControllerPageState
+from browser_use.controller.views import ControllerPageState
 
 
 class AgentSystemPrompt:

@@ -2,7 +2,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel
 
-from src.browser.views import BrowserState
+from browser_use.browser.views import BrowserState
 
 
 class SearchGoogleControllerAction(BaseModel):

@@ -8,9 +8,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import asyncio
 
-from langchain_anthropic import ChatAnthropic
-
-from src import Agent, Controller
+from browser_use import Agent, Controller
 
 logging.basicConfig(level=logging.INFO)
 

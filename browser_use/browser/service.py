@@ -20,9 +20,9 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 
-from src.browser.views import BrowserState
-from src.dom.service import DomService
-from src.utils import time_execution_sync
+from browser_use.browser.views import BrowserState
+from browser_use.dom.service import DomService
+from browser_use.utils import time_execution_sync
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
