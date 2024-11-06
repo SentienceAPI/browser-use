@@ -1,11 +1,13 @@
 <div align="center">
 
 # 🌐 Browser-Use
+
 ### Open-Source Web Automation with LLMs
 
 [![GitHub stars](https://img.shields.io/github/stars/gregpr07/browser-use?style=social)](https://github.com/gregpr07/browser-use/stargazers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Discord](https://img.shields.io/discord/1303749220842340412?color=7289DA&label=Discord&logo=discord&logoColor=white)](https://discord.gg/uaCtrbbv)
 
 </div>
 
@@ -56,12 +58,14 @@ await agent.run()
 ## Setup
 
 1. Create a virtual environment and install dependencies:
+
 ```bash
 # I recommend using uv
 pip install -r requirements.txt
 ```
 
 2. Add your API keys to the `.env` file:
+
 ```bash
 cp .env.example .env
 ```
@@ -114,6 +118,7 @@ print(founders)
 You can use the `history` to run the agents again deterministically.
 
 ## Command Line Usage
+
 Run examples directly from the command line:
 
 ```bash
@@ -140,21 +145,22 @@ python examples/try.py "Go to hackernews on show hn and give me top 10 post tite
 ## 🤖 Supported Models
 
 All LangChain chat models are supported. Tested with:
+
 - GPT-4o
 - GPT-4o Mini
 - Claude 3.5 Sonnet
 - LLama 3.1 405B
 
 ## Limitations
+
 - When extracting page content, the message length increases and the LLM gets slower.
 - Currently one agent costs about 0.01$
 - Sometimes it tries to repeat the same task over and over again.
-- Some elements might not be extracted which you want to interact with. 
+- Some elements might not be extracted which you want to interact with.
 - What should we focus on the most?
-    - Robustness
-    - Speed
-    - Cost reduction
-
+  - Robustness
+  - Speed
+  - Cost reduction
 
 ## Roadmap
 
@@ -163,7 +169,7 @@ All LangChain chat models are supported. Tested with:
 - [ ] Third party SERP API for faster Google Search results
 - [ ] Multi-step action execution to increase speed
 - [ ] Test on mind2web dataset
-- [ ] Add more browser actions 
+- [ ] Add more browser actions
 
 ## Contributing
 
@@ -175,4 +181,3 @@ Contributions are welcome! Feel free to open issues for bugs or feature requests
   <b>Star ⭐ this repo if you find it useful!</b><br>
   Made with ❤️ by the Browser-Use team
 </div>
-
