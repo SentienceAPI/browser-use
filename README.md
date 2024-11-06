@@ -18,7 +18,7 @@ from src import Agent
 from langchain_openai import ChatOpenAI
 
 agent = Agent(
-    task='On eventbrite.com search for an engineering open job in madrid, spain, if found apply with my details after picking office location, company success and career oppurtunity as applying reason. my name is james smith and email is buckeye.foobar@gmail.com. If you need more information, ask me.',
+    task='Go to hackernews on show hn and give me the 10 top post titels and how many points each has. Calculate for each the ratio of points per hour. Then ask user me for further instructions.',
     llm=ChatOpenAI(model='gpt-4o'),
 )
 
@@ -26,6 +26,15 @@ await agent.run()
 ```
 
 ## Demo
+<div>
+    <a href="https://www.loom.com/share/c89aaa33b4c340ea92e11298b69f2cc7">
+      <p>Re:  - 6 November 2024 - Watch Video</p>
+    </a>
+    <a href="https://www.loom.com/share/c89aaa33b4c340ea92e11298b69f2cc7">
+      <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/c89aaa33b4c340ea92e11298b69f2cc7-a266705b9047aa7b-full-play.gif">
+    </a>
+    <p><i>Prompt: Go to hackernews on show hn and give me the 10 top post titels and how many points each has. Calculate for each the ratio of points per hour. (1x speed)</i></p>
+  </div>
 <div>
     <a href="https://www.loom.com/share/2af938b9f8024647950a9e18b3946054">
       <p>gregpr07/browser-use at Example-improvement - 6 November 2024 - Watch Video</p>
@@ -120,7 +129,7 @@ You need to add `ANTHROPIC_API_KEY` to your environment variables. Example usage
 
 ```bash
 
-python examples/try.py "Search the top 3 AI companies 2024 and find what out what concrete hardware each is using for their models" --provider anthropic
+python examples/try.py "Search the top 3 AI companies 2024 and find out in 3 new tabs what hardware each is using for their models" --provider anthropic
 ```
 
 ### OpenAI
@@ -128,9 +137,7 @@ python examples/try.py "Search the top 3 AI companies 2024 and find what out wha
 You need to add `OPENAI_API_KEY` to your environment variables. Example usage:
 
 ```bash
-python examples/try.py "Find the most popular documentary tv series on imdb sorted by imdb rating, see the details of the top result." --provider openai
-
-python examples/try.py "On eventbrite.com search for an engineering open job in madrid, spain, if found apply with my details after picking office location, company success and career oppurtunity as applying reason. my name is james smith and email is buckeye.foobar@gmail.com. If you need more information, ask me." --provider openai
+python examples/try.py "Go to hackernews on show hn and give me the 10 top post titels and how many points each has. Calculate for each the ratio of points per hour. Then ask me for further clarification." --provider openai
 ```
 
 ## 🤖 Supported Models
