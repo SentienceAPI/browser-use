@@ -26,11 +26,13 @@ await agent.run()
 ```
 
 ## Demo
-
 <div>
-    <div style="position: relative; padding-bottom: 64.92178098676294%; height: 0;">
-        <iframe src="https://www.loom.com/embed/2af938b9f8024647950a9e18b3946054?sid=8c344a13-cfd7-4b5a-8032-ffb7d2a4560f" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe>
-    </div>
+    <a href="https://www.loom.com/share/2af938b9f8024647950a9e18b3946054">
+      <p>gregpr07/browser-use at Example-improvement - 6 November 2024 - Watch Video</p>
+    </a>
+    <a href="https://www.loom.com/share/2af938b9f8024647950a9e18b3946054">
+      <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/2af938b9f8024647950a9e18b3946054-b99c733cf670e568-full-play.gif">
+    </a>
     <p><i>Prompt: Search the top 3 AI companies 2024 and find what out what concrete hardware each is using for their model</i></p>
 </div>
 
