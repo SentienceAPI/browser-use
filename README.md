@@ -31,14 +31,14 @@ await agent.run()
     <a href="https://www.loom.com/share/63612b5994164cb1bb36938d62fe9983">
       <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/63612b5994164cb1bb36938d62fe9983-11f47a9490613568-full-play.gif">
     </a>
-    <p><i>Prompt: Go to hackernews on show hn and give me top 10 post titels, their points and hours. Calculate for each the ratio of points per hour. </i></p>
+    <p><i>Prompt: Go to hackernews on show hn and give me top 10 post titels, their points and hours. Calculate for each the ratio of points per hour. (1x speed) </i></p>
 </div>
 
 <div>
     <a href="https://www.loom.com/share/2af938b9f8024647950a9e18b3946054">
       <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/2af938b9f8024647950a9e18b3946054-b99c733cf670e568-full-play.gif">
     </a>
-    <p><i>Prompt: Search the top 3 AI companies 2024 and find what out what concrete hardware each is using for their model</i></p>
+    <p><i>Prompt: Search the top 3 AI companies 2024 and find what out what concrete hardware each is using for their model. (1x speed)</i></p>
 </div>
 
 <div style="display: flex; justify-content: space-between; margin-top: 20px;">
@@ -78,6 +78,7 @@ You can use any LLM model supported by LangChain by adding the appropriate envir
 - Customizable Actions - Add your own browser interactions (e.g. add data to database which the LLM can use)
 - Handles dynamic content - dont worry about cookies or changing content
 - Chain-of-thought prompting with memory - Solve long-term tasks
+- Self-correcting - If the LLM makes a mistake, the agent will self-correct its actions
 
 ## Advanced Examples
 
@@ -143,6 +144,17 @@ All LangChain chat models are supported. Tested with:
 - GPT-4o Mini
 - Claude 3.5 Sonnet
 - LLama 3.1 405B
+
+## Limitations
+- When extracting page content, the message length increases and the LLM gets slower.
+- Currently one agent costs about 0.01$
+- Sometimes it tries to repeat the same task over and over again.
+- Some elements might not be extracted which you want to interact with. 
+- What should we focus on the most?
+    - Robustness
+    - Speed
+    - Cost reduction
+
 
 ## Roadmap
 
