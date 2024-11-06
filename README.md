@@ -15,6 +15,10 @@ Let LLMs interact with websites through a simple interface.
 
 ## Short Example
 
+```bash
+pip install browser-use
+```
+
 ```python
 from browser_use import Agent
 from langchain_openai import ChatOpenAI
@@ -55,7 +59,7 @@ await agent.run()
 </div>
 </div>
 
-## Setup
+## Local Setup
 
 1. Create a virtual environment and install dependencies:
 
