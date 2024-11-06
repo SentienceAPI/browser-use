@@ -175,6 +175,8 @@ All LangChain chat models are supported. Tested with:
 
 Contributions are welcome! Feel free to open issues for bugs or feature requests.
 
+Feel free to join the [Discord](https://discord.gg/Wy9qE4TKHZ) for discussions and support.
+
 ---
 
 <div align="center">
