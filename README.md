@@ -18,7 +18,7 @@ from src import Agent
 from langchain_openai import ChatOpenAI
 
 agent = Agent(
-    task='Find cheapest flight from London to Kyrgyzstan and return the url.',
+    task='On eventbrite.com search for an engineering open job in madrid, spain, if found apply with my details after picking office location, company success and career oppurtunity as applying reason. my name is james smith and email is buckeye.foobar@gmail.com. If you need more information, ask me.',
     llm=ChatOpenAI(model='gpt-4o'),
 )
 
@@ -27,15 +27,23 @@ await agent.run()
 
 ## Demo
 
-<div style="display: flex; justify-content: space-between;">
-  <div style="flex: 1; margin-right: 10px;">
-    <img style="max-width:100%;" src="./static/kayak.gif" alt="Kayak flight search demo">
-    <p><i>Prompt: Go to kayak.com and find a one-way flight from Zürich to San Francisco on 12 January 2025. (2.5x speed)</i></p>
-  </div>
-  <div style="flex: 1; margin-left: 10px;">
-    <img style="max-width:100%;" src="./static/photos.gif" alt="Photos search demo">
-    <p><i>Prompt: Opening new tabs and searching for images for these people: Albert Einstein, Oprah Winfrey, Steve Jobs. (2.5x speed)</i></p>
-  </div>
+<div>
+    <div style="position: relative; padding-bottom: 64.92178098676294%; height: 0;">
+        <iframe src="https://www.loom.com/embed/2af938b9f8024647950a9e18b3946054?sid=8c344a13-cfd7-4b5a-8032-ffb7d2a4560f" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe>
+    </div>
+    <p><i>Prompt: Search the top 3 AI companies 2024 and find what out what concrete hardware each is using for their model</i></p>
+</div>
+
+<div style="display: flex; justify-content: space-between; margin-top: 20px;">
+    <div style="flex: 1; margin-right: 10px;">
+        <img style="width: 100%;" src="./static/kayak.gif" alt="Kayak flight search demo">
+        <p><i>Prompt: Go to kayak.com and find a one-way flight from Zürich to San Francisco on 12 January 2025. (2.5x speed)</i></p>
+    </div>
+    <div style="flex: 1; margin-left: 10px;">
+        <img style="width: 100%;" src="./static/photos.gif" alt="Photos search demo">
+        <p><i>Prompt: Opening new tabs and searching for images for these people: Albert Einstein, Oprah Winfrey, Steve Jobs. (2.5x speed)</i></p>
+    </div>
+</div>
 </div>
 
 ## Setup
@@ -109,7 +117,8 @@ python examples/try.py "Your query here" --provider [openai|anthropic]
 You need to add `ANTHROPIC_API_KEY` to your environment variables. Example usage:
 
 ```bash
-python examples/try.py "On imdb.com get the most popular documentary tv series sorted by imdb rating, see the details of the top result." --provider anthropic
+
+python examples/try.py "Search the top 3 AI companies 2024 and find what out what concrete hardware each is using for their models" --provider anthropic
 ```
 
 ### OpenAI
@@ -117,7 +126,9 @@ python examples/try.py "On imdb.com get the most popular documentary tv series s
 You need to add `OPENAI_API_KEY` to your environment variables. Example usage:
 
 ```bash
-python examples/try.py "Search for top AI companies" --provider openai
+python examples/try.py "Find the most popular documentary tv series on imdb sorted by imdb rating, see the details of the top result." --provider openai
+
+python examples/try.py "On eventbrite.com search for an engineering open job in madrid, spain, if found apply with my details after picking office location, company success and career oppurtunity as applying reason. my name is james smith and email is buckeye.foobar@gmail.com. If you need more information, ask me." --provider openai
 ```
 
 ## 🤖 Supported Models
