@@ -20,15 +20,18 @@ pip install browser-use
 ```
 
 ```python
-from browser_use import Agent
 from langchain_openai import ChatOpenAI
+from browser_use import Agent
+from dotenv import load_dotenv
+from asyncio import run
 
+load_dotenv()
 agent = Agent(
-    task='Go to hackernews on show hn and give me top 10 post titels, their points and hours. Calculate for each the ratio of points per hour.',
-    llm=ChatOpenAI(model='gpt-4o'),
+    task="Go to hackernews on show hn and give me top 10 post titles, their points and hours. Calculate for each the ratio of points per hour.",
+    llm=ChatOpenAI(model="gpt-4o"),
 )
 
-await agent.run()
+run(agent.run())
 ```
 
 ## Demo
@@ -37,7 +40,7 @@ await agent.run()
     <a href="https://www.loom.com/share/63612b5994164cb1bb36938d62fe9983">
       <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/63612b5994164cb1bb36938d62fe9983-11f47a9490613568-full-play.gif">
     </a>
-    <p><i>Prompt: Go to hackernews on show hn and give me top 10 post titels, their points and hours. Calculate for each the ratio of points per hour. (1x speed) </i></p>
+    <p><i>Prompt: Go to hackernews on show hn and give me top 10 post titles, their points and hours. Calculate for each the ratio of points per hour. (1x speed) </i></p>
 </div>
 
 <div>
@@ -73,6 +76,10 @@ pip install .
 ```bash
 cp .env.example .env
 ```
+E.g. for OpenAI:
+```bash
+OPENAI_API_KEY=
+```
 
 You can use any LLM model supported by LangChain by adding the appropriate environment variables. See [langchain models](https://python.langchain.com/docs/integrations/chat/) for available options.
 
@@ -95,8 +102,6 @@ You can use any LLM model supported by LangChain by adding the appropriate envir
 You can persist the browser across multiple agents and chain them together.
 
 ```python
-from langchain_anthropic import ChatAnthropic
-from browser_use import Agent, Controller
 
 # Persist browser state across agents
 controller = Controller()
@@ -123,7 +128,7 @@ You can use the `history` to run the agents again deterministically.
 
 ## Command Line Usage
 
-Run examples directly from the command line:
+Run examples directly from the command line (clone the repo first):
 
 ```bash
 python examples/try.py "Your query here" --provider [openai|anthropic]
@@ -143,7 +148,7 @@ python examples/try.py "Search the top 3 AI companies 2024 and find out in 3 new
 You need to add `OPENAI_API_KEY` to your environment variables. Example usage:
 
 ```bash
-python examples/try.py "Go to hackernews on show hn and give me top 10 post titels, their points and hours. Calculate for each the ratio of points per hour. " --provider anthropic
+python examples/try.py "Go to hackernews on show hn and give me top 10 post titles, their points and hours. Calculate for each the ratio of points per hour. " --provider anthropic
 ```
 
 ## 🤖 Supported Models
