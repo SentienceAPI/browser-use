@@ -3,12 +3,11 @@ Selenium browser on steroids.
 """
 
 import base64
+import logging
 import os
 import tempfile
 import time
 from typing import Literal
-
-import logging
 
 from main_content_extractor import MainContentExtractor
 from Screenshot import Screenshot
@@ -262,6 +261,7 @@ class BrowserService:
 
 			# Then send keys
 			element.send_keys(text)
+			logger.info(f'Input text into element with xpath: {xpath}')
 
 			self.wait_for_page_load()
 
@@ -342,6 +342,7 @@ class BrowserService:
 
 		xpath = state.selector_map[index]
 		self._click_element_by_xpath(xpath)
+		logger.info(f'Clicked on index {index}: with xpath {xpath}')
 
 		# Check if new tab was opened
 		current_handles = len(driver.window_handles)

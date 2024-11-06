@@ -13,11 +13,11 @@ from langchain_openai import ChatOpenAI
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import argparse
 import asyncio
 
 from src import Agent
-
-import argparse
+from src.controller.service import ControllerService
 
 logging.basicConfig(level=logging.INFO)
 
@@ -28,7 +28,7 @@ def get_llm(provider: str):
 			model_name='claude-3-5-sonnet-20240620', timeout=25, stop=None, temperature=0.3
 		)
 	elif provider == 'openai':
-		return ChatOpenAI(model='gpt-4')
+		return ChatOpenAI(model='gpt-4o', temperature=0.3)
 	else:
 		raise ValueError(f'Unsupported provider: {provider}')
 
@@ -50,6 +50,7 @@ llm = get_llm(args.provider)
 agent = Agent(
 	task=args.query,
 	llm=llm,
+	controller=ControllerService(keep_open=True),
 )
 
 
