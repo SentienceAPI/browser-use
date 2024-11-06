@@ -61,7 +61,7 @@ await agent.run()
 
 ```bash
 # I recommend using uv
-pip install -r requirements.txt
+pip install .
 ```
 
 2. Add your API keys to the `.env` file:
