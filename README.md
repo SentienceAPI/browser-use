@@ -22,16 +22,14 @@ pip install browser-use
 ```python
 from langchain_openai import ChatOpenAI
 from browser_use import Agent
-from dotenv import load_dotenv
-from asyncio import run
 
-load_dotenv()
 agent = Agent(
     task="Go to hackernews on show hn and give me top 10 post titles, their points and hours. Calculate for each the ratio of points per hour.",
     llm=ChatOpenAI(model="gpt-4o"),
 )
 
-run(agent.run())
+# ... inside an async function
+await agent.run()
 ```
 
 ## Demo
@@ -102,24 +100,27 @@ You can use any LLM model supported by LangChain by adding the appropriate envir
 You can persist the browser across multiple agents and chain them together.
 
 ```python
+from asyncio import run
+from browser_use import Agent, Controller
+from dotenv import load_dotenv
+from langchain_anthropic import ChatAnthropic
+load_dotenv()
 
 # Persist browser state across agents
 controller = Controller()
 
 # Initialize browser agent
 agent1 = Agent(
-	task='Open 5 VCs websites in the New York area.',
-	llm=ChatAnthropic(model_name='claude-3-sonnet', timeout=25, stop=None, temperature=0.3),
-	controller=controller,
-)
+    task="Open 3 VCs websites in the New York area.",
+    llm=ChatAnthropic(model="claude-3-5-sonnet-20240620", timeout=25, stop=None),
+    controller=controller)
 agent2 = Agent(
-	task='Give me the names of the founders of the companies in all tabs.',
-	llm=ChatAnthropic(model_name='claude-3-sonnet', timeout=25, stop=None, temperature=0.3),
-	controller=controller,
-)
+    task="Give me the names of the founders of the companies in all tabs.",
+    llm=ChatAnthropic(model="claude-3-5-sonnet-20240620", timeout=25, stop=None),
+    controller=controller)
 
-await agent1.run()
-founders, history = await agent2.run()
+run(agent1.run())
+founders, history = run(agent2.run())
 
 print(founders)
 ```
