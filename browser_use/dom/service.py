@@ -38,31 +38,21 @@ class DomService:
 		soup = BeautifulSoup(html_content, 'html.parser')
 
 		candidate_elements: list[Tag | NavigableString] = []
-		dom_queue = [element for element in soup.body.children] if soup.body else []
-		# xpath_cache = {}
 
-		# Find candidate elements
-		while dom_queue:
-			element = dom_queue.pop()
+		def _process_element(element: PageElement):
 			should_add_element = False
 
-			# Add quick filter before expensive checks
-			if not self._quick_element_filter(element):
-				if isinstance(element, Tag):
-					element.decompose()
-				continue
+			# if not self._quick_element_filter(element):
+			# 	if isinstance(element, Tag):
+			# 		element.decompose()
+			# 	return
 
-			# Handle both Tag elements and text nodes
 			if isinstance(element, Tag):
+				# Don't add any children of non-interactive elements
 				if not self._is_element_accepted(element):
-					# Skip element if it's not accepted
-					element.decompose()  # get rid of some memory leaks potentially
-					continue
+					element.decompose()
+					return
 
-				for child in element.children:
-					dom_queue.append(child)
-
-				# Check if element is interactive or leaf element
 				if self._is_interactive_element(element) or self._is_leaf_element(element):
 					if (
 						self._is_active(element)
@@ -71,14 +61,20 @@ class DomService:
 					):
 						should_add_element = True
 
-			elif isinstance(element, NavigableString) and element.strip():
-				if self._is_visible(element):
-					should_add_element = True
+				elif isinstance(element, NavigableString) and element.strip():
+					if self._is_visible(element):
+						should_add_element = True
 
 			if should_add_element:
-				if not isinstance(element, (Tag, NavigableString)):
-					continue
-				candidate_elements.append(element)
+				if isinstance(element, (Tag, NavigableString)):
+					candidate_elements.append(element)
+
+			if isinstance(element, Tag):
+				for child in element.children:
+					_process_element(child)
+
+		for element in soup.body.children if soup.body else []:
+			_process_element(element)
 
 		# Process candidates
 		selector_map: dict[int, str] = {}
@@ -86,6 +82,8 @@ class DomService:
 
 		for index, element in enumerate(candidate_elements):
 			xpath = self._generate_xpath(element)
+
+			depth = max(len(xpath.split('/')) - 2, 0)
 
 			# Skip text nodes that are direct children of already processed elements
 			if isinstance(element, NavigableString) and element.parent in [
@@ -98,7 +96,9 @@ class DomService:
 				if text_content:
 					output_string = f'{text_content}'
 					output_items.append(
-						DomContentItem(index=index, text=output_string, clickable=False)
+						DomContentItem(
+							index=index, text=output_string, clickable=False, depth=depth
+						)
 					)
 					continue
 				else:
@@ -115,7 +115,9 @@ class DomService:
 				closing_tag = f'</{tag_name}>'
 
 				output_string = f'{opening_tag}{text_content}{closing_tag}'
-				output_items.append(DomContentItem(index=index, text=output_string, clickable=True))
+				output_items.append(
+					DomContentItem(index=index, text=output_string, clickable=True, depth=depth)
+				)
 
 			selector_map[index] = xpath
 
@@ -461,39 +463,39 @@ class DomService:
 			or element.get('aria-disabled') == 'true'
 		)
 
-	def _quick_element_filter(self, element: PageElement) -> bool:
-		"""
-		Quick pre-filter to eliminate elements before expensive checks.
-		Returns True if element passes initial filtering.
-		"""
-		if isinstance(element, NavigableString):
-			# Quick check for empty or whitespace-only strings
-			return bool(element.strip())
+	# def _quick_element_filter(self, element: PageElement) -> bool:
+	# 	"""
+	# 	Quick pre-filter to eliminate elements before expensive checks.
+	# 	Returns True if element passes initial filtering.
+	# 	"""
+	# 	if isinstance(element, NavigableString):
+	# 		# Quick check for empty or whitespace-only strings
+	# 		return bool(element.strip())
 
-		if not isinstance(element, Tag):
-			return False
+	# 	if not isinstance(element, Tag):
+	# 		return False
 
-		style = element.get('style')
+	# 	style = element.get('style')
 
-		# Quick attribute checks that would make element invisible/non-interactive
-		if any(
-			[
-				element.get('aria-hidden') == 'true',
-				element.get('hidden') is not None,
-				element.get('disabled') is not None,
-				style and ('display: none' in style or 'visibility: hidden' in style),
-				element.has_attr('class')
-				and any(cls in element['class'] for cls in ['hidden', 'invisible']),
-				# Common hidden class patterns
-				element.get('type') == 'hidden',
-			]
-		):
-			return False
+	# 	# Quick attribute checks that would make element invisible/non-interactive
+	# 	if any(
+	# 		[
+	# 			element.get('aria-hidden') == 'true',
+	# 			element.get('hidden') is not None,
+	# 			element.get('disabled') is not None,
+	# 			style and ('display: none' in style or 'visibility: hidden' in style),
+	# 			element.has_attr('class')
+	# 			and any(cls in element['class'] for cls in ['hidden', 'invisible']),
+	# 			# Common hidden class patterns
+	# 			element.get('type') == 'hidden',
+	# 		]
+	# 	):
+	# 		return False
 
-		# Skip elements that definitely won't be interactive or visible
-		non_interactive_display = ['none', 'hidden']
-		computed_style = element.get('style', '') or ''
-		if any(display in computed_style for display in non_interactive_display):
-			return False
+	# 	# Skip elements that definitely won't be interactive or visible
+	# 	non_interactive_display = ['none', 'hidden']
+	# 	computed_style = element.get('style', '') or ''
+	# 	if any(display in computed_style for display in non_interactive_display):
+	# 		return False
 
-		return True
+	# 	return True

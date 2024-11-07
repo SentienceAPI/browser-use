@@ -5,6 +5,7 @@ class DomContentItem(BaseModel):
 	index: int
 	text: str
 	clickable: bool
+	depth: int
 
 
 class ProcessedDomContent(BaseModel):
@@ -15,8 +16,9 @@ class ProcessedDomContent(BaseModel):
 		"""Convert the processed DOM content to HTML."""
 		formatted_text = ''
 		for item in self.items:
+			item_depth = '\t' * item.depth * 1
 			if item.clickable:
-				formatted_text += f'{item.index}:{item.text}\n'
+				formatted_text += f'{item.index}:{item_depth}{item.text}\n'
 			else:
-				formatted_text += f'_:{item.text}\n'
+				formatted_text += f'{item.index}:{item_depth}{item.text}\n'
 		return formatted_text
