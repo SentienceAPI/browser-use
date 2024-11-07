@@ -14,7 +14,10 @@ from browser_use.agent.views import (
 	Output,
 )
 from browser_use.controller.service import ControllerService
-from browser_use.controller.views import ControllerActionResult, ControllerActions, ControllerPageState
+from browser_use.controller.views import (
+	ControllerActionResult,
+	ControllerPageState,
+)
 from browser_use.utils import time_execution_async
 
 load_dotenv()

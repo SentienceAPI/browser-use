@@ -121,6 +121,11 @@ class DomService:
 
 			selector_map[index] = xpath
 
+		# Remove all elements from selector map that are not in output items
+		selector_map = {
+			k: v for k, v in selector_map.items() if k in [i.index for i in output_items]
+		}
+
 		return ProcessedDomContent(items=output_items, selector_map=selector_map)
 
 	def _cap_text_length(self, text: str, max_length: int = 150) -> str:

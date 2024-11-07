@@ -22,6 +22,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 from browser_use.browser.views import BrowserState
 from browser_use.dom.service import DomService
+from browser_use.dom.views import SelectorMap
 from browser_use.utils import time_execution_sync
 
 logger = logging.getLogger(__name__)
@@ -211,11 +212,15 @@ class BrowserService:
 		logger.info(f'Done on page {self.current_state.url}\n\n: {text}')
 		return text
 
-	def take_screenshot(self, full_page: bool = False) -> str:
+	def take_screenshot(self, selector_map: SelectorMap | None, full_page: bool = False) -> str:
 		"""
 		Returns a base64 encoded screenshot of the current page.
 		"""
 		driver = self._get_driver()
+
+		if selector_map:
+			self.highlight_selector_map_elements(selector_map)
+
 		if full_page:
 			# Create temp directory
 			temp_dir = tempfile.mkdtemp()
@@ -236,7 +241,73 @@ class BrowserService:
 			os.rmdir(temp_dir)
 		else:
 			screenshot = driver.get_screenshot_as_base64()
+
+		if selector_map:
+			self.remove_highlights()
+
 		return screenshot
+
+	def highlight_selector_map_elements(self, selector_map: SelectorMap):
+		driver = self._get_driver()
+		# First remove any existing highlights/labels
+		self.remove_highlights()
+
+		script = """
+		const highlights = {
+		"""
+
+		# Build the highlights object with all xpaths and indices
+		for index, xpath in selector_map.items():
+			script += f'"{index}": "{xpath}",\n'
+
+		script += """
+		};
+		
+		for (const [index, xpath] of Object.entries(highlights)) {
+			const el = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+			if (!el) continue;  // Skip if element not found
+			el.style.outline = "2px solid red";
+			el.setAttribute('browser-user-highlight-id', 'selenium-highlight');
+			
+			const label = document.createElement("div");
+			label.className = 'selenium-highlight-label';
+			label.style.position = "fixed";
+			label.style.background = "red";
+			label.style.color = "white";
+			label.style.padding = "2px 6px";
+			label.style.borderRadius = "10px";
+			label.style.fontSize = "12px";
+			label.style.zIndex = "9999999";
+			label.textContent = index;
+			const rect = el.getBoundingClientRect();
+			label.style.top = (rect.top - 20) + "px";
+			label.style.left = rect.left + "px";
+			document.body.appendChild(label);
+		}
+		"""
+
+		driver.execute_script(script)
+
+	def remove_highlights(self):
+		"""
+		Removes all highlight outlines and labels created by highlight_selector_map_elements
+		"""
+		driver = self._get_driver()
+		driver.execute_script(
+			"""
+			// Remove all highlight outlines
+			const highlightedElements = document.querySelectorAll('[browser-user-highlight-id="selenium-highlight"]');
+			highlightedElements.forEach(el => {
+				el.style.outline = '';
+				el.removeAttribute('selenium-browser-use-highlight');
+			});
+			
+
+			// Remove all labels
+			const labels = document.querySelectorAll('.selenium-highlight-label');
+			labels.forEach(label => label.remove());
+			"""
+		)
 
 	# endregion
 

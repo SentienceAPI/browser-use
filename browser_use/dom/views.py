@@ -8,9 +8,12 @@ class DomContentItem(BaseModel):
 	depth: int
 
 
+SelectorMap = dict[int, str]
+
+
 class ProcessedDomContent(BaseModel):
 	items: list[DomContentItem]
-	selector_map: dict[int, str]
+	selector_map: SelectorMap
 
 	def dom_items_to_string(self) -> str:
 		"""Convert the processed DOM content to HTML."""
