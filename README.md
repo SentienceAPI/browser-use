@@ -65,8 +65,8 @@ await agent.run()
 1. Create a virtual environment and install dependencies:
 
 ```bash
-# I recommend using uv
-pip install .
+# To install all dependencies including dev
+pip install . ."[dev]"
 ```
 
 2. Add your API keys to the `.env` file:
@@ -74,7 +74,9 @@ pip install .
 ```bash
 cp .env.example .env
 ```
+
 E.g. for OpenAI:
+
 ```bash
 OPENAI_API_KEY=
 ```

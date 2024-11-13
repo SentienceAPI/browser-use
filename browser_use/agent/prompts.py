@@ -25,8 +25,10 @@ class AgentSystemPrompt:
     Your input are all the interactive elements with its context of the current page from.
     
     This is how an input looks like:
-    33: <button>Clickable element</button>
+    33:\t<button>Clickable element</button>
     _: Not clickable, only for your context
+	\t: Tab indent (1 tab for depth 1 etc.). This is to help you understand which elements belong to each other.
+
 
     In the beginning the list will be empty.
 	On elements with _ you can not click.
