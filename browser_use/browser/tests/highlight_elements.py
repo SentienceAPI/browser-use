@@ -1,6 +1,6 @@
+import base64
+import os
 import time
-
-from tokencost import count_string_tokens
 
 from browser_use.browser.service import BrowserService
 from browser_use.dom.service import DomService
@@ -25,12 +25,16 @@ def test_highlight_elements():
 
 	elements = time_execution_sync('get_clickable_elements')(dom_service.get_clickable_elements)()
 
-	time_execution_sync('highlight_selector_map_elements')(browser.highlight_selector_map_elements)(
-		elements.selector_map
-	)
+	# time_execution_sync('highlight_selector_map_elements')(browser.highlight_selector_map_elements)(
+	# 	elements.selector_map
+	# )
 
-	input('Press Enter to continue...')
+	image = time_execution_sync('take_screenshot')(browser.take_screenshot)(elements.selector_map)
 
-	time_execution_sync('remove_highlights')(browser.remove_highlights)()
+	temp_image_path = os.path.join(os.path.dirname(__file__), 'temp', 'temp.png')
+	with open(temp_image_path, 'wb') as f:
+		f.write(base64.b64decode(image))
+
+	# time_execution_sync('remove_highlights')(browser.remove_highlights)()
 
 	input('Press Enter to continue...')

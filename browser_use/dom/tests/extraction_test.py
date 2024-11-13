@@ -1,7 +1,5 @@
 import time
 
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
 from tokencost import count_string_tokens
 
 from browser_use.browser.service import BrowserService
