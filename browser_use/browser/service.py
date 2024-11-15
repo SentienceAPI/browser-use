@@ -9,104 +9,114 @@ import tempfile
 import time
 from typing import Literal
 
-from main_content_extractor import MainContentExtractor
 from Screenshot import Screenshot
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 
-from browser_use.browser.views import BrowserState
+from browser_use.browser.views import BrowserState, TabInfo
 from browser_use.dom.service import DomService
 from browser_use.dom.views import SelectorMap
 from browser_use.utils import time_execution_sync
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 
-class BrowserService:
+class Browser:
 	def __init__(self, headless: bool = False, keep_open: bool = False):
 		self.headless = headless
-		self.driver: webdriver.Chrome | None = None
-		self._ob = Screenshot.Screenshot()
+		self.keep_open = keep_open
 		self.MINIMUM_WAIT_TIME = 0.5
 		self.MAXIMUM_WAIT_TIME = 5
-		self._current_handle = None  # Track current handle
-		self._tab_cache = {}
-		self.keep_open = keep_open
+		self._tab_cache: dict[str, TabInfo] = {}
+		self._current_handle = None
+		self._ob = Screenshot.Screenshot()
 
-	def init(self) -> webdriver.Chrome:
-		"""
-		Sets up and returns a Selenium WebDriver instance with anti-detection measures.
+		# Initialize driver during construction
+		self.driver: webdriver.Chrome | None = self._setup_webdriver()
+		self._cached_state = self._update_state()
 
-		Returns:
-		    webdriver.Chrome: Configured Chrome WebDriver instance
-		"""
-		chrome_options = Options()
-		if self.headless:
-			chrome_options.add_argument('--headless')
+	def _setup_webdriver(self) -> webdriver.Chrome:
+		"""Sets up and returns a Selenium WebDriver instance with anti-detection measures."""
+		try:
+			# if webdriver is not starting, try to kill it or rm -rf ~/.wdm
+			chrome_options = Options()
+			if self.headless:
+				chrome_options.add_argument('--headless=new')  # Updated headless argument
 
-		# Anti-detection measures
-		chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-		chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
-		chrome_options.add_experimental_option('useAutomationExtension', False)
+			# Essential automation and performance settings
+			chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+			chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
+			chrome_options.add_experimental_option('useAutomationExtension', False)
+			chrome_options.add_argument('--no-sandbox')
+			chrome_options.add_argument('--window-size=1280,1024')
+			chrome_options.add_argument('--disable-extensions')
 
-		# Additional stealth settings
-		# chrome_options.add_argument('--start-maximized')
-		chrome_options.add_argument('--window-size=1280,1024')
-		chrome_options.add_argument('--disable-extensions')
-		chrome_options.add_argument('--no-sandbox')
-		chrome_options.add_argument('--disable-infobars')
+			# Background process optimization
+			chrome_options.add_argument('--disable-background-timer-throttling')
+			chrome_options.add_argument('--disable-popup-blocking')
 
-		# Initialize the Chrome driver
-		driver = webdriver.Chrome(
-			service=Service(ChromeDriverManager().install()), options=chrome_options
-		)
+			# Additional stealth settings
+			chrome_options.add_argument('--disable-infobars')
+			# Much better when working in non-headless mode
+			chrome_options.add_argument('--disable-backgrounding-occluded-windows')
+			chrome_options.add_argument('--disable-renderer-backgrounding')
 
-		# Execute stealth scripts
-		driver.execute_cdp_cmd(
-			'Page.addScriptToEvaluateOnNewDocument',
-			{
-				'source': """
-				Object.defineProperty(navigator, 'webdriver', {
-					get: () => undefined
-				});
-				
-				Object.defineProperty(navigator, 'languages', {
-					get: () => ['en-US', 'en']
-				});
-				
-				Object.defineProperty(navigator, 'plugins', {
-					get: () => [1, 2, 3, 4, 5]
-				});
-				
-				window.chrome = {
-					runtime: {}
-				};
-				
-				Object.defineProperty(navigator, 'permissions', {
-					get: () => ({
-						query: Promise.resolve.bind(Promise)
-					})
-				});
-			"""
-			},
-		)
+			# Initialize the Chrome driver with better error handling
+			service = ChromeService(ChromeDriverManager().install())
+			driver = webdriver.Chrome(service=service, options=chrome_options)
 
-		self.driver = driver
+			# Execute stealth scripts
+			driver.execute_cdp_cmd(
+				'Page.addScriptToEvaluateOnNewDocument',
+				{
+					'source': """
+					Object.defineProperty(navigator, 'webdriver', {
+						get: () => undefined
+					});
+					
+					Object.defineProperty(navigator, 'languages', {
+						get: () => ['en-US', 'en']
+					});
+					
+					Object.defineProperty(navigator, 'plugins', {
+						get: () => [1, 2, 3, 4, 5]
+					});
+					
+					window.chrome = {
+						runtime: {}
+					};
+					
+					Object.defineProperty(navigator, 'permissions', {
+						get: () => ({
+							query: Promise.resolve.bind(Promise)
+						})
+					});
+				"""
+				},
+			)
 
-		# driver.get('https://www.google.com')
+			return driver
 
-		return driver
+		except Exception as e:
+			logger.error(f'Failed to initialize Chrome driver: {str(e)}')
+			# Clean up any existing driver
+			if hasattr(self, 'driver') and self.driver:
+				try:
+					self.driver.quit()
+					self.driver = None
+				except Exception:
+					pass
+			raise
 
 	def _get_driver(self) -> webdriver.Chrome:
 		if self.driver is None:
-			self.driver = self.init()
+			self.driver = self._setup_webdriver()
 		return self.driver
 
 	def wait_for_page_load(self):
@@ -131,7 +141,7 @@ class BrowserService:
 		elapsed = time.time() - start_time
 		remaining = max(self.MINIMUM_WAIT_TIME - elapsed, 0)
 
-		logger.info(
+		logger.debug(
 			f'--Page loaded in {elapsed:.2f} seconds, waiting for additional {remaining:.2f} seconds'
 		)
 
@@ -139,27 +149,36 @@ class BrowserService:
 		if remaining > 0:
 			time.sleep(remaining)
 
-	def get_updated_state(self) -> BrowserState:
+	def _update_state(self, use_vision: bool = False) -> BrowserState:
 		"""
 		Update and return state.
 		"""
 		driver = self._get_driver()
 		dom_service = DomService(driver)
 		content = dom_service.get_clickable_elements()
+
+		screenshot_b64 = None
+		if use_vision:
+			screenshot_b64 = self.take_screenshot(selector_map=content.selector_map)
+
 		self.current_state = BrowserState(
 			items=content.items,
 			selector_map=content.selector_map,
 			url=driver.current_url,
 			title=driver.title,
+			current_tab_handle=self._current_handle or driver.current_window_handle,
+			tabs=self.get_tabs_info(),
+			screenshot=screenshot_b64,
 		)
 
 		return self.current_state
 
-	def close(self):
-		if not self.keep_open:
-			driver = self._get_driver()
-			driver.quit()
-			self.driver = None
+	def close(self, force: bool = False):
+		if not self.keep_open or force:
+			if self.driver:
+				driver = self._get_driver()
+				driver.quit()
+				self.driver = None
 		else:
 			input('Press Enter to close Browser...')
 			self.keep_open = False
@@ -173,44 +192,6 @@ class BrowserService:
 			self.close()
 
 	# region - Browser Actions
-
-	def search_google(self, query: str):
-		"""
-		@dev TODO: add serp api call here
-		"""
-		driver = self._get_driver()
-		driver.get(f'https://www.google.com/search?q={query}')
-		self.wait_for_page_load()
-
-	def go_to_url(self, url: str):
-		driver = self._get_driver()
-		driver.get(url)
-		self.wait_for_page_load()
-
-	def go_back(self):
-		driver = self._get_driver()
-		driver.back()
-		self.wait_for_page_load()
-
-	def refresh(self):
-		driver = self._get_driver()
-		driver.refresh()
-		self.wait_for_page_load()
-
-	def extract_page_content(self, value: Literal['text', 'markdown'] = 'markdown') -> str:
-		"""
-		TODO: switch to a better parser/extractor
-		"""
-		driver = self._get_driver()
-		content = MainContentExtractor.extract(driver.page_source, output_format=value)  # type: ignore TODO
-		return content
-
-	def done(self, text: str):
-		"""
-		Ends the task and waits for further instructions.
-		"""
-		logger.info(f'Done on page {self.current_state.url}\n\n: {text}')
-		return text
 
 	def take_screenshot(self, selector_map: SelectorMap | None, full_page: bool = False) -> str:
 		"""
@@ -332,7 +313,6 @@ class BrowserService:
 
 			# Then send keys
 			element.send_keys(text)
-			logger.info(f'Input text into element with xpath: {xpath}')
 
 			self.wait_for_page_load()
 
@@ -340,13 +320,6 @@ class BrowserService:
 			raise Exception(
 				f'Failed to input text into element with xpath: {xpath}. Error: {str(e)}'
 			)
-
-	def input_text_by_index(self, index: int, text: str, state: BrowserState):
-		if index not in state.selector_map:
-			raise Exception(f'Element index {index} not found in selector map')
-
-		xpath = state.selector_map[index]
-		self._input_text_by_xpath(xpath, text)
 
 	def _click_element_by_xpath(self, xpath: str):
 		"""
@@ -362,7 +335,7 @@ class BrowserService:
 					EC.element_to_be_clickable((By.XPATH, xpath)),
 					message=f'Element not clickable: {xpath}',
 				)
-				driver.execute_script('arguments[0].click();', element)
+				element.click()
 				self.wait_for_page_load()
 				return
 			except Exception:
@@ -399,30 +372,7 @@ class BrowserService:
 		except Exception as e:
 			raise Exception(f'Failed to click element with xpath: {xpath}. Error: {str(e)}')
 
-	@time_execution_sync('--click')
-	def click_element_by_index(self, index: int, state: BrowserState):
-		"""
-		Clicks an element using its index from the selector map.
-		"""
-		if index not in state.selector_map:
-			raise Exception(f'Element index {index} not found in selector map')
-
-		# Store current number of tabs before clicking
-		driver = self._get_driver()
-		initial_handles = len(driver.window_handles)
-
-		xpath = state.selector_map[index]
-		self._click_element_by_xpath(xpath)
-		logger.info(f'Clicked on index {index}: with xpath {xpath}')
-
-		# Check if new tab was opened
-		current_handles = len(driver.window_handles)
-		if current_handles > initial_handles:
-			return self.handle_new_tab()
-
-	# endregion
-
-	def handle_new_tab(self) -> dict:
+	def handle_new_tab(self) -> None:
 		"""Handle newly opened tab and switch to it"""
 		driver = self._get_driver()
 		handles = driver.window_handles
@@ -430,50 +380,31 @@ class BrowserService:
 
 		# Switch to new tab
 		driver.switch_to.window(new_handle)
-		self._current_handle = new_handle  # Update current handle
+		self._current_handle = new_handle
 
 		# Wait for page load
 		self.wait_for_page_load()
 
-		# Get and cache tab info
-		tab_info = {
-			'handle': new_handle,
-			'url': driver.current_url,
-			'title': driver.title,
-			'is_current': True,
-		}
+		# Create and cache tab info
+		tab_info = TabInfo(handle=new_handle, url=driver.current_url, title=driver.title)
 		self._tab_cache[new_handle] = tab_info
 
-		# Update is_current for all tabs
-		for handle in self._tab_cache:
-			self._tab_cache[handle]['is_current'] = handle == new_handle
-
-		return tab_info
-
-	def get_tabs_info(self) -> list[dict]:
+	def get_tabs_info(self) -> list[TabInfo]:
 		"""Get information about all tabs"""
 		driver = self._get_driver()
 		current_handle = driver.current_window_handle
-		self._current_handle = current_handle  # Update current handle
+		self._current_handle = current_handle
 
 		tabs_info = []
 		for handle in driver.window_handles:
-			is_current = handle == current_handle
-
 			# Use cached info if available, otherwise get new info
 			if handle in self._tab_cache:
 				tab_info = self._tab_cache[handle]
-				tab_info['is_current'] = is_current
 			else:
 				# Only switch if we need to get info
-				if not is_current:
+				if handle != current_handle:
 					driver.switch_to.window(handle)
-				tab_info = {
-					'handle': handle,
-					'url': driver.current_url,
-					'title': driver.title,
-					'is_current': is_current,
-				}
+				tab_info = TabInfo(handle=handle, url=driver.current_url, title=driver.title)
 				self._tab_cache[handle] = tab_info
 
 			tabs_info.append(tab_info)
@@ -484,33 +415,12 @@ class BrowserService:
 
 		return tabs_info
 
-	def switch_tab(self, handle: str) -> dict:
-		"""Switch to specified tab and return its info"""
-		driver = self._get_driver()
+	# endregion
 
-		# Verify handle exists
-		if handle not in driver.window_handles:
-			raise ValueError(f'Tab handle {handle} not found')
-
-		# Only switch if we're not already on that tab
-		current_handle = driver.current_window_handle
-		if handle != current_handle:
-			driver.switch_to.window(handle)
-			# Wait for tab to be ready
-			self.wait_for_page_load()
-
-		# Update and return tab info
-		tab_info = {
-			'handle': handle,
-			'url': driver.current_url,
-			'title': driver.title,
-			'is_current': True,
-		}
-		self._tab_cache[handle] = tab_info
-		return tab_info
-
-	def open_tab(self, url: str):
-		driver = self._get_driver()
-		driver.execute_script(f'window.open("{url}", "_blank");')
-		self.wait_for_page_load()
-		return self.handle_new_tab()
+	@time_execution_sync('--get_state')
+	def get_state(self, use_vision: bool = False) -> BrowserState:
+		"""
+		Get the current state of the browser including page content and tab information.
+		"""
+		self._cached_state = self._update_state(use_vision=use_vision)
+		return self._cached_state

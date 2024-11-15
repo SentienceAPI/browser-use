@@ -2,20 +2,51 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Debug Tests",
+            "name": "Python Debugger: Module",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "examples.extend_actions"
+        },
+        {
+            "name": "Python: Debug extend_actions",
+            "type": "module",
+            "request": "launch",
+            "module": "examples.extend_actions",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Python: Debug Captcha Tests",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/.venv/bin/pytest",
+            "module": "pytest",
             "args": [
-                "src/tests/test_kayak_search.py",
+                "tests/test_agent_actions.py",
                 "-v",
-                "-s"
+                "-k",
+                "test_captcha_solver",
+                "--capture=no",
             ],
             "console": "integratedTerminal",
-			"justMyCode": false,
-			"env": {
-				"PYTHONPATH": "${workspaceFolder}"
-			}
-		}
-	]
+            "justMyCode": false
+        },
+        {
+            "name": "Python: Debug Ecommerce Interaction",
+            "type": "python",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "tests/test_agent_actions.py",
+                "-v",
+                "-k",
+                "test_ecommerce_interaction",
+                "--capture=no",
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        }
+    ]
 }

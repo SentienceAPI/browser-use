@@ -1,14 +1,23 @@
+import json
 import logging
+from typing import Optional
 
 from bs4 import BeautifulSoup, NavigableString, PageElement, Tag
 from selenium import webdriver
-from selenium.webdriver.common.by import By
+from selenium.webdriver.remote.webelement import WebElement
 
-from browser_use.dom.views import DomContentItem, ProcessedDomContent
+from browser_use.dom.views import (
+	BatchCheckResults,
+	DomContentItem,
+	ElementCheckResult,
+	ElementState,
+	ProcessedDomContent,
+	TextCheckResult,
+	TextState,
+)
 from browser_use.utils import time_execution_sync
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 
 class DomService:
@@ -24,111 +33,239 @@ class DomService:
 
 	@time_execution_sync('--_process_content')
 	def _process_content(self, html_content: str) -> ProcessedDomContent:
-		"""
-		Process HTML content to extract and clean relevant elements.
-		Args:
-		    html_content: Raw HTML string to process
-		Returns:
-		    ProcessedDomContent: Processed DOM content
-
-		@dev TODO: instead of of using enumerated index, use random 4 digit numbers -> a bit more tokens BUT updates on the screen wont click on incorrect items -> tricky because you have to consider that same elements need to have the same index ...
-		"""
-
-		# Parse HTML content using BeautifulSoup with html.parser
 		soup = BeautifulSoup(html_content, 'html.parser')
 
-		candidate_elements: list[Tag | NavigableString] = []
+		output_items: list[DomContentItem] = []
+		selector_map: dict[int, str] = {}
+		current_index = 0
 
-		def _process_element(element: PageElement):
-			should_add_element = False
+		# Collectors for batch processing with order tracking
+		interactive_elements: dict[str, tuple[Tag, int]] = {}  # xpath -> (element, order)
+		text_nodes: dict[str, tuple[NavigableString, int]] = {}  # xpath -> (text_node, order)
+		xpath_order_counter = 0  # Track order of appearance
 
-			# if not self._quick_element_filter(element):
-			# 	if isinstance(element, Tag):
-			# 		element.decompose()
-			# 	return
+		dom_queue: list[tuple[PageElement, list, Optional[str]]] = (
+			[(element, [], None) for element in reversed(list(soup.body.children))]
+			if soup.body
+			else []
+		)
+
+		# First pass: collect all elements that need checking
+		while dom_queue:
+			element, path_indices, parent_xpath = dom_queue.pop()
 
 			if isinstance(element, Tag):
-				# Don't add any children of non-interactive elements
 				if not self._is_element_accepted(element):
 					element.decompose()
-					return
-
-				if self._is_interactive_element(element) or self._is_leaf_element(element):
-					if (
-						self._is_active(element)
-						and self._is_top_element(element)
-						and self._is_visible(element)
-					):
-						should_add_element = True
-
-				elif isinstance(element, NavigableString) and element.strip():
-					if self._is_visible(element):
-						should_add_element = True
-
-			if should_add_element:
-				if isinstance(element, (Tag, NavigableString)):
-					candidate_elements.append(element)
-
-			if isinstance(element, Tag):
-				for child in element.children:
-					_process_element(child)
-
-		for element in soup.body.children if soup.body else []:
-			_process_element(element)
-
-		# Process candidates
-		selector_map: dict[int, str] = {}
-		output_items: list[DomContentItem] = []
-
-		for index, element in enumerate(candidate_elements):
-			xpath = self._generate_xpath(element)
-
-			depth = max(len(xpath.split('/')) - 2, 0)
-
-			# Skip text nodes that are direct children of already processed elements
-			if isinstance(element, NavigableString) and element.parent in [
-				e for e in candidate_elements
-			]:
-				continue
-
-			if isinstance(element, NavigableString):
-				text_content = self._cap_text_length(element.strip())
-				if text_content:
-					output_string = f'{text_content}'
-					output_items.append(
-						DomContentItem(
-							index=index, text=output_string, clickable=False, depth=depth
-						)
-					)
-					continue
-				else:
-					# don't add empty text nodes
 					continue
 
-			else:
-				text_content = self._extract_text_from_all_children(element)
-
-				tag_name = element.name
-				attributes = self._get_essential_attributes(element)
-
-				opening_tag = f"<{tag_name}{' ' + attributes if attributes else ''}>"
-				closing_tag = f'</{tag_name}>'
-
-				output_string = f'{opening_tag}{text_content}{closing_tag}'
-				output_items.append(
-					DomContentItem(index=index, text=output_string, clickable=True, depth=depth)
+				siblings = (
+					list(element.parent.find_all(element.name, recursive=False))
+					if element.parent
+					else []
 				)
+				sibling_index = siblings.index(element) + 1 if siblings else 1
+				current_path = path_indices + [(element.name, sibling_index)]
+				element_xpath = '//' + '/'.join(f'{tag}[{idx}]' for tag, idx in current_path)
 
-			selector_map[index] = xpath
+				# Add children to queue with their path information
+				for child in reversed(list(element.children)):
+					dom_queue.append((child, current_path, element_xpath))  # Pass parent's xpath
 
-		# Remove all elements from selector map that are not in output items
-		selector_map = {
-			k: v for k, v in selector_map.items() if k in [i.index for i in output_items]
-		}
+				# Collect interactive elements with their order
+				if (
+					self._is_interactive_element(element) or self._is_leaf_element(element)
+				) and self._is_active(element):
+					interactive_elements[element_xpath] = (element, xpath_order_counter)
+					xpath_order_counter += 1
+
+			elif isinstance(element, NavigableString) and element.strip():
+				if element.parent and element.parent not in [e[0] for e in dom_queue]:
+					if parent_xpath:
+						text_nodes[parent_xpath] = (element, xpath_order_counter)
+						xpath_order_counter += 1
+
+		# Batch check all elements
+		element_results = self._batch_check_elements(interactive_elements)
+		text_results = self._batch_check_texts(text_nodes)
+
+		# Create ordered results
+		ordered_results: list[
+			tuple[int, str, bool, str, int, bool]
+		] = []  # [(order, xpath, is_clickable, content, depth, is_text_only), ...]
+
+		# Process interactive elements
+		for xpath, (element, order) in interactive_elements.items():
+			if xpath in element_results.elements:
+				result = element_results.elements[xpath]
+				if result.isVisible and result.isTopElement:
+					text_content = self._extract_text_from_all_children(element)
+					tag_name = element.name
+					attributes = self._get_essential_attributes(element)
+					output_string = f"<{tag_name}{' ' + attributes if attributes else ''}>{text_content}</{tag_name}>"
+
+					depth = len(xpath.split('/')) - 2
+					ordered_results.append((order, xpath, True, output_string, depth, False))
+
+		# Process text nodes
+		for xpath, (text_node, order) in text_nodes.items():
+			if xpath in text_results.texts:
+				result = text_results.texts[xpath]
+				if result.isVisible:
+					text_content = self._cap_text_length(text_node.strip())
+					if text_content:
+						depth = len(xpath.split('/')) - 2
+						ordered_results.append((order, xpath, False, text_content, depth, True))
+
+		# Sort by original order
+		ordered_results.sort(key=lambda x: x[0])
+
+		# Build final output maintaining order
+		for i, (_, xpath, is_clickable, content, depth, is_text_only) in enumerate(ordered_results):
+			output_items.append(
+				DomContentItem(
+					index=i,
+					text=content,
+					# clickable=is_clickable,
+					depth=depth,
+					is_text_only=is_text_only,
+				)
+			)
+			# if is_clickable:  # Only add clickable elements to selector map
+			# TODO: make this right, for now we add all elements (except text) to selector map
+			if not is_text_only:
+				selector_map[i] = xpath
 
 		return ProcessedDomContent(items=output_items, selector_map=selector_map)
 
-	def _cap_text_length(self, text: str, max_length: int = 150) -> str:
+	def _batch_check_elements(self, elements: dict[str, tuple[Tag, int]]) -> BatchCheckResults:
+		"""Batch check all interactive elements at once."""
+		if not elements:
+			return BatchCheckResults(elements={}, texts={})
+
+		check_script = """
+			return (function() {
+				const results = {};
+				const elements = %s;
+				
+				for (const [xpath, elementData] of Object.entries(elements)) {
+					const element = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+					if (!element) continue;
+					
+					// Check visibility
+					const isVisible = element.checkVisibility({
+						checkOpacity: true,
+						checkVisibilityCSS: true
+					});
+					
+					if (!isVisible) continue;
+					
+					// Check if topmost
+					const rect = element.getBoundingClientRect();
+					const points = [
+						{x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.25},
+						{x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.25},
+						{x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.75},
+						{x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.75},
+						{x: rect.left + rect.width / 2, y: rect.top + rect.height / 2}
+					];
+					
+					const isTopElement = points.some(point => {
+						const topEl = document.elementFromPoint(point.x, point.y);
+						let current = topEl;
+						while (current && current !== document.body) {
+							if (current === element) return true;
+							current = current.parentElement;
+						}
+						return false;
+					});
+					
+					if (isTopElement) {
+						results[xpath] = {
+							xpath: xpath,
+							isVisible: true,
+							isTopElement: true
+						};
+					}
+				}
+				return results;
+			})();
+		""" % json.dumps({xpath: {} for xpath in elements.keys()})
+
+		try:
+			results = self.driver.execute_script(check_script)
+			return BatchCheckResults(
+				elements={xpath: ElementCheckResult(**data) for xpath, data in results.items()},
+				texts={},
+			)
+		except Exception as e:
+			logger.error('Error in batch element check: %s', e)
+			return BatchCheckResults(elements={}, texts={})
+
+	def _batch_check_texts(
+		self, texts: dict[str, tuple[NavigableString, int]]
+	) -> BatchCheckResults:
+		"""Batch check all text nodes at once."""
+		if not texts:
+			return BatchCheckResults(elements={}, texts={})
+
+		check_script = """
+			return (function() {
+				const results = {};
+				const texts = %s;
+				
+				for (const [xpath, textData] of Object.entries(texts)) {
+					const parent = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+					if (!parent) continue;
+					
+					try {
+						const range = document.createRange();
+						const textNode = parent.childNodes[textData.index];
+						range.selectNodeContents(textNode);
+						const rect = range.getBoundingClientRect();
+						
+						const isVisible = (
+							rect.width !== 0 && 
+							rect.height !== 0 && 
+							rect.top >= 0 && 
+							rect.top <= window.innerHeight &&
+							parent.checkVisibility({
+								checkOpacity: true,
+								checkVisibilityCSS: true
+							})
+						);
+						
+						if (isVisible) {
+							results[xpath] = {
+								xpath: xpath,
+								isVisible: true
+							};
+						}
+					} catch (e) {
+						continue;
+					}
+				}
+				return results;
+			})();
+		""" % json.dumps(
+			{
+				xpath: {'index': list(text_node[0].parent.children).index(text_node[0])}
+				for xpath, text_node in texts.items()
+				if text_node[0].parent
+			}
+		)
+
+		try:
+			results = self.driver.execute_script(check_script)
+			return BatchCheckResults(
+				elements={},
+				texts={xpath: TextCheckResult(**data) for xpath, data in results.items()},
+			)
+		except Exception as e:
+			logger.error('Error in batch text check: %s', e)
+			return BatchCheckResults(elements={}, texts={})
+
+	def _cap_text_length(self, text: str, max_length: int = 250) -> str:
 		if len(text) > max_length:
 			half_length = max_length // 2
 			return text[:half_length] + '...' + text[-half_length:]
@@ -230,75 +367,6 @@ class DomService:
 
 		return element.name not in leaf_element_deny_list
 
-	def _generate_xpath(self, element: Tag | NavigableString) -> str:
-		# Generate cache key based on element properties
-		cache_key = None
-		if isinstance(element, Tag):
-			attributes = [
-				element.get('id', ''),
-				element.get('class', ''),
-				element.name,
-				element.get_text().strip(),
-			]
-			cache_key = '|'.join(str(attr) for attr in attributes)
-
-			# Return cached xpath if exists
-			if cache_key in self.xpath_cache:
-				return self.xpath_cache[cache_key]
-
-		if isinstance(element, NavigableString):
-			if element.parent:
-				return self._generate_xpath(element.parent)
-			return ''
-
-		if not hasattr(element, 'name'):
-			return ''
-
-		element_id = getattr(element, 'get', lambda x: None)('id')
-		if element_id:
-			xpath = f"//*[@id='{element_id}']"
-			if cache_key:
-				self.xpath_cache[cache_key] = xpath
-			return xpath
-
-		parts = []
-		current = element
-
-		while current and getattr(current, 'name', None):
-			if current.name == '[document]':
-				break
-
-			parent = getattr(current, 'parent', None)
-			if parent and hasattr(parent, 'children'):
-				# Get only visible element nodes
-				siblings = [
-					s for s in parent.find_all(current.name, recursive=False) if isinstance(s, Tag)
-				]
-
-				if len(siblings) > 1:
-					try:
-						index = siblings.index(current) + 1
-						parts.insert(0, f'{current.name}[{index}]')
-					except ValueError:
-						parts.insert(0, current.name)
-				else:
-					parts.insert(0, current.name)
-
-			current = parent
-
-		if parts and parts[0] != 'html':
-			parts.insert(0, 'html')
-		if len(parts) > 1 and parts[1] != 'body':
-			parts.insert(1, 'body')
-
-		xpath = '//' + '/'.join(parts)
-
-		# Cache the generated xpath
-		if cache_key:
-			self.xpath_cache[cache_key] = xpath
-
-		return xpath
-
 	def _get_essential_attributes(self, element: Tag) -> str:
 		"""
 		Collects essential attributes from an element.
@@ -333,11 +401,11 @@ class DomService:
 			if attr in element.attrs:
 				element_attr = element[attr]
 				if isinstance(element_attr, str):
-					element_attr = element_attr[:50]
+					element_attr = element_attr
 				elif isinstance(element_attr, (list, tuple)):
-					element_attr = ' '.join(str(v)[:50] for v in element_attr)
+					element_attr = ' '.join(str(v) for v in element_attr)
 
-				attrs.append(f'{attr}="{element_attr}"')
+				attrs.append(f'{attr}="{self._cap_text_length(element_attr, 25)}"')
 
 		state_attributes_prefixes = (
 			'aria-',
@@ -351,115 +419,6 @@ class DomService:
 
 		return ' '.join(attrs)
 
-	def _is_visible(self, element: Tag | NavigableString) -> bool:
-		if not isinstance(element, Tag):
-			return self._is_text_visible(element)
-
-		element_id = element.get('id', '')
-		if element_id:
-			js_selector = f'document.getElementById("{element_id}")'
-		else:
-			xpath = self._generate_xpath(element)
-			js_selector = f'document.evaluate("{xpath}", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue'
-
-		visibility_check = f"""
-			return (function() {{
-				const element = {js_selector};
-				
-				if (!element) {{
-					return false;
-				}}
-
-				// Force return as boolean
-				return Boolean(element.checkVisibility({{
-					checkOpacity: true,
-					checkVisibilityCSS: true
-				}}));
-			}}());
-		"""
-
-		try:
-			# todo: parse responses with pydantic
-			is_visible = self.driver.execute_script(visibility_check)
-			return bool(is_visible)
-		except Exception:
-			return False
-
-	def _is_text_visible(self, element: NavigableString) -> bool:
-		"""Check if text node is visible using JavaScript."""
-		parent = element.parent
-		if not parent:
-			return False
-
-		xpath = self._generate_xpath(parent)
-		visibility_check = f"""
-			return (function() {{
-				const parent = document.evaluate("{xpath}", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-				
-				if (!parent) {{
-					return false;
-				}}
-				
-				const range = document.createRange();
-				const textNode = parent.childNodes[{list(parent.children).index(element)}];
-				range.selectNodeContents(textNode);
-				const rect = range.getBoundingClientRect();
-				
-				if (rect.width === 0 || rect.height === 0 || 
-					rect.top < 0 || rect.top > window.innerHeight) {{
-					return false;
-				}}
-				
-				// Force return as boolean
-				return Boolean(parent.checkVisibility({{
-					checkOpacity: true,
-					checkVisibilityCSS: true
-				}}));
-			}}());
-		"""
-		try:
-			is_visible = self.driver.execute_script(visibility_check)
-			return bool(is_visible)
-		except Exception:
-			return False
-
-	def _is_top_element(self, element: Tag | NavigableString, rect=None) -> bool:
-		"""Check if element is the topmost at its position."""
-		xpath = self._generate_xpath(element)
-		check_top = f"""
-			return (function() {{
-				const elem = document.evaluate("{xpath}", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-				if (!elem) {{
-					return false;
-				}}
-				
-				const rect = elem.getBoundingClientRect();
-				const points = [
-					{{x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.25}},
-					{{x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.25}}, 
-					{{x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.75}},
-					{{x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.75}},
-					{{x: rect.left + rect.width / 2, y: rect.top + rect.height / 2}}
-				];
-				
-				return Boolean(points.some(point => {{
-					const topEl = document.elementFromPoint(point.x, point.y);
-					let current = topEl;
-					while (current && current !== document.body) {{
-						if (current === elem) return true;
-						current = current.parentElement;
-					}}
-					return false;
-				}}));
-			}}());
-		"""
-		try:
-			is_top = self.driver.execute_script(check_top)
-			return bool(is_top)
-		except Exception:
-			logger.error(f'Error checking top element: {element}')
-			return False
-
 	def _is_active(self, element: Tag) -> bool:
 		"""Check if element is active (not disabled)."""
 		return not (
@@ -467,40 +426,3 @@ class DomService:
 			or element.get('hidden') is not None
 			or element.get('aria-disabled') == 'true'
 		)
-
-	# def _quick_element_filter(self, element: PageElement) -> bool:
-	# 	"""
-	# 	Quick pre-filter to eliminate elements before expensive checks.
-	# 	Returns True if element passes initial filtering.
-	# 	"""
-	# 	if isinstance(element, NavigableString):
-	# 		# Quick check for empty or whitespace-only strings
-	# 		return bool(element.strip())
-
-	# 	if not isinstance(element, Tag):
-	# 		return False
-
-	# 	style = element.get('style')
-
-	# 	# Quick attribute checks that would make element invisible/non-interactive
-	# 	if any(
-	# 		[
-	# 			element.get('aria-hidden') == 'true',
-	# 			element.get('hidden') is not None,
-	# 			element.get('disabled') is not None,
-	# 			style and ('display: none' in style or 'visibility: hidden' in style),
-	# 			element.has_attr('class')
-	# 			and any(cls in element['class'] for cls in ['hidden', 'invisible']),
-	# 			# Common hidden class patterns
-	# 			element.get('type') == 'hidden',
-	# 		]
-	# 	):
-	# 		return False
-
-	# 	# Skip elements that definitely won't be interactive or visible
-	# 	non_interactive_display = ['none', 'hidden']
-	# 	computed_style = element.get('style', '') or ''
-	# 	if any(display in computed_style for display in non_interactive_display):
-	# 		return False
-
-	# 	return True

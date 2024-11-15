@@ -17,9 +17,7 @@ import argparse
 import asyncio
 
 from browser_use import Agent
-from browser_use.controller.service import ControllerService
-
-logging.basicConfig(level=logging.INFO)
+from browser_use.controller.service import Controller
 
 
 def get_llm(provider: str):
@@ -50,14 +48,13 @@ llm = get_llm(args.provider)
 agent = Agent(
 	task=args.query,
 	llm=llm,
-	controller=ControllerService(keep_open=True),
+	controller=Controller(keep_open=True),
+	# save_conversation_path='./tmp/try_flight/',
 )
 
 
 async def main():
-	result, history = await agent.run()
-	print(result)
-	print(history)
+	await agent.run()
 
 
 asyncio.run(main())

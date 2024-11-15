@@ -3,12 +3,12 @@ import time
 from functools import wraps
 from typing import Any, Callable, Coroutine, ParamSpec, TypeVar
 
+logger = logging.getLogger(__name__)
+
+
 # Define generic type variables for return type and parameters
 R = TypeVar('R')
 P = ParamSpec('P')
-
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)
 
 
 def time_execution_sync(additional_text: str = '') -> Callable[[Callable[P, R]], Callable[P, R]]:
@@ -18,7 +18,7 @@ def time_execution_sync(additional_text: str = '') -> Callable[[Callable[P, R]],
 			start_time = time.time()
 			result = func(*args, **kwargs)
 			execution_time = time.time() - start_time
-			logger.info(f'{additional_text} Execution time: {execution_time:.2f} seconds')
+			logger.debug(f'{additional_text} Execution time: {execution_time:.2f} seconds')
 			return result
 
 		return wrapper
@@ -35,7 +35,7 @@ def time_execution_async(
 			start_time = time.time()
 			result = await func(*args, **kwargs)
 			execution_time = time.time() - start_time
-			logger.info(f'{additional_text} Execution time: {execution_time:.2f} seconds')
+			logger.debug(f'{additional_text} Execution time: {execution_time:.2f} seconds')
 			return result
 
 		return wrapper

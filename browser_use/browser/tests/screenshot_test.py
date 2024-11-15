@@ -1,18 +1,18 @@
 import base64
+
 import pytest
 
-from browser_use.browser.service import BrowserService
+from browser_use.browser.service import Browser
 
 
 @pytest.fixture
 def browser():
-	browser_service = BrowserService(headless=True)
-	browser_service.init()
+	browser_service = Browser(headless=True)
 	yield browser_service
 	browser_service.close()
 
 
-@pytest.mark.skip(reason='takes too long')
+# @pytest.mark.skip(reason='takes too long')
 def test_take_full_page_screenshot(browser):
 	# Go to a test page
 	browser.go_to_url('https://example.com')
@@ -30,3 +30,7 @@ def test_take_full_page_screenshot(browser):
 		base64.b64decode(screenshot_b64)
 	except Exception as e:
 		pytest.fail(f'Failed to decode base64 screenshot: {str(e)}')
+
+
+if __name__ == '__main__':
+	test_take_full_page_screenshot(Browser(headless=False))

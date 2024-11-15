@@ -1,0 +1,104 @@
+from inspect import signature
+from typing import Any, Callable, Optional, Type
+
+from pydantic import BaseModel, create_model
+
+from browser_use.browser.service import Browser
+from browser_use.controller.registry.views import (
+	ActionModel,
+	ActionRegistry,
+	RegisteredAction,
+)
+
+
+class Registry:
+	"""Service for registering and managing actions"""
+
+	def __init__(self):
+		self.registry = ActionRegistry()
+
+	def _create_param_model(self, function: Callable) -> Type[BaseModel]:
+		"""Creates a Pydantic model from function signature"""
+		sig = signature(function)
+		params = {
+			name: (param.annotation, ... if param.default == param.empty else param.default)
+			for name, param in sig.parameters.items()
+			if name != 'browser'
+		}
+		# TODO: make the types here work
+		return create_model(
+			f'{function.__name__}Params',
+			__base__=ActionModel,
+			**params,  # type: ignore
+		)
+
+	def action(
+		self,
+		description: str,
+		param_model: Optional[Type[BaseModel]] = None,
+		requires_browser: bool = False,
+	):
+		"""Decorator for registering actions"""
+
+		def decorator(func: Callable):
+			# Create param model from function if not provided
+			actual_param_model = param_model or self._create_param_model(func)
+
+			action = RegisteredAction(
+				name=func.__name__,
+				description=description,
+				function=func,
+				param_model=actual_param_model,
+				requires_browser=requires_browser,
+			)
+			self.registry.actions[func.__name__] = action
+			return func
+
+		return decorator
+
+	def execute_action(
+		self, action_name: str, params: dict, browser: Optional[Browser] = None
+	) -> Any:
+		"""Execute a registered action"""
+		if action_name not in self.registry.actions:
+			raise ValueError(f'Action {action_name} not found')
+
+		action = self.registry.actions[action_name]
+		try:
+			# Create the validated Pydantic model
+			validated_params = action.param_model(**params)
+
+			# Check if the first parameter is a Pydantic model
+			sig = signature(action.function)
+			first_param = next(iter(sig.parameters.values()))
+			is_pydantic = (
+				hasattr(first_param.annotation, '__bases__')
+				and BaseModel in first_param.annotation.__bases__
+			)
+
+			# Execute with or without browser
+			if action.requires_browser:
+				if not browser:
+					raise ValueError(f'Action {action_name} requires browser but none provided')
+				if is_pydantic:
+					return action.function(validated_params, browser=browser)
+				return action.function(**validated_params.model_dump(), browser=browser)
+
+			if is_pydantic:
+				return action.function(validated_params)
+			return action.function(**validated_params.model_dump())
+
+		except Exception as e:
+			raise Exception(f'Error executing action {action_name}: {str(e)}')
+
+	def create_action_model(self) -> Type[ActionModel]:
+		"""Creates a Pydantic model from registered actions"""
+		fields = {
+			name: (Optional[action.param_model], None)
+			for name, action in self.registry.actions.items()
+		}
+		return create_model('ActionModel', __base__=ActionModel, **fields)  # type:ignore
+
+	def get_prompt_description(self) -> str:
+		"""Get a description of all actions for the prompt"""
+		return self.registry.get_prompt_description()

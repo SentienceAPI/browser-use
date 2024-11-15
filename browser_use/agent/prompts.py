@@ -1,12 +1,73 @@
+from datetime import datetime
+
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from browser_use.controller.views import ControllerPageState
+from browser_use.browser.views import BrowserState
 
 
 class AgentSystemPrompt:
-	def __init__(self, task: str, default_action_description: str):
+	def __init__(self, task: str, action_description: str, current_date: datetime):
 		self.task = task
-		self.default_action_description = default_action_description
+		self.default_action_description = action_description
+		self.current_date = current_date
+
+	def response_format(self) -> str:
+		"""
+		Returns the response format for the agent.
+
+		Returns:
+		    str: Response format
+		"""
+		return """
+{{
+	"current_state": {{
+		"valuation_previous_goal": "String starting with "Success", "Failed:" or "Unknown" to evaluate if the previous next_goal is achieved. If failed or unknown describe why.",
+		"memory": "Your memory with things you need to remeber until the end of the task for the user. You can also store overall progress in a bigger task. You have access to this in the next steps.",
+		"next_goal": "String describing the next immediate goal which can be achieved with one action"
+	}},
+	"action": {{
+		// EXACTLY ONE of the following available actions must be specified
+	}}
+}}"""
+
+	def example_response(self) -> str:
+		"""
+		Returns an example response for the agent.
+
+		Returns:
+		    str: Example response
+		"""
+		return """{"current_state": {"valuation_previous_goal": "Success", "memory": "We applied already for 3/7 jobs, 1. ..., 2. ..., 3. ...", "next_goal": "Click on the button x to apply for the next job"}, "action": {"click_element": {"index": 44,"num_clicks": 2}}}"""
+
+	def important_rules(self) -> str:
+		"""
+		Returns the important rules for the agent.
+
+		Returns:
+		    str: Important rules
+		"""
+		return """
+1. Only use indexes that exist in the input list for click or input text actions. If no indexes exist, try alternative actions, e.g. go back, search google etc.
+2. If stuck, try alternative approaches, e.g. go back, search google, or extract_page_content
+3. When you are done with the complete task, use the done action. Make sure to have all information the user needs and return the result.
+4. If an image is provided, use it to understand the context, the bounding boxes around the buttons have the same indexes as the interactive elements.
+6. ALWAYS respond in the RESPONSE FORMAT with valid JSON.
+7. If the page is empty use actions like "go_to_url", "search_google" or "open_tab"
+8. Remember: Choose EXACTLY ONE action per response. Invalid combinations or multiple actions will be rejected.
+9. If popups like cookies appear, accept or close them
+	"""
+
+	def input_format(self) -> str:
+		return """
+Example:
+33[:]\t<button>Interactive element</button>
+_[:] Text content...
+
+Explanation:
+index[:] Interactible element with index. You can only interact with all elements which are clickable and refer to them by their index.
+_[:] elements are just for more context, but not interactable.
+\t: Tab indent (1 tab for depth 1 etc.). This is to help you understand which elements belong to each other.
+"""
 
 	def get_system_message(self) -> SystemMessage:
 		"""
@@ -15,56 +76,31 @@ class AgentSystemPrompt:
 		Returns:
 		    str: Formatted system prompt
 		"""
-		# System prompts for the agent
-		# 		output_format = """
-		# {"valuation_previous_goal": "Success if completed, else short sentence of why not successful.", "goal": "short description what you want to achieve", "action": "action_name", "params": {"param_name": "param_value"}}
-		#     """
+		time_str = self.current_date.strftime('%Y-%m-%d %H:%M')
 
 		AGENT_PROMPT = f"""
-    You are an AI agent that helps users interact with websites. 
-    Your input are all the interactive elements with its context of the current page from.
-    
-    This is how an input looks like:
-    33:\t<button>Clickable element</button>
-    _: Not clickable, only for your context
-	\t: Tab indent (1 tab for depth 1 etc.). This is to help you understand which elements belong to each other.
+You are an AI agent that helps users interact with websites. You receive a list of interactive elements from the current webpage and must respond with specific actions. Today's date is {time_str}.
 
+INPUT FORMAT:
+{self.input_format()}
 
-    In the beginning the list will be empty.
-	On elements with _ you can not click.
-	On elements with a index you can click.
-    
-	Additional you get a list of your previous actions.
+You have to respond in the following RESPONSE FORMAT: 
+{self.response_format()}
 
-    
-	Respond with a valid JSON object, containing 2 keys: current_state and action.
-    In current_state there are 3 keys:
-	valuation_previous_goal: Evaluate if the previous goal was achieved or what went wrong. E.g. Failed because ...
-	memory: This you can use as a memory to store where you are in your overall task. E.g. if you need to find 10 jobs, you can store the already found jobs here.
-	next_goal: The next goal you want to achieve e.g. clicking on ... button to ...
+Your AVAILABLE ACTIONS:
+{self.default_action_description}
 
-	For the action choose EXACTLY ONE from the following list:
-    {self.default_action_description}
-    To interact with elements, use their index number from the input line. Write it in the click_element() or input_text() actions. 
-	Make sure to only use indexes that are present in the list.
-    If you need more text from the page you can use the extract_page_content action.
+Example:
+{self.example_response()}
 
-	If you see any cookie or accept privacy policy please always just accepted them without hesitation.
-
-    If you evaluate repeatedly that you dont achieve the next_goal, try to find a new element that can help you achieve your task or if persistent, go back or reload the page and try a different approach.
-    
-	You can ask_human for clarification if you are completely stuck or if you really need more information. 
-
-	If a picture is provided, use it to understand the context and the next action.
-	
-	If you are sure you are done you can extract_page_content to get the markdown content and in the next action call done() with the text of the requested result to end the task and wait for further instructions.
-
-    """
+IMPORTANT RULES:
+{self.important_rules()}
+"""
 		return SystemMessage(content=AGENT_PROMPT)
 
 
 class AgentMessagePrompt:
-	def __init__(self, state: ControllerPageState):
+	def __init__(self, state: BrowserState):
 		self.state = state
 
 	def get_user_message(self) -> HumanMessage:
@@ -91,4 +127,4 @@ Interactive elements:
 		return HumanMessage(content=state_description)
 
 	def get_message_for_history(self) -> HumanMessage:
-		return HumanMessage(content=f'Currently on url: {self.state.url}')
+		return HumanMessage(content=f'Step url: {self.state.url}')

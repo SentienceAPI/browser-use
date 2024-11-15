@@ -1,30 +1,30 @@
-<div align="center">
+# 🌐 Browser Use
 
-# 🌐 Browser-Use
-
-### Open-Source Web Automation with LLMs
+Make websites accessible for AI agents 🤖.
 
 [![GitHub stars](https://img.shields.io/github/stars/gregpr07/browser-use?style=social)](https://github.com/gregpr07/browser-use/stargazers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Discord](https://img.shields.io/discord/1303749220842340412?color=7289DA&label=Discord&logo=discord&logoColor=white)](https://discord.gg/uaCtrbbv)
+[![Discord](https://img.shields.io/discord/1303749220842340412?color=7289DA&label=Discord&logo=discord&logoColor=white)](https://link.browser-use.com/discord)
 
-</div>
+Browser use is the easiest way to connect your AI agents with the browser. If you have used Browser Use for your project feel free to show it off in our [Discord](https://link.browser-use.com/discord).
 
-Let LLMs interact with websites through a simple interface.
+# Quick start
 
-## Short Example
+With pip:
 
 ```bash
 pip install browser-use
 ```
+
+Spin up your agent:
 
 ```python
 from langchain_openai import ChatOpenAI
 from browser_use import Agent
 
 agent = Agent(
-    task="Go to hackernews on show hn and give me top 10 post titles, their points and hours. Calculate for each the ratio of points per hour.",
+    task="Find a one-way flight from Bali to Oman on 12 January 2025 on Google Flights. Return me the cheapest option.",
     llm=ChatOpenAI(model="gpt-4o"),
 )
 
@@ -32,42 +32,94 @@ agent = Agent(
 await agent.run()
 ```
 
-## Demo
+And don't forget to add your API keys to your `.env` file.
 
-<div>
-    <a href="https://www.loom.com/share/63612b5994164cb1bb36938d62fe9983">
-      <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/63612b5994164cb1bb36938d62fe9983-7133f9e169672e6f-full-play.gif">
-    </a>
-    <p><i>Prompt: Go to hackernews on show hn and give me top 10 post titles, their points and hours. Calculate for each the ratio of points per hour. (1x speed) </i></p>
-</div>
-<div>
-    <a href="https://www.loom.com/share/2af938b9f8024647950a9e18b3946054">
-      <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/2af938b9f8024647950a9e18b3946054-b99c733cf670e568-full-play.gif">
-    </a>
-    <p><i>Prompt: Search the top 3 AI companies 2024 and find what out what concrete hardware each is using for their model. (1x speed)</i></p>
-</div>
-  
+```bash
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+```
 
+# Demo
 
-<div style="display: flex; justify-content: space-between; margin-top: 20px;">
-    <div style="flex: 1; margin-right: 10px;">
-        <img style="width: 100%;" src="./static/kayak.gif" alt="Kayak flight search demo">
-        <p><i>Prompt: Go to kayak.com and find a one-way flight from Zürich to San Francisco on 12 January 2025. (2.5x speed)</i></p>
-    </div>
-    <div style="flex: 1; margin-left: 10px;">
-        <img style="width: 100%;" src="./static/photos.gif" alt="Photos search demo">
-        <p><i>Prompt: Opening new tabs and searching for images for these people: Albert Einstein, Oprah Winfrey, Steve Jobs. (2.5x speed)</i></p>
-    </div>
-</div>
-</div>
+DEMO VIDEO HERE
 
-## Local Setup
+# Features ⭐
+
+- Vision + html extraction
+- Automatic multi-tab management
+- Extract clicked elements XPaths
+- Add custom actions (e.g. add data to database which the LLM can use)
+- Self-correcting
+- Use any LLM supported by LangChain (e.g. gpt4o, gpt4o mini, claude 3.5 sonnet, llama 3.1 405b, etc.)
+
+## Register custom actions
+
+If you want to add custom actions your agent can take, you can register them like this:
+
+```python
+from browser_use.agent.service import Agent
+from browser_use.browser.service import Browser
+from browser_use.controller.service import Controller
+
+# Initialize controller first
+controller = Controller()
+
+@controller.action('Ask user for information')
+def ask_human(question: str, display_question: bool) -> str:
+	return input(f'\n{question}\nInput: ')
+```
+
+Or define your parameters using Pydantic
+
+```python
+class JobDetails(BaseModel):
+title: str
+company: str
+job_link: str
+salary: Optional[str] = None
+
+@controller.action('Save job details which you found on page', param_model=JobDetails, requires_browser=True)
+def save_job(params: JobDetails, browser: Browser):
+	print(params)
+
+  # use the browser normally
+  browser.driver.get(params.job_link)
+```
+
+and then run your agent:
+
+```python
+model = ChatAnthropic(model_name='claude-3-5-sonnet-20240620', timeout=25, stop=None, temperature=0.3)
+agent = Agent(task=task, llm=model, controller=controller)
+
+await agent.run()
+```
+
+## Get XPath history
+
+To get the entire history of everything the agent has done, you can use the output of the `run` method:
+
+```python
+history: list[AgentHistory] = await agent.run()
+
+print(history)
+```
+
+## More examples
+
+For more examples see the [examples](examples) folder or join the [Discord](https://link.browser-use.com/discord) and show off your project.
+
+# Contributing
+
+Contributions are welcome! Feel free to open issues for bugs or feature requests.
+
+## Setup
 
 1. Create a virtual environment and install dependencies:
 
 ```bash
 # To install all dependencies including dev
-pip install . ."[dev]"
+pip install -r requirements.txt -r requirements-dev.txt
 ```
 
 2. Add your API keys to the `.env` file:
@@ -76,119 +128,22 @@ pip install . ."[dev]"
 cp .env.example .env
 ```
 
-E.g. for OpenAI:
+or copy the following to your `.env` file:
 
 ```bash
 OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
 ```
 
 You can use any LLM model supported by LangChain by adding the appropriate environment variables. See [langchain models](https://python.langchain.com/docs/integrations/chat/) for available options.
 
-## Features
-
-- Universal LLM Support - Works with any Language Model
-- Interactive Element Detection - Automatically finds interactive elements
-- Multi-Tab Management - Seamless handling of browser tabs
-- XPath Extraction for scraping functions - No more manual DevTools inspection
-- Vision Model Support - Process visual page information
-- Customizable Actions - Add your own browser interactions (e.g. add data to database which the LLM can use)
-- Handles dynamic content - dont worry about cookies or changing content
-- Chain-of-thought prompting with memory - Solve long-term tasks
-- Self-correcting - If the LLM makes a mistake, the agent will self-correct its actions
-
-## Advanced Examples
-
-### Chain of Agents
-
-You can persist the browser across multiple agents and chain them together.
-
-```python
-from asyncio import run
-from browser_use import Agent, Controller
-from dotenv import load_dotenv
-from langchain_anthropic import ChatAnthropic
-load_dotenv()
-
-# Persist browser state across agents
-controller = Controller()
-
-# Initialize browser agent
-agent1 = Agent(
-    task="Open 3 VCs websites in the New York area.",
-    llm=ChatAnthropic(model="claude-3-5-sonnet-20240620", timeout=25, stop=None),
-    controller=controller)
-agent2 = Agent(
-    task="Give me the names of the founders of the companies in all tabs.",
-    llm=ChatAnthropic(model="claude-3-5-sonnet-20240620", timeout=25, stop=None),
-    controller=controller)
-
-run(agent1.run())
-founders, history = run(agent2.run())
-
-print(founders)
-```
-
-You can use the `history` to run the agents again deterministically.
-
-## Command Line Usage
-
-Run examples directly from the command line (clone the repo first):
+### Building the package
 
 ```bash
-python examples/try.py "Your query here" --provider [openai|anthropic]
+hatch build
 ```
 
-### Anthropic
-
-You need to add `ANTHROPIC_API_KEY` to your environment variables. Example usage:
-
-```bash
-
-python examples/try.py "Search the top 3 AI companies 2024 and find out in 3 new tabs what hardware each is using for their models" --provider anthropic
-```
-
-### OpenAI
-
-You need to add `OPENAI_API_KEY` to your environment variables. Example usage:
-
-```bash
-python examples/try.py "Go to hackernews on show hn and give me top 10 post titles, their points and hours. Calculate for each the ratio of points per hour. " --provider anthropic
-```
-
-## 🤖 Supported Models
-
-All LangChain chat models are supported. Tested with:
-
-- GPT-4o
-- GPT-4o Mini
-- Claude 3.5 Sonnet
-- LLama 3.1 405B
-
-## Limitations
-
-- When extracting page content, the message length increases and the LLM gets slower.
-- Currently one agent costs about 0.01$
-- Sometimes it tries to repeat the same task over and over again.
-- Some elements might not be extracted which you want to interact with.
-- What should we focus on the most?
-  - Robustness
-  - Speed
-  - Cost reduction
-
-## Roadmap
-
-- [x] Save agent actions and execute them deterministically
-- [ ] Pydantic forced output
-- [ ] Third party SERP API for faster Google Search results
-- [ ] Multi-step action execution to increase speed
-- [ ] Test on mind2web dataset
-- [ ] Add more browser actions
-
-## Contributing
-
-Contributions are welcome! Feel free to open issues for bugs or feature requests.
-
-Feel free to join the [Discord](https://discord.gg/uaCtrbbv) for discussions and support.
+Feel free to join the [Discord](https://link.browser-use.com/discord) for discussions and support.
 
 ---
 

@@ -4,7 +4,7 @@ description = "Let LLMs interact with websites through a simple interface"
 authors = [
     { name = "Gregor Zunic" }
 ]
-version = "0.1.0"
+version = "0.1.1"
 readme = "README.md"
 requires-python = ">=3.11"
 classifiers = [
@@ -12,24 +12,11 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
+dynamic = ["dependencies", "optional-dependencies"]
 
-dependencies = [
-    "MainContentExtractor>=0.0.4",
-    "Selenium-Screenshot>=2.1.0",
-    "beautifulsoup4>=4.12.3", 
-    "langchain>=0.3.7",
-    "langchain-openai>=0.2.5",
-    "langchain-anthropic>=0.2.4",
-    "langchain-fireworks>=0.2.5",
-    "pydantic>=2.9.2",
-    "pytest>=8.3.3",
-    "pytest-asyncio>=0.24.0",
-    "python-dotenv>=1.0.1",
-    "requests>=2.32.3",
-    "selenium>=4.26.1",
-    "webdriver-manager>=4.0.2",
-    "lxml_html_clean>=0.3.1"
-]
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+optional-dependencies = {dev = {file = ["requirements-dev.txt"]}}
 
 [tool.ruff]
 line-length = 100
@@ -42,9 +29,3 @@ docstring-code-format = true
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[project.optional-dependencies]
-dev = [
-    "tokencost>=0.1.16",
-    "hatch>=1.13.0",
-]
