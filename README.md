@@ -54,8 +54,6 @@ ANTHROPIC_API_KEY=
     <p><i>Prompt: Search the top 3 AI companies 2024 and find what out what concrete hardware each is using for their model. (1x speed)</i></p>
 </div>
 
-## Local Setup
-
 # Features ⭐
 
 - Vision + html extraction
@@ -126,7 +124,7 @@ For more examples see the [examples](examples) folder or join the [Discord](http
 
 Contributions are welcome! Feel free to open issues for bugs or feature requests.
 
-## Setup
+## Local Setup
 
 1. Create a virtual environment and install dependencies:
 
