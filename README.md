@@ -39,9 +39,22 @@ OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
 ```
 
-# Demo
+# Demos
 
-DEMO VIDEO HERE
+<div>
+    <a href="https://www.loom.com/share/63612b5994164cb1bb36938d62fe9983">
+      <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/63612b5994164cb1bb36938d62fe9983-7133f9e169672e6f-full-play.gif">
+    </a>
+    <p><i>Prompt: Go to hackernews on show hn and give me top 10 post titles, their points and hours. Calculate for each the ratio of points per hour. (1x speed) </i></p>
+</div>
+<div>
+    <a href="https://www.loom.com/share/2af938b9f8024647950a9e18b3946054">
+      <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/2af938b9f8024647950a9e18b3946054-b99c733cf670e568-full-play.gif">
+    </a>
+    <p><i>Prompt: Search the top 3 AI companies 2024 and find what out what concrete hardware each is using for their model. (1x speed)</i></p>
+</div>
+
+## Local Setup
 
 # Features ⭐
 
