@@ -130,7 +130,7 @@ Contributions are welcome! Feel free to open issues for bugs or feature requests
 
 ```bash
 # To install all dependencies including dev
-pip install -r requirements.txt -r requirements-dev.txt
+pip install . ."[dev]"
 ```
 
 2. Add your API keys to the `.env` file:
