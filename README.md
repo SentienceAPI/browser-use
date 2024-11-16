@@ -54,14 +54,21 @@ ANTHROPIC_API_KEY=
     <p><i>Prompt: Search the top 3 AI companies 2024 and find what out what concrete hardware each is using for their model. (1x speed)</i></p>
 </div>
 
+
 <div>
     <video style="max-width:300px;" controls>
-        <source src="./static/jobs_extraction.mp4" type="video/mp4">
+        <source src="https://github.com/user-attachments/assets/6203bd11-71e6-40a2-b28e-e38b7cea3f93" type="video/mp4">
+        Your browser does not support the video tag.
+    </video>
+    <p><i>Solves amazon captcha and finds laptop prices.</i></p>
+</div>
+<div>
+    <video style="max-width:300px;" controls>
+        <source src="" type="video/mp4">
         Your browser does not support the video tag.
     </video>
     <p><i>Prompt: Find developer jobs in San Francisco at YC startups, and save them.</i></p>
 </div>
-
 # Features ⭐
 
 - Vision + html extraction
