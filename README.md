@@ -58,8 +58,8 @@ ANTHROPIC_API_KEY=
 
 - Vision + html extraction
 - Automatic multi-tab management
-- Extract clicked elements XPaths
-- Add custom actions (e.g. add data to database which the LLM can use)
+- Extract clicked elements XPaths and repeat exact LLM actions
+- Add custom actions (e.g. save to file, push to database, notify me, get human input)
 - Self-correcting
 - Use any LLM supported by LangChain (e.g. gpt4o, gpt4o mini, claude 3.5 sonnet, llama 3.1 405b, etc.)
 
