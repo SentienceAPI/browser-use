@@ -16,23 +16,21 @@ model = ChatOpenAI(model='gpt-4o')
 
 # Initialize browser agent
 agent1 = Agent(
-	task='Open 3 wikipedia articles about the history of the internet.',
+	task='Open 2 tabs with wikipedia articles about the history of the meta and one random wikipedia article.',
 	llm=model,
 	controller=controller,
 )
 agent2 = Agent(
-	task='Considering all open tabs give me the names of 2 founders of the companies.',
+	task='Considering all open tabs give me the names of the wikipedia article.',
 	llm=model,
 	controller=controller,
 )
 
 
-# Let it work its magic
+# Video: https://preview.screen.studio/share/8Elaq9sm
 async def main():
 	await agent1.run()
-	founders = await agent2.run()
-
-	print(founders)
+	await agent2.run()
 
 
 asyncio.run(main())

@@ -67,8 +67,8 @@ class Jobs(BaseModel):
 	jobs: List[Job]
 
 
-@controller.action('Save jobs', param_model=Jobs, requires_browser=True)
-def save_jobs(params: Jobs, browser: Browser):
+@controller.action('Save jobs', param_model=Jobs)
+def save_jobs(params: Jobs):
 	with open('jobs.txt', 'a') as f:
 		for job in params.jobs:
 			f.write(f'{job.title} at {job.company}: {job.salary} ({job.link})\n')
@@ -76,7 +76,7 @@ def save_jobs(params: Jobs, browser: Browser):
 
 # Without Pydantic model - using simple parameters
 @controller.action('Ask user for information')
-def ask_human(question: str, display_question: bool) -> str:
+def ask_human(question: str) -> str:
 	return input(f'\n{question}\nInput: ')
 
 
