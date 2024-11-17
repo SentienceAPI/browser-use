@@ -84,10 +84,10 @@ Or define your parameters using Pydantic
 
 ```python
 class JobDetails(BaseModel):
-title: str
-company: str
-job_link: str
-salary: Optional[str] = None
+  title: str
+  company: str
+  job_link: str
+  salary: Optional[str] = None
 
 @controller.action('Save job details which you found on page', param_model=JobDetails, requires_browser=True)
 def save_job(params: JobDetails, browser: Browser):
