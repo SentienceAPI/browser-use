@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import time
+import uuid
 from datetime import datetime
 from typing import Any, Optional, TypeVar
 
@@ -22,12 +23,17 @@ from browser_use.agent.views import (
 	AgentHistory,
 	AgentOutput,
 	ModelPricingCatalog,
-	Pricing,
 	TokenDetails,
 	TokenUsage,
 )
 from browser_use.browser.views import BrowserState
 from browser_use.controller.service import Controller
+from browser_use.telemetry.service import ProductTelemetry
+from browser_use.telemetry.views import (
+	AgentEndTelemetryEvent,
+	AgentRunTelemetryEvent,
+	AgentStepErrorTelemetryEvent,
+)
 from browser_use.utils import time_execution_async
 
 load_dotenv()
@@ -47,6 +53,8 @@ class Agent:
 		max_failures: int = 5,
 		retry_delay: int = 10,
 	):
+		self.agent_id = str(uuid.uuid4())  # unique identifier for the agent
+
 		self.task = task
 		self.use_vision = use_vision
 		self.llm = llm
@@ -55,6 +63,9 @@ class Agent:
 		# Controller setup
 		self.controller_injected = controller is not None
 		self.controller = controller or Controller()
+
+		# Telemetry setup
+		self.telemetry = ProductTelemetry()
 
 		# Action and output models setup
 		self._setup_action_models()
@@ -93,7 +104,9 @@ class Agent:
 		action_descriptions = self.controller.registry.get_prompt_description()
 
 		system_prompt = AgentSystemPrompt(
-			self.task, action_description=action_descriptions, current_date=datetime.now()
+			self.task,
+			action_description=action_descriptions,
+			current_date=datetime.now(),
 		).get_system_message()
 
 		first_message = HumanMessage(content=f'Your task is: {self.task}')
@@ -115,6 +128,15 @@ class Agent:
 		except Exception as e:
 			result = self._handle_step_error(e, state)
 			model_output = None
+
+			if result.error:
+				self.telemetry.capture(
+					AgentStepErrorTelemetryEvent(
+						agent_id=self.agent_id,
+						error=result.error,
+					)
+				)
+
 		self._update_messages_with_result(result)
 		self._make_history_item(model_output, state, result)
 
@@ -356,6 +378,13 @@ class Agent:
 		try:
 			logger.info(f'🚀 Starting task: {self.task}')
 
+			self.telemetry.capture(
+				AgentRunTelemetryEvent(
+					agent_id=self.agent_id,
+					task=self.task,
+				)
+			)
+
 			for step in range(max_steps):
 				if self._too_many_failures():
 					break
@@ -371,6 +400,14 @@ class Agent:
 			return self.history
 
 		finally:
+			self.telemetry.capture(
+				AgentEndTelemetryEvent(
+					agent_id=self.agent_id,
+					task=self.task,
+					success=self._is_task_complete(),
+					steps=len(self.history),
+				)
+			)
 			if not self.controller_injected:
 				self.controller.browser.close()
 

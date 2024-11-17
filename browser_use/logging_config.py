@@ -1,8 +1,11 @@
 import logging
+import os
 import sys
 
 
 def setup_logging():
+	debug_logging = os.getenv('BROWSER_USE_DEBUG_LOGGING', 'false').lower() == 'true'
+
 	# Check if handlers are already set up
 	if logging.getLogger().hasHandlers():
 		return
@@ -23,7 +26,11 @@ def setup_logging():
 
 	# Configure root logger only
 	root.addHandler(console)
-	root.setLevel(logging.INFO)
+
+	if debug_logging:
+		root.setLevel(logging.DEBUG)
+	else:
+		root.setLevel(logging.INFO)
 
 	# Configure browser_use logger to prevent propagation
 	browser_use_logger = logging.getLogger('browser_use')
