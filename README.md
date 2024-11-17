@@ -120,6 +120,12 @@ print(history)
 
 For more examples see the [examples](examples) folder or join the [Discord](https://link.browser-use.com/discord) and show off your project.
 
+## Telemetry
+
+We collect anonymous usage data to help us understand how the library is being used and to identify potential issues. There is no privacy risk, as no personal information is collected. We collect data with PostHog.
+
+You can opt out of telemetry by setting the `ANONYMIZED_TELEMETRY=false` environment variable.
+
 # Contributing
 
 Contributions are welcome! Feel free to open issues for bugs or feature requests.

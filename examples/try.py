@@ -4,7 +4,6 @@ Simple try of the agent.
 @dev You need to add ANTHROPIC_API_KEY to your environment variables.
 """
 
-import logging
 import os
 import sys
 
