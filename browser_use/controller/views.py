@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel
 
@@ -36,3 +36,9 @@ class OpenTabAction(BaseModel):
 
 class ExtractPageContentAction(BaseModel):
 	value: Literal['text', 'markdown', 'html'] = 'text'
+
+
+class ScrollDownAction(BaseModel):
+	amount: Optional[int] = (
+		None  # The number of pixels to scroll down. If None, scroll down one page
+	)

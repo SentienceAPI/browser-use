@@ -1,6 +1,8 @@
 import logging
 
 from main_content_extractor import MainContentExtractor
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 
 from browser_use.agent.views import ActionModel, ActionResult
 from browser_use.browser.service import Browser
@@ -13,6 +15,7 @@ from browser_use.controller.views import (
 	GoToUrlAction,
 	InputTextAction,
 	OpenTabAction,
+	ScrollDownAction,
 	SearchGoogleAction,
 	SwitchTabAction,
 )
@@ -142,6 +145,29 @@ class Controller:
 		def done(params: DoneAction, browser: Browser):
 			logger.info(f'✅ Done on page {browser._cached_state.url}\n\n: {params.text}')
 			return ActionResult(is_done=True, extracted_content=params.text)
+
+		@self.registry.action(
+			'Scroll down the page by pixel amount - if no amount is specified, scroll down one page',
+			param_model=ScrollDownAction,
+			requires_browser=True,
+		)
+		def scroll_down(params: ScrollDownAction, browser: Browser):
+			driver = browser._get_driver()
+			if params.amount is not None:
+				driver.execute_script(f'window.scrollBy(0, {params.amount});')
+			else:
+				body = driver.find_element(By.TAG_NAME, 'body')
+				body.send_keys(Keys.PAGE_DOWN)
+
+		# scroll up
+		@self.registry.action(
+			'Scroll up the page by pixel amount',
+			param_model=ScrollDownAction,
+			requires_browser=True,
+		)
+		def scroll_up(params: ScrollDownAction, browser: Browser):
+			driver = browser._get_driver()
+			driver.execute_script(f'window.scrollBy(0, -{params.amount});')
 
 	def action(self, description: str, **kwargs):
 		"""Decorator for registering custom actions
