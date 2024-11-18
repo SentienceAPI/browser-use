@@ -155,3 +155,34 @@ async def test_done_action(llm, controller):
 	action_names = [list(action.model_dump(exclude_unset=True).keys())[0] for action in actions]
 	assert 'go_to_url' in action_names
 	assert 'done' in action_names
+
+
+# run with: pytest -k test_scroll_down
+@pytest.mark.asyncio
+async def test_scroll_down(llm, controller):
+	"""Test 'Scroll down' action and validate that the page actually scrolled"""
+	agent = Agent(
+		task="Go to 'https://en.wikipedia.org/wiki/Internet' and scroll down the page.",
+		llm=llm,
+		controller=controller,
+	)
+	# Get the browser instance
+	browser = controller.browser
+	driver = browser._get_driver()
+
+	# Navigate to the page and get initial scroll position
+	await agent.run(max_steps=1)
+	initial_scroll_position = driver.execute_script('return window.pageYOffset;')
+
+	# Perform the scroll down action
+	await agent.run(max_steps=2)
+	final_scroll_position = driver.execute_script('return window.pageYOffset;')
+
+	# Validate that the scroll position has changed
+	assert final_scroll_position > initial_scroll_position, 'Page did not scroll down'
+
+	# Validate that the 'scroll_down' action was executed
+	history = agent.history
+	actions = [h.model_output.action for h in history if h.model_output and h.model_output.action]
+	action_names = [list(action.model_dump(exclude_unset=True).keys())[0] for action in actions]
+	assert 'scroll_down' in action_names
