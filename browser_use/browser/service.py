@@ -15,6 +15,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
+from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
@@ -424,3 +425,19 @@ class Browser:
 		"""
 		self._cached_state = self._update_state(use_vision=use_vision)
 		return self._cached_state
+
+	@property
+	def selector_map(self) -> SelectorMap:
+		return self._cached_state.selector_map
+
+	def xpath(self, index: int) -> str:
+		return self.selector_map[index]
+
+	def get_element(self, index: int) -> WebElement:
+		driver = self._get_driver()
+		return driver.find_element(By.XPATH, self.xpath(index))
+
+	def wait_for_element(self, css_selector: str, timeout: int = 10) -> WebElement:
+		"""Wait for an element to appear and return it."""
+		wait = WebDriverWait(self._get_driver(), timeout)
+		return wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, css_selector)))
