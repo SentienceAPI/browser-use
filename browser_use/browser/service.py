@@ -1,23 +1,13 @@
 """
-Selenium browser on steroids.
+Playwright browser on steroids.
 """
 
 import base64
 import logging
-import os
-import tempfile
 import time
-from typing import Literal
 
-from Screenshot import Screenshot
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
-from webdriver_manager.chrome import ChromeDriverManager
+from playwright.sync_api import Browser as PlaywrightBrowser
+from playwright.sync_api import Page, sync_playwright
 
 from browser_use.browser.views import BrowserState, TabInfo
 from browser_use.dom.service import DomService
@@ -28,112 +18,114 @@ logger = logging.getLogger(__name__)
 
 
 class Browser:
-	def __init__(self, headless: bool = False, keep_open: bool = False):
+	def __init__(self, headless: bool = False):
 		self.headless = headless
-		self.keep_open = keep_open
 		self.MINIMUM_WAIT_TIME = 0.5
 		self.MAXIMUM_WAIT_TIME = 5
 		self._tab_cache: dict[str, TabInfo] = {}
-		self._current_handle = None
-		self._ob = Screenshot.Screenshot()
+		self._current_page_id = None
 
-		# Initialize driver during construction
-		self.driver: webdriver.Chrome | None = self._setup_webdriver()
+		# Initialize Playwright during construction
+		self.playwright = sync_playwright().start()
+		self.browser: PlaywrightBrowser = self._setup_browser()
+		self.context = self._create_context()
+		self.page: Page = self.context.new_page()
+		self._current_page_id = str(id(self.page))
 		self._cached_state = self._update_state()
 
-	def _setup_webdriver(self) -> webdriver.Chrome:
-		"""Sets up and returns a Selenium WebDriver instance with anti-detection measures."""
+	def get_browser(self) -> PlaywrightBrowser:
+		if self.browser is None:
+			self.browser = self._setup_browser()
+		return self.browser
+
+	def _setup_browser(self) -> PlaywrightBrowser:
+		"""Sets up and returns a Playwright Browser instance with anti-detection measures."""
 		try:
-			# if webdriver is not starting, try to kill it or rm -rf ~/.wdm
-			chrome_options = Options()
-			if self.headless:
-				chrome_options.add_argument('--headless=new')  # Updated headless argument
+			chrome_args = [
+				'--disable-blink-features=AutomationControlled',
+				'--no-sandbox',
+				'--window-size=1280,1024',
+				'--disable-extensions',
+				'--disable-infobars',
+				'--disable-background-timer-throttling',
+				'--disable-popup-blocking',
+				'--disable-backgrounding-occluded-windows',
+				'--disable-renderer-backgrounding',
+			]
 
-			# Essential automation and performance settings
-			chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-			chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
-			chrome_options.add_experimental_option('useAutomationExtension', False)
-			chrome_options.add_argument('--no-sandbox')
-			chrome_options.add_argument('--window-size=1280,1024')
-			chrome_options.add_argument('--disable-extensions')
-
-			# Background process optimization
-			chrome_options.add_argument('--disable-background-timer-throttling')
-			chrome_options.add_argument('--disable-popup-blocking')
-
-			# Additional stealth settings
-			chrome_options.add_argument('--disable-infobars')
-			# Much better when working in non-headless mode
-			chrome_options.add_argument('--disable-backgrounding-occluded-windows')
-			chrome_options.add_argument('--disable-renderer-backgrounding')
-
-			# Initialize the Chrome driver with better error handling
-			service = ChromeService(ChromeDriverManager().install())
-			driver = webdriver.Chrome(service=service, options=chrome_options)
-
-			# Execute stealth scripts
-			driver.execute_cdp_cmd(
-				'Page.addScriptToEvaluateOnNewDocument',
-				{
-					'source': """
-					Object.defineProperty(navigator, 'webdriver', {
-						get: () => undefined
-					});
-					
-					Object.defineProperty(navigator, 'languages', {
-						get: () => ['en-US', 'en']
-					});
-					
-					Object.defineProperty(navigator, 'plugins', {
-						get: () => [1, 2, 3, 4, 5]
-					});
-					
-					window.chrome = {
-						runtime: {}
-					};
-					
-					Object.defineProperty(navigator, 'permissions', {
-						get: () => ({
-							query: Promise.resolve.bind(Promise)
-						})
-					});
-				"""
-				},
+			browser = self.playwright.chromium.launch(
+				headless=self.headless,
+				args=chrome_args,
 			)
 
-			return driver
-
+			return browser
 		except Exception as e:
-			logger.error(f'Failed to initialize Chrome driver: {str(e)}')
-			# Clean up any existing driver
-			if hasattr(self, 'driver') and self.driver:
-				try:
-					self.driver.quit()
-					self.driver = None
-				except Exception:
-					pass
+			logger.error(f'Failed to initialize Playwright browser: {str(e)}')
 			raise
 
-	def _get_driver(self) -> webdriver.Chrome:
-		if self.driver is None:
-			self.driver = self._setup_webdriver()
-		return self.driver
+	def _create_context(self):
+		"""Creates a new browser context with anti-detection measures."""
+		context = self.browser.new_context(
+			viewport={'width': 1280, 'height': 1024},
+			user_agent=(
+				'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+				'(KHTML, like Gecko) Chrome/85.0.4183.102 Safari/537.36'
+			),
+			java_script_enabled=True,
+		)
+
+		# Expose anti-detection scripts
+		context.add_init_script(
+			"""
+			// Webdriver property
+			Object.defineProperty(navigator, 'webdriver', {
+				get: () => undefined
+			});
+
+			// Languages
+			Object.defineProperty(navigator, 'languages', {
+				get: () => ['en-US', 'en']
+			});
+
+			// Plugins
+			Object.defineProperty(navigator, 'plugins', {
+				get: () => [1, 2, 3, 4, 5]
+			});
+
+			// Chrome runtime
+			window.chrome = { runtime: {} };
+
+			// Permissions
+			const originalQuery = window.navigator.permissions.query;
+			window.navigator.permissions.query = (parameters) => (
+				parameters.name === 'notifications' ?
+					Promise.resolve({ state: Notification.permission }) :
+					originalQuery(parameters)
+			);
+			"""
+		)
+
+		return context
+
+	def _get_page(self) -> Page:
+		if self.page is None:
+			self.context = self._create_context()
+			self.page = self.context.new_page()
+		return self.page
 
 	def wait_for_page_load(self):
 		"""
 		Ensures page is fully loaded before continuing.
 		Waits for either document.readyState to be complete or minimum WAIT_TIME, whichever is longer.
 		"""
-		driver = self._get_driver()
+		page = self._get_page()
 
 		# Start timing
 		start_time = time.time()
 
 		# Wait for page load
 		try:
-			WebDriverWait(driver, 5).until(
-				lambda d: d.execute_script('return document.readyState') == 'complete'
-			)
+			page.wait_for_load_state('load', timeout=5000)
 		except Exception:
 			pass
 
@@ -153,8 +145,8 @@ class Browser:
 		"""
 		Update and return state.
 		"""
-		driver = self._get_driver()
-		dom_service = DomService(driver)
+		page = self._get_page()
+		dom_service = DomService(page)
 		content = dom_service.get_clickable_elements()
 
 		screenshot_b64 = None
@@ -164,9 +156,9 @@ class Browser:
 		self.current_state = BrowserState(
 			items=content.items,
 			selector_map=content.selector_map,
-			url=driver.current_url,
-			title=driver.title,
-			current_tab_handle=self._current_handle or driver.current_window_handle,
+			url=page.url,
+			title=page.title(),
+			current_page_id=self._current_page_id,
 			tabs=self.get_tabs_info(),
 			screenshot=screenshot_b64,
 		)
@@ -174,11 +166,10 @@ class Browser:
 		return self.current_state
 
 	def close(self, force: bool = False):
-		if not self.keep_open or force:
-			if self.driver:
-				driver = self._get_driver()
-				driver.quit()
-				self.driver = None
+		if force:
+			if self.browser:
+				self.browser.close()
+				self.playwright.stop()
 		else:
 			input('Press Enter to close Browser...')
 			self.keep_open = False
@@ -186,9 +177,9 @@ class Browser:
 
 	def __del__(self):
 		"""
-		Close the browser driver when instance is destroyed.
+		Close the browser when instance is destroyed.
 		"""
-		if self.driver is not None:
+		if self.browser is not None:
 			self.close()
 
 	# region - Browser Actions
@@ -197,39 +188,21 @@ class Browser:
 		"""
 		Returns a base64 encoded screenshot of the current page.
 		"""
-		driver = self._get_driver()
+		page = self._get_page()
 
 		if selector_map:
 			self.highlight_selector_map_elements(selector_map)
 
-		if full_page:
-			# Create temp directory
-			temp_dir = tempfile.mkdtemp()
-			screenshot = self._ob.full_screenshot(
-				driver,
-				save_path=temp_dir,
-				image_name='temp.png',
-				is_load_at_runtime=True,
-				load_wait_time=1,
-			)
-
-			# Read file as base64
-			with open(os.path.join(temp_dir, 'temp.png'), 'rb') as img:
-				screenshot = base64.b64encode(img.read()).decode('utf-8')
-
-			# Cleanup temp directory
-			os.remove(os.path.join(temp_dir, 'temp.png'))
-			os.rmdir(temp_dir)
-		else:
-			screenshot = driver.get_screenshot_as_base64()
+		screenshot = page.screenshot(full_page=full_page)
+		screenshot_b64 = base64.b64encode(screenshot).decode('utf-8')
 
 		if selector_map:
 			self.remove_highlights()
 
-		return screenshot
+		return screenshot_b64
 
 	def highlight_selector_map_elements(self, selector_map: SelectorMap):
-		driver = self._get_driver()
+		page = self._get_page()
 		# First remove any existing highlights/labels
 		self.remove_highlights()
 
@@ -237,21 +210,22 @@ class Browser:
 		const highlights = {
 		"""
 
-		# Build the highlights object with all xpaths and indices
-		for index, xpath in selector_map.items():
-			script += f'"{index}": "{xpath}",\n'
+		# Build the highlights object with all selectors and indices
+		for index, selector in selector_map.items():
+			# Adjusting the JavaScript code to accept variables
+			script += f'"{index}": "{selector}",\n'
 
 		script += """
 		};
 		
-		for (const [index, xpath] of Object.entries(highlights)) {
-			const el = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+		for (const [index, selector] of Object.entries(highlights)) {
+			const el = document.evaluate(selector, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
 			if (!el) continue;  // Skip if element not found
 			el.style.outline = "2px solid red";
-			el.setAttribute('browser-user-highlight-id', 'selenium-highlight');
+			el.setAttribute('browser-user-highlight-id', 'playwright-highlight');
 			
 			const label = document.createElement("div");
-			label.className = 'selenium-highlight-label';
+			label.className = 'playwright-highlight-label';
 			label.style.position = "fixed";
 			label.style.background = "red";
 			label.style.color = "white";
@@ -267,25 +241,26 @@ class Browser:
 		}
 		"""
 
-		driver.execute_script(script)
+		page.evaluate(script)
 
 	def remove_highlights(self):
 		"""
 		Removes all highlight outlines and labels created by highlight_selector_map_elements
+
 		"""
-		driver = self._get_driver()
-		driver.execute_script(
+		page = self._get_page()
+		page.evaluate(
 			"""
 			// Remove all highlight outlines
-			const highlightedElements = document.querySelectorAll('[browser-user-highlight-id="selenium-highlight"]');
+			const highlightedElements = document.querySelectorAll('[browser-user-highlight-id="playwright-highlight"]');
 			highlightedElements.forEach(el => {
 				el.style.outline = '';
-				el.removeAttribute('selenium-browser-use-highlight');
+				el.removeAttribute('browser-user-highlight-id');
 			});
 			
 
 			// Remove all labels
-			const labels = document.querySelectorAll('.selenium-highlight-label');
+			const labels = document.querySelectorAll('.playwright-highlight-label');
 			labels.forEach(label => label.remove());
 			"""
 		)
@@ -293,26 +268,25 @@ class Browser:
 	# endregion
 
 	# region - User Actions
-	def _webdriver_wait(self):
-		driver = self._get_driver()
-		return WebDriverWait(driver, 10)
 
 	def _input_text_by_xpath(self, xpath: str, text: str):
-		driver = self._get_driver()
+		page = self._get_page()
 
 		try:
-			# Wait for element to be both present and interactable
-			element = self._webdriver_wait().until(EC.element_to_be_clickable((By.XPATH, xpath)))
+			# Wait for element to be both present and visible
+			element = page.wait_for_selector(f'xpath={xpath}', timeout=10000, state='visible')
 
-			# Scroll element into view using ActionChains for smoother scrolling
-			actions = ActionChains(driver)
-			actions.move_to_element(element).perform()
+			if element is None:
+				raise Exception(f'Element with xpath: {xpath} not found')
 
-			# Try to clear using JavaScript first
-			driver.execute_script("arguments[0].value = '';", element)
+			# Scroll element into view
+			element.scroll_into_view_if_needed()
 
-			# Then send keys
-			element.send_keys(text)
+			# Clear the input field
+			element.fill('')
+
+			# Then fill with text
+			element.type(text)
 
 			self.wait_for_page_load()
 
@@ -325,45 +299,29 @@ class Browser:
 		"""
 		Optimized method to click an element using xpath.
 		"""
-		driver = self._get_driver()
-		wait = self._webdriver_wait()
+		page = self._get_page()
 
 		try:
-			# First try the direct approach with a shorter timeout
+			# Wait for element to be clickable
+			element = page.wait_for_selector(f'xpath={xpath}', timeout=10000, state='visible')
+
+			if element is None:
+				raise Exception(f'Element with xpath: {xpath} not found')
+
+			# Scroll into view if needed
+			element.scroll_into_view_if_needed()
+
+			# Try to click directly
 			try:
-				element = wait.until(
-					EC.element_to_be_clickable((By.XPATH, xpath)),
-					message=f'Element not clickable: {xpath}',
-				)
 				element.click()
 				self.wait_for_page_load()
 				return
 			except Exception:
 				pass
 
-			# If that fails, try a simplified approach
+			# If direct click fails, try JavaScript click
 			try:
-				# Try with ID if present in xpath
-				if 'id=' in xpath:
-					id_value = xpath.split('id=')[-1].split(']')[0]
-					element = driver.find_element(By.ID, id_value)
-					if element.is_displayed() and element.is_enabled():
-						driver.execute_script('arguments[0].click();', element)
-						self.wait_for_page_load()
-						return
-			except Exception:
-				pass
-
-			# Last resort: force click with JavaScript
-			try:
-				element = driver.find_element(By.XPATH, xpath)
-				driver.execute_script(
-					"""
-					arguments[0].scrollIntoView({behavior: 'instant', block: 'center'});
-					arguments[0].click();
-				""",
-					element,
-				)
+				page.evaluate('(el) => el.click()', element)
 				self.wait_for_page_load()
 				return
 			except Exception as e:
@@ -374,46 +332,69 @@ class Browser:
 
 	def handle_new_tab(self) -> None:
 		"""Handle newly opened tab and switch to it"""
-		driver = self._get_driver()
-		handles = driver.window_handles
-		new_handle = handles[-1]  # Get most recently opened handle
+		context = self.page.context
+		pages = context.pages
+		new_page = pages[-1]  # Get most recently opened page
 
-		# Switch to new tab
-		driver.switch_to.window(new_handle)
-		self._current_handle = new_handle
+		# Switch to new page
+		self.page = new_page
+		self._current_page_id = str(id(new_page))
 
 		# Wait for page load
 		self.wait_for_page_load()
 
 		# Create and cache tab info
-		tab_info = TabInfo(handle=new_handle, url=driver.current_url, title=driver.title)
-		self._tab_cache[new_handle] = tab_info
+		tab_info = TabInfo(page_id=self._current_page_id, url=new_page.url, title=new_page.title())
+		self._tab_cache[self._current_page_id] = tab_info
 
 	def get_tabs_info(self) -> list[TabInfo]:
 		"""Get information about all tabs"""
-		driver = self._get_driver()
-		current_handle = driver.current_window_handle
-		self._current_handle = current_handle
+		context = self.page.context
+		pages = context.pages
+		current_page = self.page
+		self._current_page_id = str(id(current_page))
 
 		tabs_info = []
-		for handle in driver.window_handles:
+		for page in pages:
+			page_id = str(id(page))
 			# Use cached info if available, otherwise get new info
-			if handle in self._tab_cache:
-				tab_info = self._tab_cache[handle]
+			if page_id in self._tab_cache:
+				tab_info = self._tab_cache[page_id]
+				# Update URL and title in case they changed
+				tab_info.url = page.url
+				tab_info.title = page.title()
 			else:
-				# Only switch if we need to get info
-				if handle != current_handle:
-					driver.switch_to.window(handle)
-				tab_info = TabInfo(handle=handle, url=driver.current_url, title=driver.title)
-				self._tab_cache[handle] = tab_info
+				tab_info = TabInfo(page_id=page_id, url=page.url, title=page.title())
+				self._tab_cache[page_id] = tab_info
 
 			tabs_info.append(tab_info)
 
-		# Switch back to current tab if we moved
-		if driver.current_window_handle != current_handle:
-			driver.switch_to.window(current_handle)
-
 		return tabs_info
+
+	def switch_to_tab(self, page_id: str) -> None:
+		"""Switch to a specific tab by its page_id"""
+		context = self.page.context
+		pages = context.pages
+
+		for page in pages:
+			if str(id(page)) == page_id:
+				page.bring_to_front()
+				self.page = page
+				self._current_page_id = page_id
+				self.wait_for_page_load()
+				return
+
+		raise ValueError(f'No tab found with page_id: {page_id}')
+
+	def create_new_tab(self, url: str = None) -> None:
+		"""Create a new tab and optionally navigate to a URL"""
+		new_page = self.context.new_page()
+		self.page = new_page
+		self._current_page_id = str(id(new_page))
+
+		if url:
+			new_page.goto(url)
+			self.wait_for_page_load()
 
 	# endregion
 

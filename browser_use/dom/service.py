@@ -3,17 +3,14 @@ import logging
 from typing import Optional
 
 from bs4 import BeautifulSoup, NavigableString, PageElement, Tag
-from selenium import webdriver
-from selenium.webdriver.remote.webelement import WebElement
+from playwright.sync_api import Page
 
 from browser_use.dom.views import (
 	BatchCheckResults,
 	DomContentItem,
 	ElementCheckResult,
-	ElementState,
 	ProcessedDomContent,
 	TextCheckResult,
-	TextState,
 )
 from browser_use.utils import time_execution_sync
 
@@ -21,14 +18,13 @@ logger = logging.getLogger(__name__)
 
 
 class DomService:
-	def __init__(self, driver: webdriver.Chrome):
-		self.driver = driver
-		self.xpath_cache = {}  # Add cache at instance level
+	def __init__(self, page: Page):
+		self.page = page
+		self.xpath_cache = {}
 
 	def get_clickable_elements(self) -> ProcessedDomContent:
-		# Clear xpath cache on each new DOM processing
 		self.xpath_cache = {}
-		html_content = self.driver.page_source
+		html_content = self.page.content()
 		return self._process_content(html_content)
 
 	@time_execution_sync('--_process_content')
@@ -139,61 +135,58 @@ class DomService:
 		return ProcessedDomContent(items=output_items, selector_map=selector_map)
 
 	def _batch_check_elements(self, elements: dict[str, tuple[Tag, int]]) -> BatchCheckResults:
-		"""Batch check all interactive elements at once."""
 		if not elements:
 			return BatchCheckResults(elements={}, texts={})
 
 		check_script = """
-			return (function() {
-				const results = {};
-				const elements = %s;
+			const results = {};
+			const elements = %s;
+			
+			for (const [xpath, elementData] of Object.entries(elements)) {
+				const element = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+				if (!element) continue;
 				
-				for (const [xpath, elementData] of Object.entries(elements)) {
-					const element = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-					if (!element) continue;
-					
-					// Check visibility
-					const isVisible = element.checkVisibility({
-						checkOpacity: true,
-						checkVisibilityCSS: true
-					});
-					
-					if (!isVisible) continue;
-					
-					// Check if topmost
-					const rect = element.getBoundingClientRect();
-					const points = [
-						{x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.25},
-						{x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.25},
-						{x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.75},
-						{x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.75},
-						{x: rect.left + rect.width / 2, y: rect.top + rect.height / 2}
-					];
-					
-					const isTopElement = points.some(point => {
-						const topEl = document.elementFromPoint(point.x, point.y);
-						let current = topEl;
-						while (current && current !== document.body) {
-							if (current === element) return true;
-							current = current.parentElement;
-						}
-						return false;
-					});
-					
-					if (isTopElement) {
-						results[xpath] = {
-							xpath: xpath,
-							isVisible: true,
-							isTopElement: true
-						};
+				// Check visibility using Playwright's isVisible()
+				const isVisible = element.offsetWidth > 0 && 
+								element.offsetHeight > 0 && 
+								window.getComputedStyle(element).visibility !== 'hidden' &&
+								window.getComputedStyle(element).display !== 'none';
+				
+				if (!isVisible) continue;
+				
+				// Check if topmost
+				const rect = element.getBoundingClientRect();
+				const points = [
+					{x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.25},
+					{x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.25},
+					{x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.75},
+					{x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.75},
+					{x: rect.left + rect.width / 2, y: rect.top + rect.height / 2}
+				];
+				
+				const isTopElement = points.some(point => {
+					const topEl = document.elementFromPoint(point.x, point.y);
+					let current = topEl;
+					while (current && current !== document.body) {
+						if (current === element) return true;
+						current = current.parentElement;
 					}
+					return false;
+				});
+				
+				if (isTopElement) {
+					results[xpath] = {
+						xpath: xpath,
+						isVisible: true,
+						isTopElement: true
+					};
 				}
-				return results;
-			})();
+			}
+			return results;
 		""" % json.dumps({xpath: {} for xpath in elements.keys()})
 
 		try:
-			results = self.driver.execute_script(check_script)
+			results = self.page.evaluate(check_script)
 			return BatchCheckResults(
 				elements={xpath: ElementCheckResult(**data) for xpath, data in results.items()},
 				texts={},
@@ -205,7 +198,6 @@ class DomService:
 	def _batch_check_texts(
 		self, texts: dict[str, tuple[NavigableString, int]]
 	) -> BatchCheckResults:
-		"""Batch check all text nodes at once."""
 		if not texts:
 			return BatchCheckResults(elements={}, texts={})
 
@@ -256,7 +248,7 @@ class DomService:
 		)
 
 		try:
-			results = self.driver.execute_script(check_script)
+			results = self.page.evaluate(check_script)
 			return BatchCheckResults(
 				elements={},
 				texts={xpath: TextCheckResult(**data) for xpath, data in results.items()},
