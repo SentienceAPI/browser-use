@@ -22,10 +22,10 @@ from browser_use.controller.service import Controller
 def get_llm(provider: str):
 	if provider == 'anthropic':
 		return ChatAnthropic(
-			model_name='claude-3-5-sonnet-20240620', timeout=25, stop=None, temperature=0.3
+			model_name='claude-3-5-sonnet-20240620', timeout=25, stop=None, temperature=0.0
 		)
 	elif provider == 'openai':
-		return ChatOpenAI(model='gpt-4o', temperature=0.3)
+		return ChatOpenAI(model='gpt-4o', temperature=0.0)
 	else:
 		raise ValueError(f'Unsupported provider: {provider}')
 
