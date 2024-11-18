@@ -189,7 +189,7 @@ class Agent:
 		self._update_message_history(state, parsed)
 		self._log_response(parsed)
 		self._save_conversation(input_messages, parsed)
-		self._update_usage_metadata(response['raw'])
+		# self._update_usage_metadata(response['raw'])
 		return parsed
 
 	def _calc_token_cost(self) -> float:
