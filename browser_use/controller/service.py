@@ -130,7 +130,9 @@ class Controller:
 
 		# Content Actions
 		@self.registry.action(
-			'Extract page content', param_model=ExtractPageContentAction, requires_browser=True
+			'Extract page content to get the text or markdown ',
+			param_model=ExtractPageContentAction,
+			requires_browser=True,
 		)
 		def extract_content(params: ExtractPageContentAction, browser: Browser):
 			driver = browser._get_driver()

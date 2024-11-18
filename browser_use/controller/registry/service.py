@@ -76,11 +76,8 @@ class Registry:
 
 			# Check if the first parameter is a Pydantic model
 			sig = signature(action.function)
-			first_param = next(iter(sig.parameters.values()))
-			is_pydantic = (
-				hasattr(first_param.annotation, '__bases__')
-				and BaseModel in first_param.annotation.__bases__
-			)
+			parameters = list(sig.parameters.values())
+			is_pydantic = parameters and issubclass(parameters[0].annotation, BaseModel)
 
 			# Execute with or without browser
 			if action.requires_browser:
@@ -95,7 +92,7 @@ class Registry:
 			return action.function(**validated_params.model_dump())
 
 		except Exception as e:
-			raise Exception(f'Error executing action {action_name}: {str(e)}')
+			raise RuntimeError(f'Error executing action {action_name}: {str(e)}') from e
 
 	def create_action_model(self) -> Type[ActionModel]:
 		"""Creates a Pydantic model from registered actions"""
