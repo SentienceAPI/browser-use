@@ -11,12 +11,12 @@ from typing import Any, Optional, TypeVar
 from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from openai import RateLimitError
 from pydantic import BaseModel, ValidationError
 
-from browser_use.agent.prompts import AgentMessagePrompt, AgentSystemPrompt
+from browser_use.agent.prompts import AgentMessagePrompt, SystemPrompt
 from browser_use.agent.views import (
 	ActionResult,
 	AgentError,
@@ -52,6 +52,7 @@ class Agent:
 		save_conversation_path: Optional[str] = None,
 		max_failures: int = 5,
 		retry_delay: int = 10,
+		system_prompt: Optional[SystemPrompt] = None,
 	):
 		self.agent_id = str(uuid.uuid4())  # unique identifier for the agent
 
@@ -64,14 +65,16 @@ class Agent:
 		self.controller_injected = controller is not None
 		self.controller = controller or Controller()
 
+		self.system_prompt = system_prompt
+
 		# Telemetry setup
 		self.telemetry = ProductTelemetry()
 
 		# Action and output models setup
 		self._setup_action_models()
 
-		# Message history setup
-		self.messages = self._initialize_messages()
+		self.messages = []
+		self._initialize_messages()
 
 		# Tracking variables
 		self.history: list[AgentHistory] = []
@@ -98,19 +101,25 @@ class Agent:
 		# Create output model with the dynamic actions
 		self.AgentOutput = AgentOutput.type_with_custom_actions(self.ActionModel)
 
-	def _initialize_messages(self) -> list[BaseMessage]:
+	def _initialize_messages(self) -> None:
 		"""Initialize message history with system and first message"""
 		# Get action descriptions from controller's registry
 		action_descriptions = self.controller.registry.get_prompt_description()
+		if self.system_prompt is not None:
+			system_prompt = self.system_prompt
+		else:
+			system_prompt = SystemPrompt(
+				action_description=action_descriptions,
+				current_date=datetime.now(),
+			)
+			self.system_prompt = system_prompt
 
-		system_prompt = AgentSystemPrompt(
-			self.task,
-			action_description=action_descriptions,
-			current_date=datetime.now(),
-		).get_system_message()
+		self.messages.append(system_prompt.get_system_message())
 
-		first_message = HumanMessage(content=f'Your task is: {self.task}')
-		return [system_prompt, first_message]
+		self.set_task(self.task)
+
+	def set_task(self, task: str) -> None:
+		self.messages.append(HumanMessage(content=f'Your task is: {task}'))
 
 	@time_execution_async('--step')
 	async def step(self) -> None:

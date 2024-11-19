@@ -5,9 +5,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from browser_use.browser.views import BrowserState
 
 
-class AgentSystemPrompt:
-	def __init__(self, task: str, action_description: str, current_date: datetime):
-		self.task = task
+class SystemPrompt:
+	def __init__(self, action_description: str, current_date: datetime):
 		self.default_action_description = action_description
 		self.current_date = current_date
 
