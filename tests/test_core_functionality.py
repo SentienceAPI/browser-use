@@ -1,5 +1,3 @@
-import asyncio
-
 import pytest
 from langchain_openai import ChatOpenAI
 
@@ -21,7 +19,7 @@ async def controller():
 		yield controller
 	finally:
 		if controller.browser:
-			controller.browser.close(force=True)
+			await controller.browser.close(force=True)
 
 
 @pytest.mark.asyncio

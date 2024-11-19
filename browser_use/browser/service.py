@@ -2,12 +2,14 @@
 Playwright browser on steroids.
 """
 
+import asyncio
 import base64
 import logging
 import time
+from dataclasses import dataclass, field
 
-from playwright.sync_api import Browser as PlaywrightBrowser
-from playwright.sync_api import Page, sync_playwright
+from playwright.async_api import Browser as PlaywrightBrowser
+from playwright.async_api import BrowserContext, Page, Playwright, async_playwright
 
 from browser_use.browser.views import BrowserState, TabInfo
 from browser_use.dom.service import DomService
@@ -17,28 +19,65 @@ from browser_use.utils import time_execution_sync
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class BrowserSession:
+	playwright: Playwright
+	browser: PlaywrightBrowser
+	context: BrowserContext
+	page: Page
+	current_page_id: str
+	cached_state: BrowserState
+	opened_tabs: dict[str, TabInfo] = field(default_factory=dict)
+
+
 class Browser:
-	def __init__(self, headless: bool = False):
+	MINIMUM_WAIT_TIME = 0.5
+	MAXIMUM_WAIT_TIME = 5
+
+	def __init__(self, headless: bool = False, keep_open: bool = False):
 		self.headless = headless
-		self.MINIMUM_WAIT_TIME = 0.5
-		self.MAXIMUM_WAIT_TIME = 5
-		self._tab_cache: dict[str, TabInfo] = {}
-		self._current_page_id = None
+		self.keep_open = keep_open
 
-		# Initialize Playwright during construction
-		self.playwright = sync_playwright().start()
-		self.browser: PlaywrightBrowser = self._setup_browser()
-		self.context = self._create_context()
-		self.page: Page = self.context.new_page()
-		self._current_page_id = str(id(self.page))
-		self._cached_state = self._update_state()
+		# Initialize these as None - they'll be set up when needed
+		self.session: BrowserSession | None = None
 
-	def get_browser(self) -> PlaywrightBrowser:
-		if self.browser is None:
-			self.browser = self._setup_browser()
-		return self.browser
+	async def _initialize_session(self):
+		"""Initialize the browser session"""
+		playwright = await async_playwright().start()
+		browser = await self._setup_browser(playwright)
+		context = await self._create_context(browser)
+		page = await context.new_page()
+		current_page_id = str(id(page))
 
-	def _setup_browser(self) -> PlaywrightBrowser:
+		# Instead of calling _update_state(), create an empty initial state
+		initial_state = BrowserState(
+			items=[],
+			selector_map={},
+			url=page.url,
+			title=await page.title(),
+			current_page_id=current_page_id,
+			tabs=[],
+			screenshot=None,
+		)
+
+		self.session = BrowserSession(
+			playwright=playwright,
+			browser=browser,
+			context=context,
+			page=page,
+			current_page_id=current_page_id,
+			cached_state=initial_state,
+		)
+
+		return self.session
+
+	async def get_session(self) -> BrowserSession:
+		"""Lazy initialization of the browser and related components"""
+		if self.session is None:
+			return await self._initialize_session()
+		return self.session
+
+	async def _setup_browser(self, playwright: Playwright) -> PlaywrightBrowser:
 		"""Sets up and returns a Playwright Browser instance with anti-detection measures."""
 		try:
 			chrome_args = [
@@ -53,7 +92,7 @@ class Browser:
 				'--disable-renderer-backgrounding',
 			]
 
-			browser = self.playwright.chromium.launch(
+			browser = await playwright.chromium.launch(
 				headless=self.headless,
 				args=chrome_args,
 			)
@@ -63,9 +102,9 @@ class Browser:
 			logger.error(f'Failed to initialize Playwright browser: {str(e)}')
 			raise
 
-	def _create_context(self):
+	async def _create_context(self, browser: PlaywrightBrowser):
 		"""Creates a new browser context with anti-detection measures."""
-		context = self.browser.new_context(
+		context = await browser.new_context(
 			viewport={'width': 1280, 'height': 1024},
 			user_agent=(
 				'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
@@ -75,7 +114,7 @@ class Browser:
 		)
 
 		# Expose anti-detection scripts
-		context.add_init_script(
+		await context.add_init_script(
 			"""
 			// Webdriver property
 			Object.defineProperty(navigator, 'webdriver', {
@@ -107,25 +146,20 @@ class Browser:
 
 		return context
 
-	def _get_page(self) -> Page:
-		if self.page is None:
-			self.context = self._create_context()
-			self.page = self.context.new_page()
-		return self.page
-
-	def wait_for_page_load(self):
+	async def wait_for_page_load(self):
 		"""
 		Ensures page is fully loaded before continuing.
 		Waits for either document.readyState to be complete or minimum WAIT_TIME, whichever is longer.
 		"""
-		page = self._get_page()
+		session = await self.get_session()
+		page = session.page
 
 		# Start timing
 		start_time = time.time()
 
 		# Wait for page load
 		try:
-			page.wait_for_load_state('load', timeout=5000)
+			await page.wait_for_load_state('load', timeout=5000)
 		except Exception:
 			pass
 
@@ -139,72 +173,129 @@ class Browser:
 
 		# Sleep remaining time if needed
 		if remaining > 0:
-			time.sleep(remaining)
+			await asyncio.sleep(remaining)
 
-	def _update_state(self, use_vision: bool = False) -> BrowserState:
-		"""
-		Update and return state.
-		"""
-		page = self._get_page()
-		dom_service = DomService(page)
-		content = dom_service.get_clickable_elements()
+	async def close(self, force: bool = False):
+		"""Close the browser instance"""
+		if force and not self.keep_open:
+			session = await self.get_session()
+			await session.browser.close()
+			await session.playwright.stop()
+		else:
+			# Note: input() is blocking - consider an async alternative if needed
+			input('Press Enter to close Browser...')
+			self.keep_open = False
+			await self.close(force=True)
+
+	def __del__(self):
+		"""Async cleanup when object is destroyed"""
+		if self.session is not None:
+			asyncio.run(self.close(force=True))
+
+	async def navigate_to(self, url: str):
+		"""Navigate to a URL"""
+		session = await self.get_session()
+		await session.page.goto(url)
+		await self.wait_for_page_load()
+
+	async def refresh_page(self):
+		"""Refresh the current page"""
+		session = await self.get_session()
+		await session.page.reload()
+		await self.wait_for_page_load()
+
+	async def go_back(self):
+		"""Navigate back in history"""
+		session = await self.get_session()
+		await session.page.go_back()
+		await self.wait_for_page_load()
+
+	async def go_forward(self):
+		"""Navigate forward in history"""
+		session = await self.get_session()
+		await session.page.go_forward()
+		await self.wait_for_page_load()
+
+	async def close_current_tab(self):
+		"""Close the current tab"""
+		session = await self.get_session()
+		page = session.page
+		await page.close()
+		# Switch to the first available tab if any exist
+		if session.context.pages:
+			session.page = session.context.pages[0]
+			session.current_page_id = str(id(session.page))
+			await self.wait_for_page_load()
+
+		# otherwise the browser will be closed
+
+	async def get_page_html(self) -> str:
+		"""Get the current page HTML content"""
+		session = await self.get_session()
+		page = session.page
+		return await page.content()
+
+	async def execute_javascript(self, script: str):
+		"""Execute JavaScript code on the page"""
+		session = await self.get_session()
+		page = session.page
+		return await page.evaluate(script)
+
+	@time_execution_sync('--get_state')  # This decorator might need to be updated to handle async
+	async def get_state(self, use_vision: bool = False) -> BrowserState:
+		"""Get the current state of the browser"""
+		session = await self.get_session()
+		session.cached_state = await self._update_state(use_vision=use_vision)
+		return session.cached_state
+
+	async def _update_state(self, use_vision: bool = False) -> BrowserState:
+		"""Update and return state."""
+		session = await self.get_session()
+		dom_service = DomService(session.page)
+		content = await dom_service.get_clickable_elements()  # Assuming this is async
 
 		screenshot_b64 = None
 		if use_vision:
-			screenshot_b64 = self.take_screenshot(selector_map=content.selector_map)
+			screenshot_b64 = await self.take_screenshot(selector_map=content.selector_map)
 
 		self.current_state = BrowserState(
 			items=content.items,
 			selector_map=content.selector_map,
-			url=page.url,
-			title=page.title(),
-			current_page_id=self._current_page_id,
-			tabs=self.get_tabs_info(),
+			url=session.page.url,
+			title=await session.page.title(),
+			current_page_id=session.current_page_id,
+			tabs=await self.get_tabs_info(),
 			screenshot=screenshot_b64,
 		)
 
 		return self.current_state
 
-	def close(self, force: bool = False):
-		if force:
-			if self.browser:
-				self.browser.close()
-				self.playwright.stop()
-		else:
-			input('Press Enter to close Browser...')
-			self.keep_open = False
-			self.close()
-
-	def __del__(self):
-		"""
-		Close the browser when instance is destroyed.
-		"""
-		if self.browser is not None:
-			self.close()
-
 	# region - Browser Actions
 
-	def take_screenshot(self, selector_map: SelectorMap | None, full_page: bool = False) -> str:
+	async def take_screenshot(
+		self, selector_map: SelectorMap | None, full_page: bool = False
+	) -> str:
 		"""
 		Returns a base64 encoded screenshot of the current page.
 		"""
-		page = self._get_page()
+		session = await self.get_session()
+		page = session.page
 
 		if selector_map:
-			self.highlight_selector_map_elements(selector_map)
+			await self.highlight_selector_map_elements(selector_map)
 
-		screenshot = page.screenshot(full_page=full_page)
+		screenshot = await page.screenshot(full_page=full_page, animations='disabled')
 		screenshot_b64 = base64.b64encode(screenshot).decode('utf-8')
 
 		if selector_map:
-			self.remove_highlights()
+			await self.remove_highlights()
 
 		return screenshot_b64
 
-	def highlight_selector_map_elements(self, selector_map: SelectorMap):
-		page = self._get_page()
-		# First remove any existing highlights/labels
-		self.remove_highlights()
+	async def highlight_selector_map_elements(self, selector_map: SelectorMap):
+		session = await self.get_session()
+		page = session.page
+		await self.remove_highlights()
 
 		script = """
 		const highlights = {
@@ -241,15 +332,16 @@ class Browser:
 		}
 		"""
 
-		page.evaluate(script)
+		await page.evaluate(script)
 
-	def remove_highlights(self):
+	async def remove_highlights(self):
 		"""
 		Removes all highlight outlines and labels created by highlight_selector_map_elements
 
 		"""
-		page = self._get_page()
-		page.evaluate(
+		session = await self.get_session()
+		page = session.page
+		await page.evaluate(
 			"""
 			// Remove all highlight outlines
 			const highlightedElements = document.querySelectorAll('[browser-user-highlight-id="playwright-highlight"]');
@@ -269,60 +361,51 @@ class Browser:
 
 	# region - User Actions
 
-	def _input_text_by_xpath(self, xpath: str, text: str):
-		page = self._get_page()
+	async def _input_text_by_xpath(self, xpath: str, text: str):
+		session = await self.get_session()
+		page = session.page
 
 		try:
-			# Wait for element to be both present and visible
-			element = page.wait_for_selector(f'xpath={xpath}', timeout=10000, state='visible')
+			element = await page.wait_for_selector(f'xpath={xpath}', timeout=10000, state='visible')
 
 			if element is None:
 				raise Exception(f'Element with xpath: {xpath} not found')
 
-			# Scroll element into view
-			element.scroll_into_view_if_needed()
-
-			# Clear the input field
-			element.fill('')
-
-			# Then fill with text
-			element.type(text)
-
-			self.wait_for_page_load()
+			await element.scroll_into_view_if_needed()
+			await element.fill('')
+			await element.type(text)
+			await self.wait_for_page_load()
 
 		except Exception as e:
 			raise Exception(
 				f'Failed to input text into element with xpath: {xpath}. Error: {str(e)}'
 			)
 
-	def _click_element_by_xpath(self, xpath: str):
+	async def _click_element_by_xpath(self, xpath: str):
 		"""
 		Optimized method to click an element using xpath.
 		"""
-		page = self._get_page()
+		session = await self.get_session()
+		page = session.page
 
 		try:
-			# Wait for element to be clickable
-			element = page.wait_for_selector(f'xpath={xpath}', timeout=10000, state='visible')
+			element = await page.wait_for_selector(f'xpath={xpath}', timeout=10000, state='visible')
 
 			if element is None:
 				raise Exception(f'Element with xpath: {xpath} not found')
 
-			# Scroll into view if needed
-			element.scroll_into_view_if_needed()
+			await element.scroll_into_view_if_needed()
 
-			# Try to click directly
 			try:
-				element.click()
-				self.wait_for_page_load()
+				await element.click()
+				await self.wait_for_page_load()
 				return
 			except Exception:
 				pass
 
-			# If direct click fails, try JavaScript click
 			try:
-				page.evaluate('(el) => el.click()', element)
-				self.wait_for_page_load()
+				await page.evaluate('(el) => el.click()', element)
+				await self.wait_for_page_load()
 				return
 			except Exception as e:
 				raise Exception(f'Failed to click element: {str(e)}')
@@ -330,78 +413,75 @@ class Browser:
 		except Exception as e:
 			raise Exception(f'Failed to click element with xpath: {xpath}. Error: {str(e)}')
 
-	def handle_new_tab(self) -> None:
+	async def handle_new_tab(self) -> None:
 		"""Handle newly opened tab and switch to it"""
-		context = self.page.context
+		session = await self.get_session()
+		page = session.page
+		context = page.context
 		pages = context.pages
-		new_page = pages[-1]  # Get most recently opened page
+		new_page = pages[-1]
 
-		# Switch to new page
-		self.page = new_page
-		self._current_page_id = str(id(new_page))
+		session.page = new_page
+		session.current_page_id = str(id(new_page))
 
-		# Wait for page load
-		self.wait_for_page_load()
+		await self.wait_for_page_load()
 
-		# Create and cache tab info
-		tab_info = TabInfo(page_id=self._current_page_id, url=new_page.url, title=new_page.title())
-		self._tab_cache[self._current_page_id] = tab_info
+		tab_info = TabInfo(
+			page_id=session.current_page_id, url=new_page.url, title=await new_page.title()
+		)
+		session.opened_tabs[session.current_page_id] = tab_info
 
-	def get_tabs_info(self) -> list[TabInfo]:
+	async def get_tabs_info(self) -> list[TabInfo]:
 		"""Get information about all tabs"""
-		context = self.page.context
+		session = await self.get_session()
+		page = session.page
+		context = page.context
 		pages = context.pages
-		current_page = self.page
-		self._current_page_id = str(id(current_page))
+		current_page = page
+		session.current_page_id = str(id(current_page))
 
 		tabs_info = []
 		for page in pages:
 			page_id = str(id(page))
-			# Use cached info if available, otherwise get new info
-			if page_id in self._tab_cache:
-				tab_info = self._tab_cache[page_id]
-				# Update URL and title in case they changed
+			if page_id in session.opened_tabs:
+				tab_info = session.opened_tabs[page_id]
 				tab_info.url = page.url
-				tab_info.title = page.title()
+				tab_info.title = await page.title()
 			else:
-				tab_info = TabInfo(page_id=page_id, url=page.url, title=page.title())
-				self._tab_cache[page_id] = tab_info
+				tab_info = TabInfo(page_id=page_id, url=page.url, title=await page.title())
+				session.opened_tabs[page_id] = tab_info
 
 			tabs_info.append(tab_info)
 
 		return tabs_info
 
-	def switch_to_tab(self, page_id: str) -> None:
+	async def switch_to_tab(self, page_id: str) -> None:
 		"""Switch to a specific tab by its page_id"""
-		context = self.page.context
+		session = await self.get_session()
+		page = session.page
+		context = page.context
 		pages = context.pages
 
 		for page in pages:
 			if str(id(page)) == page_id:
-				page.bring_to_front()
-				self.page = page
-				self._current_page_id = page_id
-				self.wait_for_page_load()
+				await page.bring_to_front()
+				session.page = page
+				session.current_page_id = page_id
+				await self.wait_for_page_load()
 				return
 
 		raise ValueError(f'No tab found with page_id: {page_id}')
 
-	def create_new_tab(self, url: str = None) -> None:
+	async def create_new_tab(self, url: str | None = None) -> None:
 		"""Create a new tab and optionally navigate to a URL"""
-		new_page = self.context.new_page()
-		self.page = new_page
-		self._current_page_id = str(id(new_page))
+		session = await self.get_session()
+		page = session.page
+		new_page = await page.context.new_page()
+		session.page = new_page
+		session.current_page_id = str(id(new_page))
 
 		if url:
-			new_page.goto(url)
-			self.wait_for_page_load()
+			await new_page.goto(url)
+			await self.wait_for_page_load()
 
 	# endregion
-
-	@time_execution_sync('--get_state')
-	def get_state(self, use_vision: bool = False) -> BrowserState:
-		"""
-		Get the current state of the browser including page content and tab information.
-		"""
-		self._cached_state = self._update_state(use_vision=use_vision)
-		return self._cached_state

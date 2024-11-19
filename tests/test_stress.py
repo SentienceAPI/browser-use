@@ -1,4 +1,3 @@
-import asyncio
 import time
 
 import pytest
@@ -22,7 +21,7 @@ async def controller():
 		yield controller
 	finally:
 		if controller.browser:
-			controller.browser.close(force=True)
+			await controller.browser.close(force=True)
 
 
 # should get rate limited

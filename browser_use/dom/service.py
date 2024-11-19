@@ -3,7 +3,7 @@ import logging
 from typing import Optional
 
 from bs4 import BeautifulSoup, NavigableString, PageElement, Tag
-from playwright.sync_api import Page
+from playwright.async_api import Page
 
 from browser_use.dom.views import (
 	BatchCheckResults,
@@ -12,7 +12,7 @@ from browser_use.dom.views import (
 	ProcessedDomContent,
 	TextCheckResult,
 )
-from browser_use.utils import time_execution_sync
+from browser_use.utils import time_execution_async
 
 logger = logging.getLogger(__name__)
 
@@ -22,13 +22,43 @@ class DomService:
 		self.page = page
 		self.xpath_cache = {}
 
-	def get_clickable_elements(self) -> ProcessedDomContent:
+	async def get_clickable_elements(self) -> ProcessedDomContent:
 		self.xpath_cache = {}
-		html_content = self.page.content()
-		return self._process_content(html_content)
+		html_content = await self._get_html_content()
+		return await self._process_content(html_content)
 
-	@time_execution_sync('--_process_content')
-	def _process_content(self, html_content: str) -> ProcessedDomContent:
+	async def _get_html_content(self, with_shadow_roots: bool = True) -> str:
+		"""
+		Get all DOM content including all shadow roots recursively.
+
+		@param with_shadow_roots: If you want to include shadow roots in the content it's a bit slower but worth it in most cases.
+		"""
+		if with_shadow_roots:
+			full_content = await self.page.evaluate("""() => {
+				function getAllContent(root) {
+					let content = root.innerHTML || '';
+					
+					// Get all elements with shadow roots
+					const elements = root.querySelectorAll('*');
+					elements.forEach(element => {
+						if (element.shadowRoot) {
+							// Add a marker for shadow root start
+							content += `<shadow-root host="${element.tagName.toLowerCase()}">`;
+							content += getAllContent(element.shadowRoot);
+							content += '</shadow-root>';
+						}
+					});
+					
+					return content;
+				}
+				
+				return `<html><body>${getAllContent(document.body)}</body></html>`;
+			}""")
+			return full_content
+		return await self.page.content()
+
+	@time_execution_async('--_process_content')
+	async def _process_content(self, html_content: str) -> ProcessedDomContent:
 		soup = BeautifulSoup(html_content, 'html.parser')
 
 		output_items: list[DomContentItem] = []
@@ -82,8 +112,8 @@ class DomService:
 						xpath_order_counter += 1
 
 		# Batch check all elements
-		element_results = self._batch_check_elements(interactive_elements)
-		text_results = self._batch_check_texts(text_nodes)
+		element_results = await self._batch_check_elements(interactive_elements)
+		text_results = await self._batch_check_texts(text_nodes)
 
 		# Create ordered results
 		ordered_results: list[
@@ -134,59 +164,61 @@ class DomService:
 
 		return ProcessedDomContent(items=output_items, selector_map=selector_map)
 
-	def _batch_check_elements(self, elements: dict[str, tuple[Tag, int]]) -> BatchCheckResults:
+	async def _batch_check_elements(
+		self, elements: dict[str, tuple[Tag, int]]
+	) -> BatchCheckResults:
 		if not elements:
 			return BatchCheckResults(elements={}, texts={})
 
 		check_script = """
-			const results = {};
-			const elements = %s;
-			
-			for (const [xpath, elementData] of Object.entries(elements)) {
-				const element = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-				if (!element) continue;
+			(function() {
+				const results = {};
+				const elements = %s;
 				
-				// Check visibility using Playwright's isVisible()
-				const isVisible = element.offsetWidth > 0 && 
-								element.offsetHeight > 0 && 
-								window.getComputedStyle(element).visibility !== 'hidden' &&
-								window.getComputedStyle(element).display !== 'none';
-				
-				if (!isVisible) continue;
-				
-				// Check if topmost
-				const rect = element.getBoundingClientRect();
-				const points = [
-					{x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.25},
-					{x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.25},
-					{x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.75},
-					{x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.75},
-					{x: rect.left + rect.width / 2, y: rect.top + rect.height / 2}
-				];
-				
-				const isTopElement = points.some(point => {
-					const topEl = document.elementFromPoint(point.x, point.y);
-					let current = topEl;
-					while (current && current !== document.body) {
-						if (current === element) return true;
-						current = current.parentElement;
+				for (const [xpath, elementData] of Object.entries(elements)) {
+					const element = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+					if (!element) continue;
+					
+					const isVisible = element.offsetWidth > 0 && 
+									element.offsetHeight > 0 && 
+									window.getComputedStyle(element).visibility !== 'hidden' &&
+									window.getComputedStyle(element).display !== 'none';
+					
+					if (!isVisible) continue;
+					
+					const rect = element.getBoundingClientRect();
+					const points = [
+						{x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.25},
+						{x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.25},
+						{x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.75},
+						{x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.75},
+						{x: rect.left + rect.width / 2, y: rect.top + rect.height / 2}
+					];
+					
+					const isTopElement = points.some(point => {
+						const topEl = document.elementFromPoint(point.x, point.y);
+						let current = topEl;
+						while (current && current !== document.body) {
+							if (current === element) return true;
+							current = current.parentElement;
+						}
+						return false;
+					});
+					
+					if (isTopElement) {
+						results[xpath] = {
+							xpath: xpath,
+							isVisible: true,
+							isTopElement: true
+						};
 					}
-					return false;
-				});
-				
-				if (isTopElement) {
-					results[xpath] = {
-						xpath: xpath,
-						isVisible: true,
-						isTopElement: true
-					};
 				}
-			}
-			return results;
+				return results;
+			})();
 		""" % json.dumps({xpath: {} for xpath in elements.keys()})
 
 		try:
-			results = self.page.evaluate(check_script)
+			results = await self.page.evaluate(check_script)
 			return BatchCheckResults(
 				elements={xpath: ElementCheckResult(**data) for xpath, data in results.items()},
 				texts={},
@@ -195,14 +227,14 @@ class DomService:
 			logger.error('Error in batch element check: %s', e)
 			return BatchCheckResults(elements={}, texts={})
 
-	def _batch_check_texts(
+	async def _batch_check_texts(
 		self, texts: dict[str, tuple[NavigableString, int]]
 	) -> BatchCheckResults:
 		if not texts:
 			return BatchCheckResults(elements={}, texts={})
 
 		check_script = """
-			return (function() {
+			(function() {
 				const results = {};
 				const texts = %s;
 				
@@ -248,7 +280,7 @@ class DomService:
 		)
 
 		try:
-			results = self.page.evaluate(check_script)
+			results = await self.page.evaluate(check_script)
 			return BatchCheckResults(
 				elements={},
 				texts={xpath: TextCheckResult(**data) for xpath, data in results.items()},

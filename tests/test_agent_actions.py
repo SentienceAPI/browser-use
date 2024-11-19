@@ -1,7 +1,4 @@
-import asyncio
-
 import pytest
-from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
 
@@ -27,7 +24,7 @@ async def agent_with_controller():
 		yield controller
 	finally:
 		if controller.browser:
-			controller.browser.close(force=True)
+			await controller.browser.close(force=True)
 
 
 @pytest.mark.asyncio

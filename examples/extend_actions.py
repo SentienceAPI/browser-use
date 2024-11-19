@@ -48,8 +48,9 @@ class PageSaver(BaseModel):
 
 
 @controller.action('Save current page info', param_model=PageSaver, requires_browser=True)
-def save_page_info(params: PageSaver, browser: Browser):
-	state = browser.get_state()
+async def save_page_info(params: PageSaver, browser: Browser):
+	session = await browser.get_session()
+	state = session.cached_state
 	with open(params.filename, 'w') as f:
 		f.write(f'URL: {state.url}\n')
 		f.write(f'Title: {state.title}\n')

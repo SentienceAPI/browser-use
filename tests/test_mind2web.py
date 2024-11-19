@@ -3,7 +3,6 @@ Test browser automation using Mind2Web dataset tasks with pytest framework.
 """
 
 import json
-import logging
 import os
 from typing import Any, Dict, List
 
@@ -47,7 +46,7 @@ async def controller():
 		yield controller
 	finally:
 		if controller.browser:
-			controller.browser.close(force=True)
+			await controller.browser.close(force=True)
 
 
 # run with: pytest -s -v tests/test_mind2web.py:test_random_samples
