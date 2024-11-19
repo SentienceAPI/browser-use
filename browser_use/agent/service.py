@@ -6,7 +6,7 @@ import os
 import time
 import uuid
 from datetime import datetime
-from typing import Any, Optional, TypeVar
+from typing import Any, Optional, Type, TypeVar
 
 from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
@@ -52,7 +52,7 @@ class Agent:
 		save_conversation_path: Optional[str] = None,
 		max_failures: int = 5,
 		retry_delay: int = 10,
-		system_prompt: Optional[SystemPrompt] = None,
+		system_prompt_class: Type[SystemPrompt] = SystemPrompt,
 	):
 		self.agent_id = str(uuid.uuid4())  # unique identifier for the agent
 
@@ -65,7 +65,7 @@ class Agent:
 		self.controller_injected = controller is not None
 		self.controller = controller or Controller()
 
-		self.system_prompt = system_prompt
+		self.system_prompt_class = system_prompt_class
 
 		# Telemetry setup
 		self.telemetry = ProductTelemetry()
@@ -105,17 +105,8 @@ class Agent:
 		"""Initialize message history with system and first message"""
 		# Get action descriptions from controller's registry
 		action_descriptions = self.controller.registry.get_prompt_description()
-		if self.system_prompt is not None:
-			system_prompt = self.system_prompt
-		else:
-			system_prompt = SystemPrompt(
-				action_description=action_descriptions,
-				current_date=datetime.now(),
-			)
-			self.system_prompt = system_prompt
-
-		self.messages.append(system_prompt.get_system_message())
-
+		self.system_prompt = self.system_prompt_class(action_descriptions, datetime.now())
+		self.messages.append(self.system_prompt.get_system_message())
 		self.set_task(self.task)
 
 	def set_task(self, task: str) -> None:
