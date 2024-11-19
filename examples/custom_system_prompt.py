@@ -29,7 +29,11 @@ async def main():
 	model = ChatOpenAI(model='gpt-4o')
 	agent = Agent(task=task, llm=model, system_prompt_class=MySystemPrompt)
 
-	print(json.dumps(agent.system_prompt.get_system_message().model_dump(), indent=4))
+	print(
+		json.dumps(
+			agent.system_prompt.get_system_message().model_dump(exclude_unset=True), indent=4
+		)
+	)
 
 	await agent.run()
 
