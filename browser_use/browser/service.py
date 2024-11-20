@@ -372,7 +372,7 @@ class Browser:
 			if element is None:
 				raise Exception(f'Element with xpath: {xpath} not found')
 
-			await element.scroll_into_view_if_needed(timeout=5000)
+			await element.scroll_into_view_if_needed(timeout=2500)
 			await element.fill('')
 			await element.type(text)
 			await self.wait_for_page_load()
@@ -397,7 +397,7 @@ class Browser:
 			# await element.scroll_into_view_if_needed()
 
 			try:
-				await element.click(timeout=5000)
+				await element.click(timeout=2500)
 				await self.wait_for_page_load()
 				return
 			except Exception:
