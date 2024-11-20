@@ -86,7 +86,7 @@ class Controller:
 			if len(driver.window_handles) > initial_handles:
 				browser.handle_new_tab()
 
-			return ActionResult(extracted_content=f'Clicked element {msg}')
+			return ActionResult(extracted_content=f'{msg}')
 
 		@self.registry.action('Input text', param_model=InputTextAction, requires_browser=True)
 		def input_text(params: InputTextAction, browser: Browser):

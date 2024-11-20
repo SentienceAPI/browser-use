@@ -156,14 +156,15 @@ class Agent:
 			logger.error(f'{prefix}{error_msg}')
 			self.consecutive_failures += 1
 
-		return ActionResult(error=error_msg)
+		return ActionResult(error=error_msg, include_in_memory=True)
 
 	def _update_messages_with_result(self, result: ActionResult) -> None:
 		"""Update message history with action results"""
-		if result.extracted_content:
-			self.messages.append(HumanMessage(content=result.extracted_content))
-		if result.error:
-			self.messages.append(HumanMessage(content=result.error))
+		if result.include_in_memory:
+			if result.extracted_content:
+				self.messages.append(HumanMessage(content=result.extracted_content))
+			if result.error:
+				self.messages.append(HumanMessage(content=result.error))
 
 	def _make_history_item(
 		self,

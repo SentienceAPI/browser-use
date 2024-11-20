@@ -48,6 +48,7 @@ class ActionResult(BaseModel):
 	is_done: Optional[bool] = False
 	extracted_content: Optional[str] = None
 	error: Optional[str] = None
+	include_in_memory: bool = False  # whether to include in past messages as context or not
 
 
 class AgentBrain(BaseModel):
