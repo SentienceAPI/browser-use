@@ -15,9 +15,11 @@ from langchain_openai import ChatOpenAI
 
 from browser_use import Agent
 
+# NOTE: captchas are hard. For this example it works. But e.g. for iframes it does not.
+# for this example it helps to zoom in.
 llm = ChatOpenAI(model='gpt-4o')
 agent = Agent(
-	task='Find flights on kayak.com from Zurich to Beijing on 25.12.2024 to 02.02.2025',
+	task='go to https://captcha.com/demos/features/captcha-demo.aspx and solve the captcha',
 	llm=llm,
 )
 
