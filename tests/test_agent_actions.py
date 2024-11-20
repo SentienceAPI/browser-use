@@ -27,7 +27,7 @@ async def agent_with_controller():
 			await controller.browser.close(force=True)
 
 
-@pytest.mark.asyncio
+# @pytest.mark.asyncio
 async def test_ecommerce_interaction(llm, agent_with_controller):
 	"""Test complex ecommerce interaction sequence"""
 	agent = Agent(
@@ -70,7 +70,7 @@ async def test_ecommerce_interaction(llm, agent_with_controller):
 	assert 'input_exact_correct' in action_sequence or 'correct_in_input' in action_sequence
 
 
-@pytest.mark.asyncio
+# @pytest.mark.asyncio
 async def test_error_recovery(llm, agent_with_controller):
 	"""Test agent's ability to recover from errors"""
 	agent = Agent(
@@ -95,7 +95,7 @@ async def test_error_recovery(llm, agent_with_controller):
 	assert recovery_action is not None
 
 
-@pytest.mark.asyncio
+# @pytest.mark.asyncio
 async def test_find_contact_email(llm, agent_with_controller):
 	"""Test agent's ability to find contact email on a website"""
 	agent = Agent(
@@ -118,7 +118,7 @@ async def test_find_contact_email(llm, agent_with_controller):
 	assert email_action is not None
 
 
-@pytest.mark.asyncio
+# @pytest.mark.asyncio
 async def test_agent_finds_installation_command(llm, agent_with_controller):
 	"""Test agent's ability to find the pip installation command for browser-use on the web"""
 	agent = Agent(

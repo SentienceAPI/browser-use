@@ -18,7 +18,7 @@ from browser_use import Agent
 llm = ChatOpenAI(model='gpt-4o')
 agent = Agent(
 	task='Find a one-way flight from Bali to Oman on 12 January 2025 on Google Flights. Return me the cheapest option.',
-	llm=ChatOpenAI(model='gpt-4o'),
+	llm=llm,
 )
 
 

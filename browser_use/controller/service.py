@@ -4,7 +4,6 @@ from main_content_extractor import MainContentExtractor
 
 from browser_use.agent.views import ActionModel, ActionResult
 from browser_use.browser.service import Browser
-from browser_use.browser.views import TabInfo
 from browser_use.controller.registry.service import Registry
 from browser_use.controller.views import (
 	ClickElementAction,
@@ -35,22 +34,19 @@ class Controller:
 			'Search Google', param_model=SearchGoogleAction, requires_browser=True
 		)
 		async def search_google(params: SearchGoogleAction, browser: Browser):
-			session = await browser.get_session()
-			page = session.page
+			page = await browser.get_current_page()
 			await page.goto(f'https://www.google.com/search?q={params.query}')
 			await browser.wait_for_page_load()
 
 		@self.registry.action('Navigate to URL', param_model=GoToUrlAction, requires_browser=True)
 		async def go_to_url(params: GoToUrlAction, browser: Browser):
-			session = await browser.get_session()
-			page = session.page
+			page = await browser.get_current_page()
 			await page.goto(params.url)
 			await browser.wait_for_page_load()
 
 		@self.registry.action('Go back', requires_browser=True)
 		async def go_back(browser: Browser):
-			session = await browser.get_session()
-			page = session.page
+			page = await browser.get_current_page()
 			await page.go_back()
 			await browser.wait_for_page_load()
 
@@ -69,15 +65,13 @@ class Controller:
 				)
 
 			xpath = state.selector_map[params.index]
-			session = await browser.get_session()
-			page = session.page
-			initial_pages = len(page.context.pages)
+			initial_pages = len(session.context.pages)
 
 			msg = None
 
 			for _ in range(params.num_clicks):
 				try:
-					await browser._click_element_by_xpath(xpath)
+					await browser._click_element_by_xpath(xpath, click_count=params.num_clicks)
 					msg = f'🖱️  Clicked element {params.index}: {xpath}'
 					if params.num_clicks > 1:
 						msg += f' ({_ + 1}/{params.num_clicks} clicks)'
@@ -85,8 +79,8 @@ class Controller:
 					logger.warning(f'Element no longer available after {_ + 1} clicks: {str(e)}')
 					break
 
-			if len(page.context.pages) > initial_pages:
-				await browser.handle_new_tab()
+			if len(session.context.pages) > initial_pages:
+				await browser.switch_to_tab(-1)
 
 			return ActionResult(extracted_content=f'Clicked element {msg}')
 
@@ -108,38 +102,20 @@ class Controller:
 		# Tab Management Actions
 		@self.registry.action('Switch tab', param_model=SwitchTabAction, requires_browser=True)
 		async def switch_tab(params: SwitchTabAction, browser: Browser):
-			session = await browser.get_session()
-			page = session.page
-
-			# Verify handle exists
-			if params.page_id not in session.opened_tabs:
-				raise ValueError(f'Tab {params.page_id} not found')
-
-			# Only switch if we're not already on that tab
-			if params.page_id != session.current_page_id:
-				await browser.switch_to_tab(params.page_id)
-				# Wait for tab to be ready
-				await browser.wait_for_page_load()
-
-			# Update and return tab info
-			tab_info = TabInfo(page_id=params.page_id, url=page.url, title=await page.title())
-			session.opened_tabs[params.page_id] = tab_info
+			await browser.switch_to_tab(params.page_id)
+			# Wait for tab to be ready
+			await browser.wait_for_page_load()
 
 		@self.registry.action('Open new tab', param_model=OpenTabAction, requires_browser=True)
 		async def open_tab(params: OpenTabAction, browser: Browser):
-			session = await browser.get_session()
-			page = session.page
-			await page.evaluate(f'window.open("{params.url}", "_blank");')
-			await browser.wait_for_page_load()
-			await browser.handle_new_tab()
+			await browser.create_new_tab(params.url)
 
 		# Content Actions
 		@self.registry.action(
 			'Extract page content', param_model=ExtractPageContentAction, requires_browser=True
 		)
 		async def extract_content(params: ExtractPageContentAction, browser: Browser):
-			session = await browser.get_session()
-			page = session.page
+			page = await browser.get_current_page()
 
 			content = MainContentExtractor.extract(  # type: ignore
 				html=await page.content(),

@@ -27,7 +27,7 @@ class DoneAction(BaseModel):
 
 
 class SwitchTabAction(BaseModel):
-	page_id: str
+	page_id: int
 
 
 class OpenTabAction(BaseModel):

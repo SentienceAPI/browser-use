@@ -9,7 +9,7 @@ from browser_use.dom.views import ProcessedDomContent
 class TabInfo(BaseModel):
 	"""Represents information about a browser tab"""
 
-	page_id: str
+	page_id: int
 	url: str
 	title: str
 
@@ -17,7 +17,6 @@ class TabInfo(BaseModel):
 class BrowserState(ProcessedDomContent):
 	url: str
 	title: str
-	current_page_id: str
 	tabs: list[TabInfo]
 	screenshot: Optional[str] = None
 
@@ -29,3 +28,7 @@ class BrowserState(ProcessedDomContent):
 				f'Tab {i+1}: {tab.title} ({tab.url})' for i, tab in enumerate(self.tabs)
 			]
 		return dump
+
+
+class BrowserError(Exception):
+	"""Base class for all browser errors"""

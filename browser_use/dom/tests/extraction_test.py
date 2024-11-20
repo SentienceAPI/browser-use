@@ -11,8 +11,7 @@ from browser_use.utils import time_execution_sync
 async def test_process_html_file():
 	browser = Browser(headless=False)
 
-	session = await browser.get_session()
-	page = session.page
+	page = await browser.get_current_page()
 
 	dom_service = DomService(page)
 

@@ -1,5 +1,3 @@
-import time
-
 import pytest
 
 from browser_use.browser.service import Browser
@@ -14,11 +12,11 @@ async def test_highlight_elements():
 
 	print(session)
 
-	page = session.page
+	page = await browser.get_current_page()
 	# await page.goto('https://immobilienscout24.de')
 	await page.goto('https://kayak.com')
 
-	time.sleep(3)
+	# time.sleep(3)
 	# browser._click_element_by_xpath(
 	# 	'/html/body/div[5]/div/div[2]/div/div/div[3]/div/div[1]/button[1]'
 	# )
