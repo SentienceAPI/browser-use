@@ -41,18 +41,27 @@ class Controller:
 			driver = browser._get_driver()
 			driver.get(f'https://www.google.com/search?q={params.query}')
 			browser.wait_for_page_load()
+			return ActionResult(
+				extracted_content=f'Searched for {params.query}', include_in_memory=True
+			)
 
 		@self.registry.action('Navigate to URL', param_model=GoToUrlAction, requires_browser=True)
 		def go_to_url(params: GoToUrlAction, browser: Browser):
 			driver = browser._get_driver()
 			driver.get(params.url)
 			browser.wait_for_page_load()
+			return ActionResult(
+				extracted_content=f'Navigated to {params.url}', include_in_memory=True
+			)
 
 		@self.registry.action('Go back', requires_browser=True)
 		def go_back(browser: Browser):
 			driver = browser._get_driver()
 			driver.back()
 			browser.wait_for_page_load()
+			return ActionResult(
+				extracted_content=f'Navigated back to {driver.current_url}', include_in_memory=True
+			)
 
 		# Element Interaction Actions
 		@self.registry.action(
@@ -120,6 +129,10 @@ class Controller:
 			# Update and return tab info
 			tab_info = TabInfo(handle=params.handle, url=driver.current_url, title=driver.title)
 			browser._tab_cache[params.handle] = tab_info
+			return ActionResult(
+				extracted_content=f'Switched to tab {params.handle}: {driver.current_url}',
+				include_in_memory=True,
+			)
 
 		@self.registry.action('Open new tab', param_model=OpenTabAction, requires_browser=True)
 		def open_tab(params: OpenTabAction, browser: Browser):
@@ -127,6 +140,9 @@ class Controller:
 			driver.execute_script(f'window.open("{params.url}", "_blank");')
 			browser.wait_for_page_load()
 			browser.handle_new_tab()
+			return ActionResult(
+				extracted_content=f'Opened new tab {params.url}', include_in_memory=True
+			)
 
 		# Content Actions
 		@self.registry.action(
@@ -161,6 +177,12 @@ class Controller:
 				body = driver.find_element(By.TAG_NAME, 'body')
 				body.send_keys(Keys.PAGE_DOWN)
 
+			amount = params.amount if params.amount is not None else 'one page'
+			return ActionResult(
+				extracted_content=f'Scrolled down the page by {amount} pixels',
+				include_in_memory=True,
+			)
+
 		# scroll up
 		@self.registry.action(
 			'Scroll up the page by pixel amount',
@@ -170,6 +192,12 @@ class Controller:
 		def scroll_up(params: ScrollDownAction, browser: Browser):
 			driver = browser._get_driver()
 			driver.execute_script(f'window.scrollBy(0, -{params.amount});')
+
+			amount = params.amount if params.amount is not None else 'one page'
+			return ActionResult(
+				extracted_content=f'Scrolled up the page by {amount} pixels',
+				include_in_memory=True,
+			)
 
 	def action(self, description: str, **kwargs):
 		"""Decorator for registering custom actions

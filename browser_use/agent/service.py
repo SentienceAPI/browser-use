@@ -11,7 +11,13 @@ from typing import Any, Optional, Type, TypeVar
 from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages import (
+	AIMessage,
+	BaseMessage,
+	HumanMessage,
+	SystemMessage,
+	get_buffer_string,
+)
 from langchain_openai import ChatOpenAI
 from openai import RateLimitError
 from pydantic import BaseModel, ValidationError
@@ -34,7 +40,7 @@ from browser_use.telemetry.views import (
 	AgentRunTelemetryEvent,
 	AgentStepErrorTelemetryEvent,
 )
-from browser_use.utils import time_execution_async
+from browser_use.utils import time_execution_async, time_execution_sync
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -53,6 +59,7 @@ class Agent:
 		max_failures: int = 5,
 		retry_delay: int = 10,
 		system_prompt_class: Type[SystemPrompt] = SystemPrompt,
+		max_input_tokens: int = 128000,
 	):
 		self.agent_id = str(uuid.uuid4())  # unique identifier for the agent
 
@@ -82,6 +89,7 @@ class Agent:
 		self.consecutive_failures = 0
 		self.max_failures = max_failures
 		self.retry_delay = retry_delay
+		self.max_input_tokens = max_input_tokens
 
 		if save_conversation_path:
 			logger.info(f'Saving conversation to {save_conversation_path}')
@@ -160,11 +168,16 @@ class Agent:
 
 	def _update_messages_with_result(self, result: ActionResult) -> None:
 		"""Update message history with action results"""
+		l = len(self.messages)
 		if result.include_in_memory:
 			if result.extracted_content:
 				self.messages.append(HumanMessage(content=result.extracted_content))
 			if result.error:
 				self.messages.append(HumanMessage(content=result.error))
+
+		# if no update make empty message
+		if len(self.messages) == l:
+			self.messages.append(HumanMessage(content=''))
 
 	def _make_history_item(
 		self,
@@ -175,6 +188,56 @@ class Agent:
 		"""Create and store history item"""
 		history_item = AgentHistory(model_output=model_output, result=result, state=state)
 		self.history.append(history_item)
+
+	@time_execution_sync('--cut_input_messages')
+	def _cut_input_messages(self, input_messages: list[BaseMessage]) -> list[BaseMessage]:
+		"""Cut input messages to max input tokens"""
+
+		# NOTE: Tools are not included in token count for now
+		token_count = self._calc_token_count(input_messages)
+		# error checking if first and last message are too long together
+
+		# check system message too long
+		if token_count[0] > self.max_input_tokens:
+			raise ValueError('System message is too long')
+
+		# check current message too long
+		if token_count[0] + token_count[-1] > self.max_input_tokens:
+			current_message = input_messages[-1]
+			system_message = input_messages[0]
+
+			# cut current message
+			available_tokens = self.max_input_tokens - token_count[0]
+
+			# binary search to find the longest message that can be cut
+			message_content = get_buffer_string([current_message])
+			low = 0
+			high = len(current_message.content)
+			while low < high:
+				mid = (low + high) // 2
+				if self.llm.get_num_tokens(message_content[:mid]) > available_tokens:
+					high = mid
+				else:
+					low = mid + 1
+			current_message.content = current_message.content[:low]
+			input_messages = [system_message, current_message]
+			self.messages = [system_message]
+			return input_messages
+
+		# remove messages from 1 to -2 until token count is less than max input tokens
+		while sum(token_count) > self.max_input_tokens:
+			token_count.pop(1)
+			input_messages.pop(1)
+			logger.debug(f'Cutting history message to reduce token count: {input_messages[1]}')
+
+		# update messages
+		self.messages = input_messages[:-1]
+
+		return input_messages
+
+	def _calc_token_count(self, messages: list[BaseMessage]) -> list[int]:
+		"""Calculate token count of messages"""
+		return [self.llm.get_num_tokens(get_buffer_string([m])) for m in messages]
 
 	@time_execution_async('--get_next_action')
 	async def get_next_action(self, state: BrowserState) -> AgentOutput:
@@ -187,9 +250,11 @@ class Agent:
 
 		parsed: AgentOutput = response['parsed']
 
-		self._update_message_history(state, parsed)
+		self._update_message_history(response)
 		self._log_response(parsed)
 		self._save_conversation(input_messages, parsed)
+		self.n_steps += 1
+
 		# self._update_usage_metadata(response['raw'])
 		return parsed
 
@@ -318,12 +383,9 @@ class Agent:
 				f'🔢 Last  Tokens: input: {current_tokens.input_tokens} (cached: {current_tokens.input_token_details.cache_read}) + output: {current_tokens.output_tokens} = {current_tokens.total_tokens} '
 			)
 
-	def _update_message_history(self, state: BrowserState, response: Any) -> None:
+	def _update_message_history(self, response: Any) -> None:
 		"""Update message history with new interactions"""
-		history_message = AgentMessagePrompt(state).get_message_for_history()
-		self.messages.append(history_message)
 		self.messages.append(AIMessage(content=response.model_dump_json(exclude_unset=True)))
-		self.n_steps += 1
 
 	def _log_response(self, response: Any) -> None:
 		"""Log the model's response"""

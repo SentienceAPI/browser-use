@@ -124,6 +124,3 @@ Interactive elements:
 			)
 
 		return HumanMessage(content=state_description)
-
-	def get_message_for_history(self) -> HumanMessage:
-		return HumanMessage(content=f'Step url: {self.state.url}')
