@@ -71,7 +71,7 @@ class Controller:
 
 			for _ in range(params.num_clicks):
 				try:
-					await browser._click_element_by_xpath(xpath, click_count=params.num_clicks)
+					await browser._click_element_by_xpath(xpath)
 					msg = f'🖱️  Clicked element {params.index}: {xpath}'
 					if params.num_clicks > 1:
 						msg += f' ({_ + 1}/{params.num_clicks} clicks)'
