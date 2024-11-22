@@ -6,10 +6,11 @@ from browser_use.browser.service import Browser
 
 
 @pytest.fixture
-def browser():
+async def browser():
 	browser_service = Browser(headless=True)
 	yield browser_service
-	browser_service.close()
+
+	await browser_service.close()
 
 
 # @pytest.mark.skip(reason='takes too long')

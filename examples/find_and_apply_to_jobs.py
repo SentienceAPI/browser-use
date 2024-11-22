@@ -1,7 +1,14 @@
+"""
+Find and apply to jobs.
+
+@dev You need to add OPENAI_API_KEY to your environment variables.
+
+Also you have to install PyPDF2: pip install PyPDF2
+"""
+
 import csv
 import os
 import sys
-import time
 from pathlib import Path
 
 from PyPDF2 import PdfReader
@@ -13,9 +20,6 @@ from typing import List, Optional
 
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
 
 from browser_use.agent.service import Agent
 from browser_use.browser.service import Browser
@@ -65,17 +69,21 @@ def read_cv():
 
 
 @controller.action('Upload cv to index', requires_browser=True)
-def upload_cv(index: int, browser: Browser):
-	close_file_dialog(browser)
-	element = browser.get_element(index)
+async def upload_cv(index: int, browser: Browser):
+	await close_file_dialog(browser)
+	element = await browser.get_element_by_index(index)
 	my_cv = Path.cwd() / 'your_cv.pdf'
-	element.send_keys(str(my_cv.absolute()))
+	if not element:
+		raise Exception(f'Element with index {index} not found')
+
+	await element.set_input_files(str(my_cv.absolute()))
 	return f'Uploaded cv to index {index}'
 
 
 @controller.action('Close file dialog', requires_browser=True)
-def close_file_dialog(browser: Browser):
-	ActionChains(browser._get_driver()).send_keys(Keys.ESCAPE).perform()
+async def close_file_dialog(browser: Browser):
+	page = await browser.get_current_page()
+	await page.keyboard.press('Escape')
 
 
 async def main():

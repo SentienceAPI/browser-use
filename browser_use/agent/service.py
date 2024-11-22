@@ -117,13 +117,15 @@ class Agent:
 	async def step(self) -> None:
 		"""Execute one step of the task"""
 		logger.info(f'\n📍 Step {self.n_steps}')
-		state = self.controller.browser.get_state(use_vision=self.use_vision)
+		state = await self.controller.browser.get_state(use_vision=self.use_vision)
 
 		try:
 			model_output = await self.get_next_action(state)
-			result = self.controller.act(model_output.action)
+			result = await self.controller.act(model_output.action)
 			if result.extracted_content:
 				logger.info(f'📄 Result: {result.extracted_content}')
+			if result.is_done:
+				logger.result(f'{result.extracted_content}')
 			self.consecutive_failures = 0
 
 		except Exception as e:
@@ -410,7 +412,7 @@ class Agent:
 				)
 			)
 			if not self.controller_injected:
-				self.controller.browser.close()
+				await self.controller.browser.close()
 
 	def _too_many_failures(self) -> bool:
 		"""Check if we should stop due to too many failures"""
