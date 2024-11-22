@@ -35,15 +35,21 @@ def action_registry():
 	registry = Registry()
 
 	# Register the actions we need for testing
-	@registry.action(description='Click an element', requires_browser=True)
+	@registry.action(
+		description='Click an element', requires_browser=True, param_model=ClickElementAction
+	)
 	def click_element(params: ClickElementAction, browser=None):
 		pass
 
-	@registry.action(description='Extract page content', requires_browser=True)
+	@registry.action(
+		description='Extract page content',
+		requires_browser=True,
+		param_model=ExtractPageContentAction,
+	)
 	def extract_page_content(params: ExtractPageContentAction, browser=None):
 		pass
 
-	@registry.action(description='Mark task as done')
+	@registry.action(description='Mark task as done', param_model=DoneAction)
 	def done(params: DoneAction):
 		pass
 
@@ -54,11 +60,11 @@ def action_registry():
 @pytest.fixture
 def sample_history(action_registry):
 	# Create actions with nested params structure
-	click_action = action_registry(click_element={'params': {'index': 1, 'num_clicks': 1}})
+	click_action = action_registry(click_element={'index': 1, 'num_clicks': 1})
 
-	extract_action = action_registry(extract_page_content={'params': {'value': 'text'}})
+	extract_action = action_registry(extract_page_content={'value': 'text'})
 
-	done_action = action_registry(done={'params': {'text': 'Task completed'}})
+	done_action = action_registry(done={'text': 'Task completed'})
 
 	histories = [
 		AgentHistory(
@@ -130,7 +136,7 @@ def sample_history(action_registry):
 def test_last_model_output(sample_history: AgentHistoryList):
 	last_output = sample_history.last_model_output()
 	print(last_output)
-	assert last_output == {'done': {'params': {'text': 'Task completed'}}}
+	assert last_output == {'done': {'text': 'Task completed'}}
 
 
 def test_get_errors(sample_history: AgentHistoryList):
@@ -163,17 +169,15 @@ def test_all_screenshots(sample_history: AgentHistoryList):
 def test_all_model_outputs(sample_history: AgentHistoryList):
 	outputs = sample_history.all_model_outputs()
 	assert len(outputs) == 3
-	assert outputs[0] == {
-		'click_element': {'params': {'index': 1, 'xpath': '//button[1]', 'num_clicks': 1}}
-	}
-	assert outputs[1] == {'extract_page_content': {'params': {'value': 'text'}}}
-	assert outputs[2] == {'done': {'params': {'text': 'Task completed'}}}
+	assert outputs[0] == {'click_element': {'index': 1, 'xpath': '//button[1]', 'num_clicks': 1}}
+	assert outputs[1] == {'extract_page_content': {'value': 'text'}}
+	assert outputs[2] == {'done': {'text': 'Task completed'}}
 
 
 def test_all_model_outputs_filtered(sample_history: AgentHistoryList):
 	filtered = sample_history.all_model_outputs_filtered(include=['click_element'])
 	assert len(filtered) == 1
-	assert filtered[0]['click_element']['params']['index'] == 1
+	assert filtered[0]['click_element']['index'] == 1
 
 
 def test_empty_history():
@@ -186,10 +190,10 @@ def test_empty_history():
 
 # Add a test to verify action creation
 def test_action_creation(action_registry):
-	click_action = action_registry(click_element={'params': {'index': 1, 'num_clicks': 1}})
+	click_action = action_registry(click_element={'index': 1, 'num_clicks': 1})
 
 	assert click_action.model_dump(exclude_none=True) == {
-		'click_element': {'params': {'index': 1, 'num_clicks': 1}}
+		'click_element': {'index': 1, 'num_clicks': 1}
 	}
 
 

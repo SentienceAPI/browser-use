@@ -58,6 +58,19 @@
             ],
             "console": "integratedTerminal",
             "justMyCode": false
+        },
+        {
+            "name": "Python: Debug Agent History",
+            "type": "python",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "browser_use/agent/tests.py",
+                "-v",
+                "--capture=no",
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
     ]
 }
