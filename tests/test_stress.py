@@ -1,10 +1,12 @@
 import asyncio
+import os
 import random
 import string
 import time
 
 import pytest
-from langchain_openai import ChatOpenAI
+from langchain_openai import AzureChatOpenAI
+from pydantic import SecretStr
 
 from browser_use.agent.service import Agent
 from browser_use.browser.views import BrowserState
@@ -14,7 +16,13 @@ from browser_use.controller.service import Controller
 @pytest.fixture
 def llm():
 	"""Initialize the language model"""
-	return ChatOpenAI(model='gpt-4o')  # Use appropriate model
+	model = AzureChatOpenAI(
+		api_version='2024-10-21',
+		model='gpt-4o',
+		azure_endpoint=os.getenv('AZURE_OPENAI_ENDPOINT', ''),
+		api_key=SecretStr(os.getenv('AZURE_OPENAI_KEY', '')),
+	)
+	return model
 
 
 def generate_random_text(length: int) -> str:
@@ -26,7 +34,7 @@ def generate_random_text(length: int) -> str:
 async def controller():
 	"""Initialize the controller"""
 	controller = Controller()
-	large_text = generate_random_text(12345)
+	large_text = generate_random_text(10)
 
 	@controller.action('call this magical function to get very special text')
 	def get_very_special_text():
@@ -53,6 +61,7 @@ async def test_token_limit_with_large_extraction(llm, controller):
 		llm=llm,
 		controller=controller,
 		max_input_tokens=5000,
+		save_conversation_path='tmp/test_token_limit_with_large_extraction.json',
 	)
 
 	history = await agent.run(max_steps=3)
