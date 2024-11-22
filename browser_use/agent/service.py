@@ -21,6 +21,7 @@ from browser_use.agent.views import (
 	ActionResult,
 	AgentError,
 	AgentHistory,
+	AgentHistoryList,
 	AgentOutput,
 	ModelPricingCatalog,
 	TokenDetails,
@@ -77,7 +78,7 @@ class Agent:
 		self._initialize_messages()
 
 		# Tracking variables
-		self.history: list[AgentHistory] = []
+		self.history: AgentHistoryList = AgentHistoryList(history=[])
 		self.n_steps = 1
 		self.consecutive_failures = 0
 		self.max_failures = max_failures
@@ -173,7 +174,7 @@ class Agent:
 	) -> None:
 		"""Create and store history item"""
 		history_item = AgentHistory(model_output=model_output, result=result, state=state)
-		self.history.append(history_item)
+		self.history.history.append(history_item)
 
 	@time_execution_async('--get_next_action')
 	async def get_next_action(self, state: BrowserState) -> AgentOutput:
@@ -373,7 +374,7 @@ class Agent:
 		f.write(' RESPONSE\n')
 		f.write(json.dumps(json.loads(response.model_dump_json(exclude_unset=True)), indent=2))
 
-	async def run(self, max_steps: int = 100) -> list[AgentHistory]:
+	async def run(self, max_steps: int = 100) -> AgentHistoryList:
 		"""Execute the task with maximum number of steps"""
 		try:
 			logger.info(f'🚀 Starting task: {self.task}')
@@ -405,7 +406,7 @@ class Agent:
 					agent_id=self.agent_id,
 					task=self.task,
 					success=self._is_task_complete(),
-					steps=len(self.history),
+					steps=len(self.history.history),
 				)
 			)
 			if not self.controller_injected:
@@ -420,4 +421,4 @@ class Agent:
 
 	def _is_task_complete(self) -> bool:
 		"""Check if the task has been completed successfully"""
-		return bool(self.history and self.history[-1].result.is_done)
+		return bool(self.history.history and self.history.history[-1].result.is_done)

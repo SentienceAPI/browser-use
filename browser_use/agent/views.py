@@ -90,6 +90,85 @@ class AgentHistory(BaseModel):
 	model_config = ConfigDict(arbitrary_types_allowed=True, protected_namespaces=())
 
 
+class AgentHistoryList(BaseModel):
+	"""List of agent history items"""
+
+	history: list[AgentHistory]
+
+	def last_model_output(self) -> None | dict:
+		"""Last action in history"""
+		if self.history and self.history[-1].model_output:
+			return self.history[-1].model_output.action.model_dump(exclude_none=True)
+		return None
+
+	def get_errors(self) -> list[str]:
+		"""Get all errors from history"""
+		return [h.result.error for h in self.history if h.result.error]
+
+	def final_result(self) -> None | str:
+		"""Final result from history"""
+		if self.history and self.history[-1].result.extracted_content:
+			return self.history[-1].result.extracted_content
+		return None
+
+	def is_done(self) -> bool:
+		"""Check if the agent is done"""
+		if self.history and self.history[-1].result.is_done:
+			return self.history[-1].result.is_done
+		return False
+
+	def has_errors(self) -> bool:
+		"""Check if the agent has any errors"""
+		return len(self.get_errors()) > 0
+
+	def unique_urls(self) -> list[str]:
+		"""Get all unique URLs from history"""
+		return list(set([h.state.url for h in self.history if h.state.url]))
+
+	def all_screenshots(self) -> list[str]:
+		"""Get all screenshots from history"""
+		return [h.state.screenshot for h in self.history if h.state.screenshot]
+
+	# get all actions
+	def all_model_outputs(self) -> list[dict]:
+		"""Get all actions from history"""
+		outputs = []
+		for h in self.history:
+			if h.model_output:
+				output = h.model_output.action.model_dump(exclude_none=True)
+				# should have only one key and param_model
+				key = list(output.keys())[0]
+				params = output[key]
+
+				# convert index to xpath if available
+				if 'index' in params:
+					selector_map = h.state.selector_map
+					index = params['index']
+					if index in selector_map:
+						params['xpath'] = selector_map[index]
+
+				outputs.append(output)
+		return outputs
+
+	def all_results(self) -> list[dict]:
+		"""Get all results from history"""
+		return [h.result.model_dump(exclude_none=True) for h in self.history if h.result]
+
+	def all_extracted_content(self) -> list[str]:
+		"""Get all extracted content from history"""
+		return [h.result.extracted_content for h in self.history if h.result.extracted_content]
+
+	def all_model_outputs_filtered(self, include: list[str] = []) -> list[dict]:
+		"""Get all model outputs from history as JSON"""
+		outputs = self.all_model_outputs()
+		result = []
+		for o in outputs:
+			for i in include:
+				if i == list(o.keys())[0]:
+					result.append(o)
+		return result
+
+
 class AgentError:
 	"""Container for agent error handling"""
 

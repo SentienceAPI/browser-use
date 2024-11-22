@@ -183,6 +183,9 @@ async def test_scroll_down(llm, controller):
 
 	# Validate that the 'scroll_down' action was executed
 	history = agent.history
-	actions = [h.model_output.action for h in history if h.model_output and h.model_output.action]
-	action_names = [list(action.model_dump(exclude_unset=True).keys())[0] for action in actions]
-	assert 'scroll_down' in action_names
+	model_output = history.all_model_outputs()
+	if model_output:
+		keys = [key for key in model_output[0].keys()]
+		assert 'scroll_down' in keys
+	else:
+		pytest.fail('No model outputs found')

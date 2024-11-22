@@ -189,6 +189,7 @@ async def test_captcha_solver(llm, agent_with_controller, captcha: CaptchaTest):
 		llm=llm,
 		controller=agent_with_controller,
 	)
+	from browser_use.agent.views import AgentHistoryList
 
 	history = await agent.run(max_steps=10)
 
