@@ -12,11 +12,11 @@ def llm():
 	return ChatOpenAI(model='gpt-4o')  # Use appropriate model
 
 
+# pytest -s -k test_search_google
 @pytest.fixture
 async def controller():
 	"""Initialize the controller with persistent browser"""
-	controller = Controller(keep_open=True)
-	await controller.browser._initialize_session()
+	controller = Controller(keep_open=True, headless=False)
 
 	try:
 		yield controller
