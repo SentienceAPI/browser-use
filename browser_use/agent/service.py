@@ -22,6 +22,7 @@ from langchain_openai import ChatOpenAI
 from openai import RateLimitError
 from pydantic import BaseModel, ValidationError
 
+from browser_use.agent.message_manager.service import MessageManager
 from browser_use.agent.prompts import AgentMessagePrompt, SystemPrompt
 from browser_use.agent.views import (
 	ActionResult,
@@ -80,8 +81,17 @@ class Agent:
 		# Action and output models setup
 		self._setup_action_models()
 
-		self.messages = []
-		self._initialize_messages()
+		self.max_input_tokens = max_input_tokens
+
+		self.message_manager = MessageManager(
+			llm=self.llm,
+			task=self.task,
+			action_descriptions=self.controller.registry.get_prompt_description(),
+			system_prompt_class=self.system_prompt_class,
+			max_input_tokens=self.max_input_tokens,
+		)
+
+		self.messages = self.message_manager.get_messages()
 
 		# Tracking variables
 		self.history: list[AgentHistory] = []
@@ -89,7 +99,6 @@ class Agent:
 		self.consecutive_failures = 0
 		self.max_failures = max_failures
 		self.retry_delay = retry_delay
-		self.max_input_tokens = max_input_tokens
 
 		if save_conversation_path:
 			logger.info(f'Saving conversation to {save_conversation_path}')
@@ -109,22 +118,14 @@ class Agent:
 		# Create output model with the dynamic actions
 		self.AgentOutput = AgentOutput.type_with_custom_actions(self.ActionModel)
 
-	def _initialize_messages(self) -> None:
-		"""Initialize message history with system and first message"""
-		# Get action descriptions from controller's registry
-		action_descriptions = self.controller.registry.get_prompt_description()
-		self.system_prompt = self.system_prompt_class(action_descriptions, datetime.now())
-		self.messages.append(self.system_prompt.get_system_message())
-		self.set_task(self.task)
-
-	def set_task(self, task: str) -> None:
-		self.messages.append(HumanMessage(content=f'Your task is: {task}'))
-
 	@time_execution_async('--step')
 	async def step(self) -> None:
 		"""Execute one step of the task"""
 		logger.info(f'\n📍 Step {self.n_steps}')
 		state = self.controller.browser.get_state(use_vision=self.use_vision)
+
+		# Add state to messages
+		self.message_manager.add_state_message(state)
 
 		try:
 			model_output = await self.get_next_action(state)
@@ -145,7 +146,8 @@ class Agent:
 					)
 				)
 
-		self._update_messages_with_result(result)
+		# Update messages with result
+		self.message_manager.update_with_action_result(result)
 		self._make_history_item(model_output, state, result)
 
 	def _handle_step_error(self, error: Exception, state: BrowserState) -> ActionResult:
@@ -165,19 +167,6 @@ class Agent:
 			self.consecutive_failures += 1
 
 		return ActionResult(error=error_msg, include_in_memory=True)
-
-	def _update_messages_with_result(self, result: ActionResult) -> None:
-		"""Update message history with action results"""
-		l = len(self.messages)
-		if result.include_in_memory:
-			if result.extracted_content:
-				self.messages.append(HumanMessage(content=result.extracted_content))
-			if result.error:
-				self.messages.append(HumanMessage(content=result.error))
-
-		# if no update make empty message
-		if len(self.messages) == l:
-			self.messages.append(HumanMessage(content=''))
 
 	def _make_history_item(
 		self,

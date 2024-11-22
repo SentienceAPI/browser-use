@@ -57,20 +57,17 @@ async def test_token_limit_with_large_extraction(llm, controller):
 	# Generate large text that will exceed token limit
 
 	agent = Agent(
-		task='Concatenate strings  times',
+		task='Concatenate strings a and b with function',
 		llm=llm,
 		controller=controller,
 		max_input_tokens=5000,
-		save_conversation_path='tmp/test_token_limit_with_large_extraction.json',
+		save_conversation_path='tmp/stress_test/test_token_limit_with_large_extraction.json',
 	)
 
 	history = await agent.run(max_steps=3)
-	if history[-1].model_output:
-		last_action = history[-1].model_output.action
-		# Verify that messages were properly truncated
-		assert last_action == 'done'
-		# Verify the agent didn't crash and completed some steps
-		assert len(history) > 0
+	actions = [h.model_output.action for h in history if h.model_output]
+	assert 'concatenate_strings' in actions
+	assert 'done' in actions
 
 
 @pytest.mark.asyncio
@@ -82,6 +79,7 @@ async def test_token_limit_with_multiple_extractions(llm, controller):
 		llm=llm,
 		controller=controller,
 		max_input_tokens=4000,
+		save_conversation_path='tmp/stress_test/test_token_limit_with_multiple_extractions.json',
 	)
 
 	history = await agent.run(max_steps=10)
@@ -106,6 +104,7 @@ async def test_open_10_tabs_and_extract_content(llm, controller):
 		task='Open new tabs with example.com, example.net, example.org, and seven more example sites. Then, extract the content from each.',
 		llm=llm,
 		controller=controller,
+		save_conversation_path='tmp/stress_test/test_open_10_tabs_and_extract_content.json',
 	)
 	start_time = time.time()
 	history = await agent.run(max_steps=50)
