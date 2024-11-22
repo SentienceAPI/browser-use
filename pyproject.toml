@@ -12,7 +12,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-dependencies = [4
+dependencies = [
     "MainContentExtractor>=0.0.4",
     "beautifulsoup4>=4.12.3",
     "langchain>=0.3.7",
