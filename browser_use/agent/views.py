@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import traceback
 from typing import Optional, Type
 
 from openai import RateLimitError
@@ -129,7 +130,11 @@ class AgentHistoryList(BaseModel):
 		"""Get all screenshots from history"""
 		return [h.state.screenshot for h in self.history if h.state.screenshot]
 
-	# get all actions
+	def all_model_output_action_names(self) -> list[str]:
+		"""Get all action names from history"""
+		return [list(action.keys())[0] for action in self.all_model_outputs()]
+
+	# get all actions with params
 	def all_model_outputs(self) -> list[dict]:
 		"""Get all actions from history"""
 		outputs = []
@@ -183,4 +188,4 @@ class AgentError:
 			return f'{AgentError.VALIDATION_ERROR}\nDetails: {str(error)}'
 		if isinstance(error, RateLimitError):
 			return AgentError.RATE_LIMIT_ERROR
-		return f'Unexpected error: {str(error)}'
+		return f'Unexpected error: {str(error)}\nStacktrace:\n{traceback.format_exc()}'
