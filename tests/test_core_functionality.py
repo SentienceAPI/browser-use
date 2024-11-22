@@ -14,7 +14,7 @@ def llm():
 @pytest.fixture
 async def controller():
 	"""Initialize the controller"""
-	controller = Controller(keep_open=True)
+	controller = Controller(keep_open=False)
 	try:
 		yield controller
 	finally:
