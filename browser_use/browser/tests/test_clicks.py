@@ -1,3 +1,5 @@
+import time
+
 import pytest
 
 from browser_use.browser.service import Browser
@@ -16,7 +18,7 @@ async def test_highlight_elements():
 	# await page.goto('https://immobilienscout24.de')
 	await page.goto('https://kayak.com')
 
-	# time.sleep(3)
+	time.sleep(3)
 	# browser._click_element_by_xpath(
 	# 	'/html/body/div[5]/div/div[2]/div/div/div[3]/div/div[1]/button[1]'
 	# )
@@ -52,5 +54,12 @@ async def test_highlight_elements():
 		await time_execution_sync('remove_highlight_elements')(browser.remove_highlights)()
 
 		xpath = state.selector_map[int(action)]
+
+		# check if index of selector map are the same as index of items in dom_items
+
+		indcies = list(state.selector_map.keys())
+		dom_items = state.items
+		dom_indices = [item.index for item in dom_items if not item.is_text_only]
+		assert indcies == dom_indices, 'Indices of selector map and dom items do not match'
 
 		await browser._click_element_by_xpath(xpath)
