@@ -166,15 +166,15 @@ async def test_scroll_down(llm, controller):
 	)
 	# Get the browser instance
 	browser = controller.browser
-	driver = browser._get_driver()
+	page = await browser.get_current_page()
 
 	# Navigate to the page and get initial scroll position
 	await agent.run(max_steps=1)
-	initial_scroll_position = driver.execute_script('return window.pageYOffset;')
+	initial_scroll_position = await page.evaluate('window.scrollY;')
 
 	# Perform the scroll down action
 	await agent.run(max_steps=2)
-	final_scroll_position = driver.execute_script('return window.pageYOffset;')
+	final_scroll_position = await page.evaluate('window.scrollY;')
 
 	# Validate that the scroll position has changed
 	assert final_scroll_position > initial_scroll_position, 'Page did not scroll down'
