@@ -1,6 +1,8 @@
 import logging
 
 from main_content_extractor import MainContentExtractor
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 
 from browser_use.agent.views import ActionModel, ActionResult
 from browser_use.browser.service import Browser
@@ -12,6 +14,7 @@ from browser_use.controller.views import (
 	GoToUrlAction,
 	InputTextAction,
 	OpenTabAction,
+	ScrollDownAction,
 	SearchGoogleAction,
 	SwitchTabAction,
 )
@@ -21,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 
 class Controller:
-	def __init__(self, keep_open: bool = False):
-		self.browser = Browser(keep_open=keep_open)
+	def __init__(self, headless: bool = False, keep_open: bool = False):
+		self.browser = Browser(headless=headless, keep_open=keep_open)
 		self.registry = Registry()
 		self._register_default_actions()
 
@@ -112,7 +115,9 @@ class Controller:
 
 		# Content Actions
 		@self.registry.action(
-			'Extract page content', param_model=ExtractPageContentAction, requires_browser=True
+			'Extract page content to get the text or markdown ',
+			param_model=ExtractPageContentAction,
+			requires_browser=True,
 		)
 		async def extract_content(params: ExtractPageContentAction, browser: Browser):
 			page = await browser.get_current_page()
@@ -129,6 +134,29 @@ class Controller:
 			state = session.cached_state
 			logger.info(f'✅ Done on page {state.url}\n\n: {params.text}')
 			return ActionResult(is_done=True, extracted_content=params.text)
+
+		@self.registry.action(
+			'Scroll down the page by pixel amount - if no amount is specified, scroll down one page',
+			param_model=ScrollDownAction,
+			requires_browser=True,
+		)
+		def scroll_down(params: ScrollDownAction, browser: Browser):
+			driver = browser._get_driver()
+			if params.amount is not None:
+				driver.execute_script(f'window.scrollBy(0, {params.amount});')
+			else:
+				body = driver.find_element(By.TAG_NAME, 'body')
+				body.send_keys(Keys.PAGE_DOWN)
+
+		# scroll up
+		@self.registry.action(
+			'Scroll up the page by pixel amount',
+			param_model=ScrollDownAction,
+			requires_browser=True,
+		)
+		def scroll_up(params: ScrollDownAction, browser: Browser):
+			driver = browser._get_driver()
+			driver.execute_script(f'window.scrollBy(0, -{params.amount});')
 
 	def action(self, description: str, **kwargs):
 		"""Decorator for registering custom actions

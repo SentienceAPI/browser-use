@@ -9,7 +9,7 @@ import time
 from dataclasses import dataclass
 
 from playwright.async_api import Browser as PlaywrightBrowser
-from playwright.async_api import BrowserContext, Page, Playwright, async_playwright
+from playwright.async_api import BrowserContext, ElementHandle, Page, Playwright, async_playwright
 
 from browser_use.browser.views import BrowserError, BrowserState, TabInfo
 from browser_use.dom.service import DomService
@@ -454,5 +454,22 @@ class Browser:
 		if url:
 			await page.goto(url)
 			await self.wait_for_page_load(timeout_overwrite=1)
+
+	# endregion
+
+	# region - Helper methods for easier access to the DOM
+	async def get_selector_map(self) -> SelectorMap:
+		session = await self.get_session()
+		return session.cached_state.selector_map
+
+	async def get_xpath(self, index: int) -> str:
+		selector_map = await self.get_selector_map()
+		return selector_map[index]
+
+	async def get_element_by_index(self, index: int) -> ElementHandle | None:
+		page = await self.get_current_page()
+		return await page.wait_for_selector(
+			await self.get_xpath(index), timeout=2500, state='visible'
+		)
 
 	# endregion

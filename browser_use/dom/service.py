@@ -419,6 +419,13 @@ class DomService:
 			'autocomplete',  # Form field behavior
 		]
 
+		# These attributes should never be capped
+		no_cap_attributes = {
+			'href',  # URLs should never be capped
+			'src',  # Source URLs should never be capped
+			'action',  # Form submission URLs should never be capped
+		}
+
 		# Collect essential attributes that have values
 		attrs = []
 		for attr in essential_attributes:
@@ -429,7 +436,10 @@ class DomService:
 				elif isinstance(element_attr, (list, tuple)):
 					element_attr = ' '.join(str(v) for v in element_attr)
 
-				attrs.append(f'{attr}="{self._cap_text_length(element_attr, 25)}"')
+				if attr not in no_cap_attributes:
+					element_attr = self._cap_text_length(element_attr, 25)
+
+				attrs.append(f'{attr}="{element_attr}"')
 
 		state_attributes_prefixes = (
 			'aria-',
