@@ -99,10 +99,20 @@ class AgentError:
 	NO_VALID_ACTION = 'No valid action found'
 
 	@staticmethod
-	def format_error(error: Exception) -> str:
-		"""Format error message based on error type"""
+	def format_error(error: Exception, include_trace: bool = False) -> str:
+		"""Format error message based on error type and optionally include trace"""
+		message = ''
 		if isinstance(error, ValidationError):
-			return f'{AgentError.VALIDATION_ERROR}\nDetails: {str(error)}'
-		if isinstance(error, RateLimitError):
-			return AgentError.RATE_LIMIT_ERROR
-		return f'Unexpected error: {str(error)}'
+			message = f'{AgentError.VALIDATION_ERROR}\nDetails: {str(error)}'
+		elif isinstance(error, RateLimitError):
+			message = AgentError.RATE_LIMIT_ERROR
+		else:
+			message = f'Unexpected error: {str(error)}'
+
+		if include_trace:
+			import traceback
+
+			trace = ''.join(traceback.format_exception(type(error), error, error.__traceback__))
+			message += f'\nTrace: {trace}'
+
+		return message

@@ -150,7 +150,7 @@ class Agent:
 
 	def _handle_step_error(self, error: Exception, state: BrowserState) -> ActionResult:
 		"""Handle all types of errors that can occur during a step"""
-		error_msg = AgentError.format_error(error)
+		error_msg = AgentError.format_error(error, include_trace=True)
 		prefix = f'❌ Result failed {self.consecutive_failures + 1}/{self.max_failures} times:\n '
 
 		if isinstance(error, (ValidationError, ValueError)):
@@ -250,7 +250,7 @@ class Agent:
 
 		parsed: AgentOutput = response['parsed']
 
-		self._update_message_history(response)
+		self._update_message_history(parsed)
 		self._log_response(parsed)
 		self._save_conversation(input_messages, parsed)
 		self.n_steps += 1
@@ -383,7 +383,7 @@ class Agent:
 				f'🔢 Last  Tokens: input: {current_tokens.input_tokens} (cached: {current_tokens.input_token_details.cache_read}) + output: {current_tokens.output_tokens} = {current_tokens.total_tokens} '
 			)
 
-	def _update_message_history(self, response: Any) -> None:
+	def _update_message_history(self, response: AgentOutput) -> None:
 		"""Update message history with new interactions"""
 		self.messages.append(AIMessage(content=response.model_dump_json(exclude_unset=True)))
 
