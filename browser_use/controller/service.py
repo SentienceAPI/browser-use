@@ -1,8 +1,6 @@
 import logging
 
 from main_content_extractor import MainContentExtractor
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
 
 from browser_use.agent.views import ActionModel, ActionResult
 from browser_use.browser.service import Browser
@@ -14,7 +12,7 @@ from browser_use.controller.views import (
 	GoToUrlAction,
 	InputTextAction,
 	OpenTabAction,
-	ScrollDownAction,
+	ScrollAction,
 	SearchGoogleAction,
 	SwitchTabAction,
 )
@@ -137,26 +135,28 @@ class Controller:
 
 		@self.registry.action(
 			'Scroll down the page by pixel amount - if no amount is specified, scroll down one page',
-			param_model=ScrollDownAction,
+			param_model=ScrollAction,
 			requires_browser=True,
 		)
-		def scroll_down(params: ScrollDownAction, browser: Browser):
-			driver = browser._get_driver()
+		async def scroll_down(params: ScrollAction, browser: Browser):
+			page = await browser.get_current_page()
 			if params.amount is not None:
-				driver.execute_script(f'window.scrollBy(0, {params.amount});')
+				await page.evaluate(f'window.scrollBy(0, {params.amount});')
 			else:
-				body = driver.find_element(By.TAG_NAME, 'body')
-				body.send_keys(Keys.PAGE_DOWN)
+				await page.keyboard.press('PageDown')
 
 		# scroll up
 		@self.registry.action(
 			'Scroll up the page by pixel amount',
-			param_model=ScrollDownAction,
+			param_model=ScrollAction,
 			requires_browser=True,
 		)
-		def scroll_up(params: ScrollDownAction, browser: Browser):
-			driver = browser._get_driver()
-			driver.execute_script(f'window.scrollBy(0, -{params.amount});')
+		async def scroll_up(params: ScrollAction, browser: Browser):
+			page = await browser.get_current_page()
+			if params.amount is not None:
+				await page.evaluate(f'window.scrollBy(0, -{params.amount});')
+			else:
+				await page.keyboard.press('PageUp')
 
 	def action(self, description: str, **kwargs):
 		"""Decorator for registering custom actions

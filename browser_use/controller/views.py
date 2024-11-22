@@ -38,7 +38,5 @@ class ExtractPageContentAction(BaseModel):
 	value: Literal['text', 'markdown', 'html'] = 'text'
 
 
-class ScrollDownAction(BaseModel):
-	amount: Optional[int] = (
-		None  # The number of pixels to scroll down. If None, scroll down one page
-	)
+class ScrollAction(BaseModel):
+	amount: Optional[int] = None  # The number of pixels to scroll. If None, scroll down/up one page
