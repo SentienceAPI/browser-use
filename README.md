@@ -17,6 +17,12 @@ With pip:
 pip install browser-use
 ```
 
+(optional) install playwright:
+
+```bash
+playwright install
+```
+
 Spin up your agent:
 
 ```python
@@ -71,6 +77,8 @@ https://github.com/user-attachments/assets/de73ee39-432c-4b97-b4e8-939fd7f323b3
 
 If you want to add custom actions your agent can take, you can register them like this:
 
+You can use BOTH sync or async functions.
+
 ```python
 from browser_use.agent.service import Agent
 from browser_use.browser.service import Browser
@@ -94,11 +102,12 @@ class JobDetails(BaseModel):
   salary: Optional[str] = None
 
 @controller.action('Save job details which you found on page', param_model=JobDetails, requires_browser=True)
-def save_job(params: JobDetails, browser: Browser):
+async def save_job(params: JobDetails, browser: Browser):
 	print(params)
 
   # use the browser normally
-  browser.driver.get(params.job_link)
+  page = browser.get_current_page()
+	page.go_to(params.job_link)
 ```
 
 and then run your agent:
