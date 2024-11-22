@@ -57,8 +57,11 @@ class Registry:
 				async def async_wrapper(*args, **kwargs):
 					return await asyncio.to_thread(func, *args, **kwargs)
 
+				# Copy the signature and other metadata from the original function
+				async_wrapper.__signature__ = signature(func)
+				async_wrapper.__name__ = func.__name__
+				async_wrapper.__annotations__ = func.__annotations__
 				wrapped_func = async_wrapper
-				wrapped_func.__name__ = func.__name__
 			else:
 				wrapped_func = func
 

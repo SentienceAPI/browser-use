@@ -59,6 +59,19 @@
             ],
             "console": "integratedTerminal",
             "justMyCode": false
+        },
+        {
+            "name": "Python: Debug Current File",
+            "type": "python",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "${file}",
+                "-v",
+                "--capture=no"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
     ]
 }
