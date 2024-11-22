@@ -1,5 +1,3 @@
-import asyncio
-
 import pytest
 from langchain_openai import ChatOpenAI
 
@@ -16,12 +14,12 @@ def llm():
 @pytest.fixture
 async def controller():
 	"""Initialize the controller"""
-	controller = Controller()
+	controller = Controller(keep_open=False)
 	try:
 		yield controller
 	finally:
 		if controller.browser:
-			controller.browser.close(force=True)
+			await controller.browser.close(force=True)
 
 
 @pytest.mark.asyncio

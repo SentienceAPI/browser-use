@@ -1,26 +1,33 @@
 import time
-from browser_use.browser.service import Browser
 
+import pytest
+
+from browser_use.browser.service import Browser
 from browser_use.utils import time_execution_sync
 
 
-def test_highlight_elements():
-	browser = Browser()
+@pytest.mark.asyncio
+async def test_highlight_elements():
+	browser = Browser(headless=False, keep_open=False)
 
-	browser._get_driver().get('https://kayak.com')
-	# browser.go_to_url('https://google.com/flights')
-	# browser.go_to_url('https://immobilienscout24.de')
+	session = await browser.get_session()
 
-	time.sleep(1)
+	print(session)
+
+	page = await browser.get_current_page()
+	# await page.goto('https://immobilienscout24.de')
+	await page.goto('https://kayak.com')
+
+	time.sleep(3)
 	# browser._click_element_by_xpath(
 	# 	'/html/body/div[5]/div/div[2]/div/div/div[3]/div/div[1]/button[1]'
 	# )
 	# browser._click_element_by_xpath("//button[div/div[text()='Alle akzeptieren']]")
 
 	while True:
-		state = browser.get_state()
+		state = await browser.get_state()
 
-		time_execution_sync('highlight_selector_map_elements')(
+		await time_execution_sync('highlight_selector_map_elements')(
 			browser.highlight_selector_map_elements
 		)(state.selector_map)
 
@@ -44,16 +51,15 @@ def test_highlight_elements():
 		print(state.selector_map.keys(), 'Selector map keys')
 		action = input('Select next action: ')
 
-		time_execution_sync('remove_highlight_elements')(browser.remove_highlights)()
+		await time_execution_sync('remove_highlight_elements')(browser.remove_highlights)()
 
 		xpath = state.selector_map[int(action)]
 
-		browser._click_element_by_xpath(xpath)
+		# check if index of selector map are the same as index of items in dom_items
 
+		indcies = list(state.selector_map.keys())
+		dom_items = state.items
+		dom_indices = [item.index for item in dom_items if not item.is_text_only]
+		assert indcies == dom_indices, 'Indices of selector map and dom items do not match'
 
-def main():
-	test_highlight_elements()
-
-
-if __name__ == '__main__':
-	main()
+		await browser._click_element_by_xpath(xpath)

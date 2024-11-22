@@ -42,6 +42,7 @@ def setup_logging():
 		'WDM',
 		'httpx',
 		'selenium',
+		'playwright',
 		'urllib3',
 		'asyncio',
 		'langchain',
