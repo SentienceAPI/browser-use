@@ -96,6 +96,14 @@ class AgentHistoryList(BaseModel):
 
 	history: list[AgentHistory]
 
+	def __str__(self) -> str:
+		"""Representation of the AgentHistoryList object"""
+		return f'AgentHistoryList(all_results={self.all_results()}, all_model_outputs={self.all_model_outputs()})'
+
+	def __repr__(self) -> str:
+		"""Representation of the AgentHistoryList object"""
+		return self.__str__()
+
 	def last_model_output(self) -> None | dict:
 		"""Last action in history"""
 		if self.history and self.history[-1].model_output:
