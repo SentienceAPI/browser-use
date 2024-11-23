@@ -8,4 +8,4 @@ from browser_use.browser.service import Browser as Browser
 from browser_use.controller.service import Controller as Controller
 from browser_use.dom.service import DomService
 
-__all__ = ['Agent', 'Browser', 'Controller', 'DomService', 'SystemPrompt']
+__all__ = ["Agent", "Browser", "Controller", "DomService", "SystemPrompt"]

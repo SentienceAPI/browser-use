@@ -1,4 +1,5 @@
-from inspect import signature
+import asyncio
+from inspect import iscoroutinefunction, signature
 from typing import Any, Callable, Optional, Type
 
 from pydantic import BaseModel, create_model
@@ -50,10 +51,24 @@ class Registry:
 			# Create param model from function if not provided
 			actual_param_model = param_model or self._create_param_model(func)
 
+			# Wrap sync functions to make them async
+			if not iscoroutinefunction(func):
+
+				async def async_wrapper(*args, **kwargs):
+					return await asyncio.to_thread(func, *args, **kwargs)
+
+				# Copy the signature and other metadata from the original function
+				async_wrapper.__signature__ = signature(func)
+				async_wrapper.__name__ = func.__name__
+				async_wrapper.__annotations__ = func.__annotations__
+				wrapped_func = async_wrapper
+			else:
+				wrapped_func = func
+
 			action = RegisteredAction(
 				name=func.__name__,
 				description=description,
-				function=func,
+				function=wrapped_func,
 				param_model=actual_param_model,
 				requires_browser=requires_browser,
 			)
@@ -62,7 +77,7 @@ class Registry:
 
 		return decorator
 
-	def execute_action(
+	async def execute_action(
 		self, action_name: str, params: dict, browser: Optional[Browser] = None
 	) -> Any:
 		"""Execute a registered action"""
@@ -79,17 +94,19 @@ class Registry:
 			parameters = list(sig.parameters.values())
 			is_pydantic = parameters and issubclass(parameters[0].annotation, BaseModel)
 
-			# Execute with or without browser
+			# Prepare arguments based on parameter type
 			if action.requires_browser:
 				if not browser:
-					raise ValueError(f'Action {action_name} requires browser but none provided')
+					raise ValueError(
+						f'Action {action_name} requires browser but none provided. This has to be used in combination of `requires_browser=True` when registering the action.'
+					)
 				if is_pydantic:
-					return action.function(validated_params, browser=browser)
-				return action.function(**validated_params.model_dump(), browser=browser)
+					return await action.function(validated_params, browser=browser)
+				return await action.function(**validated_params.model_dump(), browser=browser)
 
 			if is_pydantic:
-				return action.function(validated_params)
-			return action.function(**validated_params.model_dump())
+				return await action.function(validated_params)
+			return await action.function(**validated_params.model_dump())
 
 		except Exception as e:
 			raise RuntimeError(f'Error executing action {action_name}: {str(e)}') from e

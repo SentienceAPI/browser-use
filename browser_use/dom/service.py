@@ -3,36 +3,63 @@ import logging
 from typing import Optional
 
 from bs4 import BeautifulSoup, NavigableString, PageElement, Tag
-from selenium import webdriver
-from selenium.webdriver.remote.webelement import WebElement
+from playwright.async_api import Page
 
 from browser_use.dom.views import (
 	BatchCheckResults,
 	DomContentItem,
 	ElementCheckResult,
-	ElementState,
 	ProcessedDomContent,
 	TextCheckResult,
-	TextState,
 )
-from browser_use.utils import time_execution_sync
+from browser_use.utils import time_execution_async
 
 logger = logging.getLogger(__name__)
 
 
 class DomService:
-	def __init__(self, driver: webdriver.Chrome):
-		self.driver = driver
-		self.xpath_cache = {}  # Add cache at instance level
-
-	def get_clickable_elements(self) -> ProcessedDomContent:
-		# Clear xpath cache on each new DOM processing
+	def __init__(self, page: Page):
+		self.page = page
 		self.xpath_cache = {}
-		html_content = self.driver.page_source
-		return self._process_content(html_content)
 
-	@time_execution_sync('--_process_content')
-	def _process_content(self, html_content: str) -> ProcessedDomContent:
+	async def get_clickable_elements(self) -> ProcessedDomContent:
+		self.xpath_cache = {}
+		html_content = await self._get_html_content()
+		return await self._process_content(html_content)
+
+	async def _get_html_content(self, with_shadow_roots: bool = True) -> str:
+		"""
+		Get all DOM content including all shadow roots recursively.
+
+		@param with_shadow_roots: If you want to include shadow roots in the content it's a bit slower but worth it in most cases.
+		"""
+		if with_shadow_roots:
+			full_content = await self.page.evaluate("""() => {
+				function getAllContent(root) {
+					if (!root) return '';
+					let content = root.innerHTML || '';
+					
+					// Get all elements with shadow roots
+					const elements = root.querySelectorAll('*');
+					elements.forEach(element => {
+						if (element.shadowRoot) {
+							// Add a marker for shadow root start
+							content += `<shadow-root host="${element.tagName.toLowerCase()}">`;
+							content += getAllContent(element.shadowRoot);
+							content += '</shadow-root>';
+						}
+					});
+					
+					return content;
+				}
+				
+				return `<html><body>${getAllContent(document.body)}</body></html>`;
+			}""")
+			return full_content
+		return await self.page.content()
+
+	@time_execution_async('--_process_content')
+	async def _process_content(self, html_content: str) -> ProcessedDomContent:
 		soup = BeautifulSoup(html_content, 'html.parser')
 
 		output_items: list[DomContentItem] = []
@@ -86,8 +113,8 @@ class DomService:
 						xpath_order_counter += 1
 
 		# Batch check all elements
-		element_results = self._batch_check_elements(interactive_elements)
-		text_results = self._batch_check_texts(text_nodes)
+		element_results = await self._batch_check_elements(interactive_elements)
+		text_results = await self._batch_check_texts(text_nodes)
 
 		# Create ordered results
 		ordered_results: list[
@@ -138,13 +165,14 @@ class DomService:
 
 		return ProcessedDomContent(items=output_items, selector_map=selector_map)
 
-	def _batch_check_elements(self, elements: dict[str, tuple[Tag, int]]) -> BatchCheckResults:
-		"""Batch check all interactive elements at once."""
+	async def _batch_check_elements(
+		self, elements: dict[str, tuple[Tag, int]]
+	) -> BatchCheckResults:
 		if not elements:
 			return BatchCheckResults(elements={}, texts={})
 
 		check_script = """
-			return (function() {
+			(function() {
 				const results = {};
 				const elements = %s;
 				
@@ -152,15 +180,13 @@ class DomService:
 					const element = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
 					if (!element) continue;
 					
-					// Check visibility
-					const isVisible = element.checkVisibility({
-						checkOpacity: true,
-						checkVisibilityCSS: true
-					});
+					const isVisible = element.offsetWidth > 0 && 
+									element.offsetHeight > 0 && 
+									window.getComputedStyle(element).visibility !== 'hidden' &&
+									window.getComputedStyle(element).display !== 'none';
 					
 					if (!isVisible) continue;
 					
-					// Check if topmost
 					const rect = element.getBoundingClientRect();
 					const points = [
 						{x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.25},
@@ -193,7 +219,7 @@ class DomService:
 		""" % json.dumps({xpath: {} for xpath in elements.keys()})
 
 		try:
-			results = self.driver.execute_script(check_script)
+			results = await self.page.evaluate(check_script)
 			return BatchCheckResults(
 				elements={xpath: ElementCheckResult(**data) for xpath, data in results.items()},
 				texts={},
@@ -202,15 +228,14 @@ class DomService:
 			logger.error('Error in batch element check: %s', e)
 			return BatchCheckResults(elements={}, texts={})
 
-	def _batch_check_texts(
+	async def _batch_check_texts(
 		self, texts: dict[str, tuple[NavigableString, int]]
 	) -> BatchCheckResults:
-		"""Batch check all text nodes at once."""
 		if not texts:
 			return BatchCheckResults(elements={}, texts={})
 
 		check_script = """
-			return (function() {
+			(function() {
 				const results = {};
 				const texts = %s;
 				
@@ -256,7 +281,7 @@ class DomService:
 		)
 
 		try:
-			results = self.driver.execute_script(check_script)
+			results = await self.page.evaluate(check_script)
 			return BatchCheckResults(
 				elements={},
 				texts={xpath: TextCheckResult(**data) for xpath, data in results.items()},

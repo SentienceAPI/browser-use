@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import traceback
 from typing import Optional, Type
 
 from openai import RateLimitError
@@ -91,6 +92,105 @@ class AgentHistory(BaseModel):
 	model_config = ConfigDict(arbitrary_types_allowed=True, protected_namespaces=())
 
 
+class AgentHistoryList(BaseModel):
+	"""List of agent history items"""
+
+	history: list[AgentHistory]
+
+	def __str__(self) -> str:
+		"""Representation of the AgentHistoryList object"""
+		return f'AgentHistoryList(all_results={self.action_results()}, all_model_outputs={self.model_actions()})'
+
+	def __repr__(self) -> str:
+		"""Representation of the AgentHistoryList object"""
+		return self.__str__()
+
+	def last_action(self) -> None | dict:
+		"""Last action in history"""
+		if self.history and self.history[-1].model_output:
+			return self.history[-1].model_output.action.model_dump(exclude_none=True)
+		return None
+
+	def errors(self) -> list[str]:
+		"""Get all errors from history"""
+		return [h.result.error for h in self.history if h.result.error]
+
+	def final_result(self) -> None | str:
+		"""Final result from history"""
+		if self.history and self.history[-1].result.extracted_content:
+			return self.history[-1].result.extracted_content
+		return None
+
+	def is_done(self) -> bool:
+		"""Check if the agent is done"""
+		if self.history and self.history[-1].result.is_done:
+			return self.history[-1].result.is_done
+		return False
+
+	def has_errors(self) -> bool:
+		"""Check if the agent has any errors"""
+		return len(self.errors()) > 0
+
+	def urls(self) -> list[str]:
+		"""Get all unique URLs from history"""
+		return [h.state.url for h in self.history if h.state.url]
+
+	def screenshots(self) -> list[str]:
+		"""Get all screenshots from history"""
+		return [h.state.screenshot for h in self.history if h.state.screenshot]
+
+	def action_names(self) -> list[str]:
+		"""Get all action names from history"""
+		return [list(action.keys())[0] for action in self.model_actions()]
+
+	def model_thoughts(self) -> list[AgentBrain]:
+		"""Get all thoughts from history"""
+		return [h.model_output.current_state for h in self.history if h.model_output]
+
+	def model_outputs(self) -> list[AgentOutput]:
+		"""Get all model outputs from history"""
+		return [h.model_output for h in self.history if h.model_output]
+
+	# get all actions with params
+	def model_actions(self) -> list[dict]:
+		"""Get all actions from history"""
+		outputs = []
+		for h in self.history:
+			if h.model_output:
+				output = h.model_output.action.model_dump(exclude_none=True)
+				# should have only one key and param_model
+				key = list(output.keys())[0]
+				params = output[key]
+
+				# convert index to xpath if available
+				if 'index' in params:
+					selector_map = h.state.selector_map
+					index = params['index']
+					if index in selector_map:
+						params['xpath'] = selector_map[index]
+
+				outputs.append(output)
+		return outputs
+
+	def action_results(self) -> list[ActionResult]:
+		"""Get all results from history"""
+		return [h.result for h in self.history if h.result]
+
+	def extracted_content(self) -> list[str]:
+		"""Get all extracted content from history"""
+		return [h.result.extracted_content for h in self.history if h.result.extracted_content]
+
+	def model_actions_filtered(self, include: list[str] = []) -> list[dict]:
+		"""Get all model actions from history as JSON"""
+		outputs = self.model_actions()
+		result = []
+		for o in outputs:
+			for i in include:
+				if i == list(o.keys())[0]:
+					result.append(o)
+		return result
+
+
 class AgentError:
 	"""Container for agent error handling"""
 
@@ -103,16 +203,7 @@ class AgentError:
 		"""Format error message based on error type and optionally include trace"""
 		message = ''
 		if isinstance(error, ValidationError):
-			message = f'{AgentError.VALIDATION_ERROR}\nDetails: {str(error)}'
-		elif isinstance(error, RateLimitError):
-			message = AgentError.RATE_LIMIT_ERROR
-		else:
-			message = f'Unexpected error: {str(error)}'
-
-		if include_trace:
-			import traceback
-
-			trace = ''.join(traceback.format_exception(type(error), error, error.__traceback__))
-			message += f'\nTrace: {trace}'
-
-		return message
+			return f'{AgentError.VALIDATION_ERROR}\nDetails: {str(error)}'
+		if isinstance(error, RateLimitError):
+			return AgentError.RATE_LIMIT_ERROR
+		return f'Unexpected error: {str(error)}\nStacktrace:\n{traceback.format_exc()}'

@@ -8,14 +8,14 @@ from browser_use.utils import time_execution_sync
 
 
 # @pytest.mark.skip("slow af")
-def test_process_html_file():
+async def test_process_html_file():
 	browser = Browser(headless=False)
 
-	driver = browser._get_driver()
+	page = await browser.get_current_page()
 
-	dom_service = DomService(driver)
+	dom_service = DomService(page)
 
-	driver.get('https://kayak.com/flights')
+	await page.goto('https://kayak.com/flights')
 	# browser.go_to_url('https://google.com/flights')
 	# browser.go_to_url('https://immobilienscout24.de')
 
@@ -25,7 +25,9 @@ def test_process_html_file():
 	# )
 	# browser._click_element_by_xpath("//button[div/div[text()='Alle akzeptieren']]")
 
-	elements = time_execution_sync('get_clickable_elements')(dom_service.get_clickable_elements)()
+	elements = await time_execution_sync('get_clickable_elements')(
+		dom_service.get_clickable_elements
+	)()
 
 	print(elements.dom_items_to_string(use_tabs=False))
 	print('Tokens:', count_string_tokens(elements.dom_items_to_string(), model='gpt-4o'))

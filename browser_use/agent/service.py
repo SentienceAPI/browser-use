@@ -28,6 +28,7 @@ from browser_use.agent.views import (
 	ActionResult,
 	AgentError,
 	AgentHistory,
+	AgentHistoryList,
 	AgentOutput,
 	ModelPricingCatalog,
 	TokenDetails,
@@ -94,7 +95,7 @@ class Agent:
 		self.messages = self.message_manager.get_messages()
 
 		# Tracking variables
-		self.history: list[AgentHistory] = []
+		self.history: AgentHistoryList = AgentHistoryList(history=[])
 		self.n_steps = 1
 		self.consecutive_failures = 0
 		self.max_failures = max_failures
@@ -122,20 +123,19 @@ class Agent:
 	async def step(self) -> None:
 		"""Execute one step of the task"""
 		logger.info(f'\n📍 Step {self.n_steps}')
-		state = self.controller.browser.get_state(use_vision=self.use_vision)
-
-		# Add state to messages
-		self.message_manager.add_state_message(state)
-
+		state = None
 		try:
+			state = await self.controller.browser.get_state(use_vision=self.use_vision)
 			model_output = await self.get_next_action(state)
-			result = self.controller.act(model_output.action)
+			result = await self.controller.act(model_output.action)
 			if result.extracted_content:
 				logger.info(f'📄 Result: {result.extracted_content}')
+			if result.is_done:
+				logger.result(f'{result.extracted_content}')
 			self.consecutive_failures = 0
 
 		except Exception as e:
-			result = self._handle_step_error(e, state)
+			result = self._handle_step_error(e)
 			model_output = None
 
 			if result.error:
@@ -145,10 +145,9 @@ class Agent:
 						error=result.error,
 					)
 				)
-
-		# Update messages with result
-		self.message_manager.update_with_action_result(result)
-		self._make_history_item(model_output, state, result)
+		if state:
+			self._update_messages_with_result(result)
+			self._make_history_item(model_output, state, result)
 
 	def _handle_step_error(self, error: Exception, state: BrowserState) -> ActionResult:
 		"""Handle all types of errors that can occur during a step"""
@@ -176,7 +175,7 @@ class Agent:
 	) -> None:
 		"""Create and store history item"""
 		history_item = AgentHistory(model_output=model_output, result=result, state=state)
-		self.history.append(history_item)
+		self.history.history.append(history_item)
 
 	@time_execution_sync('--cut_input_messages')
 	def _cut_input_messages(self, input_messages: list[BaseMessage]) -> list[BaseMessage]:
@@ -425,7 +424,7 @@ class Agent:
 		f.write(' RESPONSE\n')
 		f.write(json.dumps(json.loads(response.model_dump_json(exclude_unset=True)), indent=2))
 
-	async def run(self, max_steps: int = 100) -> list[AgentHistory]:
+	async def run(self, max_steps: int = 100) -> AgentHistoryList:
 		"""Execute the task with maximum number of steps"""
 		try:
 			logger.info(f'🚀 Starting task: {self.task}')
@@ -457,11 +456,11 @@ class Agent:
 					agent_id=self.agent_id,
 					task=self.task,
 					success=self._is_task_complete(),
-					steps=len(self.history),
+					steps=len(self.history.history),
 				)
 			)
 			if not self.controller_injected:
-				self.controller.browser.close()
+				await self.controller.browser.close()
 
 	def _too_many_failures(self) -> bool:
 		"""Check if we should stop due to too many failures"""
@@ -472,4 +471,4 @@ class Agent:
 
 	def _is_task_complete(self) -> bool:
 		"""Check if the task has been completed successfully"""
-		return bool(self.history and self.history[-1].result.is_done)
+		return bool(self.history.history and self.history.history[-1].result.is_done)
