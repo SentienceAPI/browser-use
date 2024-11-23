@@ -35,9 +35,6 @@ async def main():
 	print('\nModel Outputs:')
 	pprint(history.model_actions(), indent=4)
 
-	print('\nResults:')
-	pprint(history.model_outputs(), indent=4)
-
 	print('\nThoughts:')
 	pprint(history.model_thoughts(), indent=4)
 
