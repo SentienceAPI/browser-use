@@ -117,9 +117,9 @@ class Agent:
 	async def step(self) -> None:
 		"""Execute one step of the task"""
 		logger.info(f'\n📍 Step {self.n_steps}')
-		state = await self.controller.browser.get_state(use_vision=self.use_vision)
-
+		state = None
 		try:
+			state = await self.controller.browser.get_state(use_vision=self.use_vision)
 			model_output = await self.get_next_action(state)
 			result = await self.controller.act(model_output.action)
 			if result.extracted_content:
@@ -129,7 +129,7 @@ class Agent:
 			self.consecutive_failures = 0
 
 		except Exception as e:
-			result = self._handle_step_error(e, state)
+			result = self._handle_step_error(e)
 			model_output = None
 
 			if result.error:
@@ -139,11 +139,11 @@ class Agent:
 						error=result.error,
 					)
 				)
+		if state:
+			self._update_messages_with_result(result)
+			self._make_history_item(model_output, state, result)
 
-		self._update_messages_with_result(result)
-		self._make_history_item(model_output, state, result)
-
-	def _handle_step_error(self, error: Exception, state: BrowserState) -> ActionResult:
+	def _handle_step_error(self, error: Exception) -> ActionResult:
 		"""Handle all types of errors that can occur during a step"""
 		error_msg = AgentError.format_error(error)
 		prefix = f'❌ Result failed {self.consecutive_failures + 1}/{self.max_failures} times:\n '
