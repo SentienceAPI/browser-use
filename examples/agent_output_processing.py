@@ -1,5 +1,6 @@
 import os
 import sys
+from pprint import pprint
 
 from browser_use.controller.service import Controller
 
@@ -17,13 +18,12 @@ llm = ChatOpenAI(model='gpt-4o')
 agent = Agent(
 	task="go to google.com and type 'OpenAI' click search and give me the first url",
 	llm=llm,
-	controller=Controller(keep_open=False, headless=True),
+	controller=Controller(keep_open=True, headless=False),
 )
 
 
 async def main():
 	history: AgentHistoryList = await agent.run()
-	from pprint import pprint
 
 	print('Final Result:')
 	pprint(history.final_result(), indent=4)
