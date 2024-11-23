@@ -29,11 +29,11 @@ async def main():
 	pprint(history.final_result(), indent=4)
 
 	print('\nErrors:')
-	pprint(history.get_errors(), indent=4)
+	pprint(history.errors(), indent=4)
 
 	# e.g. xPaths the model clicked on
 	print('\nModel Outputs:')
-	pprint(history.all_model_outputs(), indent=4)
+	pprint(history.model_actions(), indent=4)
 
 
 if __name__ == '__main__':

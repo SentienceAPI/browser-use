@@ -98,19 +98,19 @@ class AgentHistoryList(BaseModel):
 
 	def __str__(self) -> str:
 		"""Representation of the AgentHistoryList object"""
-		return f'AgentHistoryList(all_results={self.all_results()}, all_model_outputs={self.all_model_outputs()})'
+		return f'AgentHistoryList(all_results={self.action_results()}, all_model_outputs={self.model_actions()})'
 
 	def __repr__(self) -> str:
 		"""Representation of the AgentHistoryList object"""
 		return self.__str__()
 
-	def last_model_output(self) -> None | dict:
+	def last_action(self) -> None | dict:
 		"""Last action in history"""
 		if self.history and self.history[-1].model_output:
 			return self.history[-1].model_output.action.model_dump(exclude_none=True)
 		return None
 
-	def get_errors(self) -> list[str]:
+	def errors(self) -> list[str]:
 		"""Get all errors from history"""
 		return [h.result.error for h in self.history if h.result.error]
 
@@ -128,22 +128,30 @@ class AgentHistoryList(BaseModel):
 
 	def has_errors(self) -> bool:
 		"""Check if the agent has any errors"""
-		return len(self.get_errors()) > 0
+		return len(self.errors()) > 0
 
-	def unique_urls(self) -> list[str]:
+	def urls(self) -> list[str]:
 		"""Get all unique URLs from history"""
-		return list(set([h.state.url for h in self.history if h.state.url]))
+		return [h.state.url for h in self.history if h.state.url]
 
-	def all_screenshots(self) -> list[str]:
+	def screenshots(self) -> list[str]:
 		"""Get all screenshots from history"""
 		return [h.state.screenshot for h in self.history if h.state.screenshot]
 
-	def all_model_output_action_names(self) -> list[str]:
+	def action_names(self) -> list[str]:
 		"""Get all action names from history"""
-		return [list(action.keys())[0] for action in self.all_model_outputs()]
+		return [list(action.keys())[0] for action in self.model_actions()]
+
+	def model_thoughts(self) -> list[AgentBrain]:
+		"""Get all thoughts from history"""
+		return [h.model_output.current_state for h in self.history if h.model_output]
+
+	def model_outputs(self) -> list[AgentOutput]:
+		"""Get all model outputs from history"""
+		return [h.model_output for h in self.history if h.model_output]
 
 	# get all actions with params
-	def all_model_outputs(self) -> list[dict]:
+	def model_actions(self) -> list[dict]:
 		"""Get all actions from history"""
 		outputs = []
 		for h in self.history:
@@ -163,17 +171,17 @@ class AgentHistoryList(BaseModel):
 				outputs.append(output)
 		return outputs
 
-	def all_results(self) -> list[dict]:
+	def action_results(self) -> list[ActionResult]:
 		"""Get all results from history"""
-		return [h.result.model_dump(exclude_none=True) for h in self.history if h.result]
+		return [h.result for h in self.history if h.result]
 
-	def all_extracted_content(self) -> list[str]:
+	def extracted_content(self) -> list[str]:
 		"""Get all extracted content from history"""
 		return [h.result.extracted_content for h in self.history if h.result.extracted_content]
 
-	def all_model_outputs_filtered(self, include: list[str] = []) -> list[dict]:
-		"""Get all model outputs from history as JSON"""
-		outputs = self.all_model_outputs()
+	def model_actions_filtered(self, include: list[str] = []) -> list[dict]:
+		"""Get all model actions from history as JSON"""
+		outputs = self.model_actions()
 		result = []
 		for o in outputs:
 			for i in include:

@@ -34,7 +34,7 @@ async def test_search_google(llm, controller):
 		controller=controller,
 	)
 	history: AgentHistoryList = await agent.run(max_steps=2)
-	action_names = history.all_model_output_action_names()
+	action_names = history.action_names()
 	assert 'search_google' in action_names
 
 
@@ -47,7 +47,7 @@ async def test_go_to_url(llm, controller):
 		controller=controller,
 	)
 	history = await agent.run(max_steps=2)
-	action_names = history.all_model_output_action_names()
+	action_names = history.action_names()
 	assert 'go_to_url' in action_names
 
 
@@ -60,7 +60,7 @@ async def test_go_back(llm, controller):
 		controller=controller,
 	)
 	history = await agent.run(max_steps=3)
-	action_names = history.all_model_output_action_names()
+	action_names = history.action_names()
 	assert 'go_to_url' in action_names
 	assert 'go_back' in action_names
 
@@ -74,7 +74,7 @@ async def test_click_element(llm, controller):
 		controller=controller,
 	)
 	history = await agent.run(max_steps=4)
-	action_names = history.all_model_output_action_names()
+	action_names = history.action_names()
 	assert 'go_to_url' in action_names
 	assert 'click_element' in action_names
 
@@ -88,7 +88,7 @@ async def test_input_text(llm, controller):
 		controller=controller,
 	)
 	history = await agent.run(max_steps=4)
-	action_names = history.all_model_output_action_names()
+	action_names = history.action_names()
 	assert 'go_to_url' in action_names
 	assert 'input_text' in action_names
 
@@ -102,7 +102,7 @@ async def test_switch_tab(llm, controller):
 		controller=controller,
 	)
 	history = await agent.run(max_steps=6)
-	action_names = history.all_model_output_action_names()
+	action_names = history.action_names()
 	open_tab_count = action_names.count('open_tab')
 	assert open_tab_count >= 2
 	assert 'switch_tab' in action_names
@@ -117,7 +117,7 @@ async def test_open_new_tab(llm, controller):
 		controller=controller,
 	)
 	history = await agent.run(max_steps=3)
-	action_names = history.all_model_output_action_names()
+	action_names = history.action_names()
 	assert 'open_tab' in action_names
 
 
@@ -130,7 +130,7 @@ async def test_extract_page_content(llm, controller):
 		controller=controller,
 	)
 	history = await agent.run(max_steps=3)
-	action_names = history.all_model_output_action_names()
+	action_names = history.action_names()
 	assert 'go_to_url' in action_names
 	assert 'extract_content' in action_names
 
@@ -146,7 +146,7 @@ async def test_done_action(llm, controller):
 	)
 
 	history = await agent.run(max_steps=3)
-	action_names = history.all_model_output_action_names()
+	action_names = history.action_names()
 	assert 'go_to_url' in action_names
 	assert 'done' in action_names
 
@@ -177,7 +177,7 @@ async def test_scroll_down(llm, controller: Controller):
 
 	# Validate that the 'scroll_down' action was executed
 	history = agent.history
-	model_output = history.all_model_outputs()
+	model_output = history.model_actions()
 	if model_output:
 		keys = [key for key in model_output[0].keys()]
 		assert 'scroll_down' in keys
