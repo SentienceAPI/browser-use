@@ -19,6 +19,8 @@ async def test_has_title(page: Page):
 
 	# Get all DOM content including all shadow roots recursively
 	start_time = time.time()
+	# wait for the page to load
+	await page.wait_for_load_state('load')
 	full_content = await dom_service._get_html_content()
 	# full_content = page.evaluate("""() => {
 	# 	function getAllContent(root) {

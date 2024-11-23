@@ -36,6 +36,7 @@ class DomService:
 		if with_shadow_roots:
 			full_content = await self.page.evaluate("""() => {
 				function getAllContent(root) {
+					if (!root) return '';
 					let content = root.innerHTML || '';
 					
 					// Get all elements with shadow roots
