@@ -83,7 +83,7 @@ class Controller:
 			if len(session.context.pages) > initial_pages:
 				await browser.switch_to_tab(-1)
 
-			return ActionResult(extracted_content=f'Clicked element {msg}')
+			return ActionResult(extracted_content=f'{msg}')
 
 		@self.registry.action('Input text', param_model=InputTextAction, requires_browser=True)
 		async def input_text(params: InputTextAction, browser: Browser):
@@ -97,7 +97,7 @@ class Controller:
 
 			xpath = state.selector_map[params.index]
 			await browser._input_text_by_xpath(xpath, params.text)
-			msg = f'⌨️  Input text "{params.text}" into element {params.index}: {xpath}'
+			msg = f'⌨️  Input "{params.text}" into {params.index}: {xpath}'
 			return ActionResult(extracted_content=msg)
 
 		# Tab Management Actions
@@ -130,7 +130,6 @@ class Controller:
 		async def done(params: DoneAction, browser: Browser):
 			session = await browser.get_session()
 			state = session.cached_state
-			logger.info(f'✅ Done on page {state.url}\n\n: {params.text}')
 			return ActionResult(is_done=True, extracted_content=params.text)
 
 		@self.registry.action(

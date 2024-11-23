@@ -72,7 +72,7 @@
             "justMyCode": false
         },
         {
-            "name": "Python: Debug Current File",
+            "name": "pytest: Debug Current File",
             "type": "python",
             "request": "launch",
             "module": "pytest",

@@ -32,6 +32,10 @@ class RegisteredAction(BaseModel):
 class ActionModel(BaseModel):
 	"""Base model for dynamically created action models"""
 
+	# this will have all the registered actions, e.g.
+	# click_element = param_model = ClickElementParams
+	# done = param_model = None
+	#
 	model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
