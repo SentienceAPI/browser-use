@@ -10,18 +10,30 @@ import asyncio
 from langchain_openai import ChatOpenAI
 
 from browser_use import Agent
+from browser_use.agent.views import AgentHistoryList
 
 llm = ChatOpenAI(model='gpt-4o')
 
 agent = Agent(
-	task="Navigate to 'google.com' and type 'OpenAI' into the search bar. Then click the search button.",
+	task="go to google.com and type 'OpenAI' click search and give me the first url",
 	llm=llm,
-	controller=Controller(keep_open=True, headless=False),
+	controller=Controller(keep_open=False, headless=True),
 )
 
 
 async def main():
-	await agent.run()
+	history: AgentHistoryList = await agent.run()
+	from pprint import pprint
+
+	print('Final Result:')
+	pprint(history.final_result(), indent=4)
+
+	print('\nErrors:')
+	pprint(history.get_errors(), indent=4)
+
+	# e.g. xPaths the model clicked on
+	print('\nModel Outputs:')
+	pprint(history.all_model_outputs(), indent=4)
 
 
 if __name__ == '__main__':
