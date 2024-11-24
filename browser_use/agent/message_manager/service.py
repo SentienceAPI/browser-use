@@ -114,7 +114,7 @@ class MessageManager:
 					proportion_to_remove = tokens_to_remove / msg_tokens
 					if proportion_to_remove > 1:
 						raise ValueError(
-							f'To many tokens - history is too long - reduce the system prompt or task. '
+							f'Max token limit reached - history is too long - reduce the system prompt or task. '
 						)
 					characters_to_remove = int(len(msg.message.content) * proportion_to_remove)
 					if isinstance(msg.message.content, str):
