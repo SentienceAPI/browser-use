@@ -1,7 +1,9 @@
 from datetime import datetime
+from typing import Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from browser_use.agent.views import ActionResult
 from browser_use.browser.views import BrowserState
 
 
@@ -99,8 +101,9 @@ IMPORTANT RULES:
 
 
 class AgentMessagePrompt:
-	def __init__(self, state: BrowserState):
+	def __init__(self, state: BrowserState, result: Optional[ActionResult] = None):
 		self.state = state
+		self.result = result
 
 	def get_user_message(self) -> HumanMessage:
 		state_description = f"""
@@ -110,6 +113,12 @@ Available tabs:
 Interactive elements:
 {self.state.dom_items_to_string()}
         """
+
+		if self.result:
+			if self.result.extracted_content:
+				state_description += f'\nResult of last action: {self.result.extracted_content}'
+			if self.result.error:
+				state_description += f'\nError of last action: {self.result.error}'
 
 		if self.state.screenshot:
 			# Format message for vision model
