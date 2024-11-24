@@ -188,7 +188,7 @@ class Browser:
 			await session.playwright.stop()
 		else:
 			# Note: input() is blocking - consider an async alternative if needed
-			input('Press Enter to close Browser...')
+			# input('Press Enter to close Browser...')
 			self.keep_open = False
 			await self.close(force=True)
 
