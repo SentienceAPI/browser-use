@@ -161,6 +161,13 @@ class Agent:
 
 		if isinstance(error, (ValidationError, ValueError)):
 			logger.error(f'{prefix}{error_msg}')
+			if 'Max token limit reached' in error_msg:
+				# cut tokens from history
+				self.message_manager.max_input_tokens = self.max_input_tokens - 500
+				logger.info(
+					f'Cutting tokens from history - new max input tokens: {self.message_manager.max_input_tokens}'
+				)
+				self.message_manager.cut_messages()
 			self.consecutive_failures += 1
 		elif isinstance(error, RateLimitError):
 			logger.warning(f'{prefix}{error_msg}')
