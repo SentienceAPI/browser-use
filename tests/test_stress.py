@@ -74,6 +74,7 @@ async def test_token_limit_with_multiple_extractions(llm, controller):
 @pytest.mark.asyncio
 async def test_open_3_tabs_and_extract_content(llm, controller: Controller, max_tokens):
 	"""Stress test: Open 3 tabs with urls and extract content"""
+	# NOTE: currently we first remove the oldest messages, so the model forgets what it has done already and fails most likely long term tasks - so dont put too much attention to this test
 	agent = Agent(
 		task='Open 3 tabs with https://en.wikipedia.org/wiki/Internet and extract the content from each.',
 		llm=llm,
