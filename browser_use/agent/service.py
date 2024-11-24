@@ -146,10 +146,9 @@ class Agent:
 					)
 				)
 		if state:
-			self._update_messages_with_result(result)
 			self._make_history_item(model_output, state, result)
 
-	def _handle_step_error(self, error: Exception, state: BrowserState) -> ActionResult:
+	def _handle_step_error(self, error: Exception) -> ActionResult:
 		"""Handle all types of errors that can occur during a step"""
 		error_msg = AgentError.format_error(error, include_trace=True)
 		prefix = f'❌ Result failed {self.consecutive_failures + 1}/{self.max_failures} times:\n '
@@ -176,56 +175,6 @@ class Agent:
 		"""Create and store history item"""
 		history_item = AgentHistory(model_output=model_output, result=result, state=state)
 		self.history.history.append(history_item)
-
-	@time_execution_sync('--cut_input_messages')
-	def _cut_input_messages(self, input_messages: list[BaseMessage]) -> list[BaseMessage]:
-		"""Cut input messages to max input tokens"""
-
-		# NOTE: Tools are not included in token count for now
-		token_count = self._calc_token_count(input_messages)
-		# error checking if first and last message are too long together
-
-		# check system message too long
-		if token_count[0] > self.max_input_tokens:
-			raise ValueError('System message is too long')
-
-		# check current message too long
-		if token_count[0] + token_count[-1] > self.max_input_tokens:
-			current_message = input_messages[-1]
-			system_message = input_messages[0]
-
-			# cut current message
-			available_tokens = self.max_input_tokens - token_count[0]
-
-			# binary search to find the longest message that can be cut
-			message_content = get_buffer_string([current_message])
-			low = 0
-			high = len(current_message.content)
-			while low < high:
-				mid = (low + high) // 2
-				if self.llm.get_num_tokens(message_content[:mid]) > available_tokens:
-					high = mid
-				else:
-					low = mid + 1
-			current_message.content = current_message.content[:low]
-			input_messages = [system_message, current_message]
-			self.messages = [system_message]
-			return input_messages
-
-		# remove messages from 1 to -2 until token count is less than max input tokens
-		while sum(token_count) > self.max_input_tokens:
-			token_count.pop(1)
-			input_messages.pop(1)
-			logger.debug(f'Cutting history message to reduce token count: {input_messages[1]}')
-
-		# update messages
-		self.messages = input_messages[:-1]
-
-		return input_messages
-
-	def _calc_token_count(self, messages: list[BaseMessage]) -> list[int]:
-		"""Calculate token count of messages"""
-		return [self.llm.get_num_tokens(get_buffer_string([m])) for m in messages]
 
 	@time_execution_async('--get_next_action')
 	async def get_next_action(self, state: BrowserState) -> AgentOutput:
