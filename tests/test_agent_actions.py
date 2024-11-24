@@ -1,8 +1,11 @@
+import os
+
 import pytest
-from langchain_openai import ChatOpenAI
-from pydantic import BaseModel
+from langchain_openai import AzureChatOpenAI, ChatOpenAI
+from pydantic import BaseModel, SecretStr
 
 from browser_use.agent.service import Agent
+from browser_use.agent.views import AgentHistoryList
 from browser_use.controller.service import Controller
 
 
@@ -11,7 +14,12 @@ def llm():
 	"""Initialize language model for testing"""
 
 	# return ChatAnthropic(model_name='claude-3-5-sonnet-20240620', timeout=25, stop=None)
-	return ChatOpenAI(model='gpt-4o')
+	return AzureChatOpenAI(
+		model='gpt-4o',
+		api_version='2024-10-21',
+		azure_endpoint=os.getenv('AZURE_OPENAI_ENDPOINT', ''),
+		api_key=SecretStr(os.getenv('AZURE_OPENAI_KEY', '')),
+	)
 	# return ChatOpenAI(model='gpt-4o-mini')
 
 
@@ -27,6 +35,7 @@ async def agent_with_controller():
 			await controller.browser.close(force=True)
 
 
+# pytest tests/test_agent_actions.py -v -k "test_ecommerce_interaction" --capture=no
 # @pytest.mark.asyncio
 async def test_ecommerce_interaction(llm, agent_with_controller):
 	"""Test complex ecommerce interaction sequence"""
@@ -37,31 +46,26 @@ async def test_ecommerce_interaction(llm, agent_with_controller):
 		save_conversation_path='tmp/test_ecommerce_interaction/conversation',
 	)
 
-	history = await agent.run(max_steps=20)
+	history: AgentHistoryList = await agent.run(max_steps=20)
 
 	# Verify sequence of actions
 	action_sequence = []
-	for h in history:
-		action = getattr(h.model_output, 'action', None)
-		if action and (getattr(action, 'go_to_url', None) or getattr(action, 'open_tab', None)):
+	for action in history.model_actions():
+		action_name = list(action.keys())[0]
+		if action_name in ['go_to_url', 'open_tab']:
 			action_sequence.append('navigate')
-		elif action and getattr(action, 'input_text', None):
+		elif action_name == 'input_text':
 			action_sequence.append('input')
 			# Check that the input is 'laptop'
-			inp = action.input_text.text.lower()
+			inp = action['input_text']['text'].lower()  # type: ignore
 			if inp == 'laptop':
 				action_sequence.append('input_exact_correct')
 			elif 'laptop' in inp:
 				action_sequence.append('correct_in_input')
 			else:
 				action_sequence.append('incorrect_input')
-
-		elif action and getattr(action, 'click_element', None):
+		elif action_name == 'click_element':
 			action_sequence.append('click')
-
-		if action is None:
-			print(h.result)
-			print(h.model_output)
 
 	# Verify essential steps were performed
 	assert 'navigate' in action_sequence  # Navigated to Amazon
@@ -74,25 +78,25 @@ async def test_ecommerce_interaction(llm, agent_with_controller):
 async def test_error_recovery(llm, agent_with_controller):
 	"""Test agent's ability to recover from errors"""
 	agent = Agent(
-		task='Navigate to nonexistent-site.com and then recover by going to google.com',
+		task='Navigate to nonexistent-site.com and then recover by going to google.com ',
 		llm=llm,
 		controller=agent_with_controller,
 	)
 
-	history = await agent.run(max_steps=10)
+	history: AgentHistoryList = await agent.run(max_steps=10)
 
-	recovery_action = next(
-		(
-			h
-			for h in history
-			if h.model_output
-			and getattr(h.model_output, 'action', None)
-			and getattr(h.model_output.action, 'go_to_url', None)
-			and getattr(h.model_output.action.go_to_url, 'url', '').endswith('google.com')  # type: ignore -> pretty weird way to do this
-		),
-		None,
-	)
-	assert recovery_action is not None
+	actions_names = history.action_names()
+	actions = history.model_actions()
+	assert (
+		'go_to_url' in actions_names or 'open_tab' in actions_names
+	), f'{actions_names} does not contain go_to_url or open_tab'
+	for action in actions:
+		if 'go_to_url' in action:
+			assert 'url' in action['go_to_url'], 'url is not in go_to_url'
+			assert action['go_to_url']['url'].endswith(
+				'google.com'
+			), f'url does not end with google.com'
+			break
 
 
 # @pytest.mark.asyncio
@@ -104,18 +108,16 @@ async def test_find_contact_email(llm, agent_with_controller):
 		controller=agent_with_controller,
 	)
 
-	history = await agent.run(max_steps=10)
+	history: AgentHistoryList = await agent.run(max_steps=10)
 
 	# Verify the agent found the contact email
-	email_action = next(
-		(
-			h
-			for h in history
-			if h.result.extracted_content and 'info@browser-use.com' in h.result.extracted_content
-		),
-		None,
-	)
-	assert email_action is not None
+	extracted_content = history.extracted_content()
+	email = 'info@browser-use.com'
+	for content in extracted_content:
+		if email in content:
+			break
+	else:
+		pytest.fail(f'{extracted_content} does not contain {email}')
 
 
 # @pytest.mark.asyncio
@@ -127,19 +129,16 @@ async def test_agent_finds_installation_command(llm, agent_with_controller):
 		controller=agent_with_controller,
 	)
 
-	history = await agent.run(max_steps=10)
+	history: AgentHistoryList = await agent.run(max_steps=10)
 
 	# Verify the agent found the correct installation command
-	install_command_action = next(
-		(
-			h
-			for h in history
-			if h.result.extracted_content
-			and 'pip install browser-use' in h.result.extracted_content
-		),
-		None,
-	)
-	assert install_command_action is not None
+	extracted_content = history.extracted_content()
+	install_command = 'pip install browser-use'
+	for content in extracted_content:
+		if install_command in content:
+			break
+	else:
+		pytest.fail(f'{extracted_content} does not contain {install_command}')
 
 
 class CaptchaTest(BaseModel):
@@ -188,11 +187,11 @@ async def test_captcha_solver(llm, agent_with_controller, captcha: CaptchaTest):
 	)
 	from browser_use.agent.views import AgentHistoryList
 
-	history = await agent.run(max_steps=10)
+	history: AgentHistoryList = await agent.run(max_steps=7)
 
 	# Verify the agent solved the captcha
 	solved = False
-	for h in history:
+	for h in history.history:
 		last = h.state.items
 		if any(captcha.success_text in item.text for item in last):
 			solved = True

@@ -152,7 +152,7 @@ class Controller:
 
 		# scroll up
 		@self.registry.action(
-			'Scroll up the page by pixel amount',
+			'Scroll up the page by pixel amount - if no amount is specified, scroll up one page',
 			param_model=ScrollAction,
 			requires_browser=True,
 		)

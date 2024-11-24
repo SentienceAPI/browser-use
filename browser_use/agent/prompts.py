@@ -56,6 +56,7 @@ class SystemPrompt:
 7. If the page is empty use actions like "go_to_url", "search_google" or "open_tab"
 8. Remember: Choose EXACTLY ONE action per response. Invalid combinations or multiple actions will be rejected.
 9. If popups like cookies appear, accept or close them
+10. Call 'done' when you are done with the task - dont hallucinate or make up actions
 	"""
 
 	def input_format(self) -> str:

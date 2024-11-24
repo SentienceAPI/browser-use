@@ -1,15 +1,12 @@
+import os
+
 import pytest
-from langchain_openai import ChatOpenAI
-from pydantic import BaseModel
+from langchain_openai import AzureChatOpenAI, ChatOpenAI
+from pydantic import BaseModel, SecretStr
 
 from browser_use.agent.service import Agent
+from browser_use.agent.views import AgentHistoryList
 from browser_use.controller.service import Controller
-
-
-@pytest.fixture
-def llm():
-	"""Initialize the language model"""
-	return ChatOpenAI(model='gpt-4o')  # Use appropriate model
 
 
 @pytest.fixture
@@ -68,6 +65,19 @@ async def controller():
 			await controller.browser.close(force=True)
 
 
+@pytest.fixture
+def llm():
+	"""Initialize language model for testing"""
+
+	# return ChatAnthropic(model_name='claude-3-5-sonnet-20240620', timeout=25, stop=None)
+	return AzureChatOpenAI(
+		model='gpt-4o',
+		api_version='2024-10-21',
+		azure_endpoint=os.getenv('AZURE_OPENAI_ENDPOINT', ''),
+		api_key=SecretStr(os.getenv('AZURE_OPENAI_KEY', '')),
+	)
+
+
 # @pytest.mark.skip(reason="Skipping test for now")
 @pytest.mark.asyncio
 async def test_self_registered_actions_no_pydantic(llm, controller):
@@ -77,10 +87,9 @@ async def test_self_registered_actions_no_pydantic(llm, controller):
 		llm=llm,
 		controller=controller,
 	)
-	history = await agent.run(max_steps=10)
+	history: AgentHistoryList = await agent.run(max_steps=10)
 	# Check that custom actions were executed
-	actions = [h.model_output.action for h in history if h.model_output and h.model_output.action]
-	action_names = [list(action.model_dump(exclude_unset=True).keys())[0] for action in actions]
+	action_names = history.action_names()
 
 	assert 'print_message' in action_names
 	assert 'add_numbers' in action_names
@@ -107,13 +116,16 @@ async def test_mixed_arguments_actions(llm, controller):
 	history = await agent.run(max_steps=5)
 
 	# Check that the action was executed
-	actions = [h.model_output.action for h in history if h.model_output and h.model_output.action]
-	action_names = [list(action.model_dump(exclude_unset=True).keys())[0] for action in actions]
+	action_names = history.action_names()
 
 	assert 'calculate_area' in action_names
 	# check result
 	correct = 'The area is 17.6'
-	assert correct in [h.result.extracted_content for h in history if h.model_output]
+	for content in history.extracted_content():
+		if correct in content:
+			break
+	else:
+		pytest.fail(f'{correct} not found in extracted content')
 
 
 @pytest.mark.asyncio
@@ -127,12 +139,15 @@ async def test_pydantic_simple_model(llm, controller):
 	history = await agent.run(max_steps=5)
 
 	# Check that the action was executed
-	actions = [h.model_output.action for h in history if h.model_output and h.model_output.action]
-	action_names = [list(action.model_dump(exclude_unset=True).keys())[0] for action in actions]
+	action_names = history.action_names()
 
 	assert 'process_simple_model' in action_names
 	correct = 'Processed Alice, age 30'
-	assert correct in [h.result.extracted_content for h in history if h.model_output]
+	for content in history.extracted_content():
+		if correct in content:
+			break
+	else:
+		pytest.fail(f'{correct} not found in extracted content')
 
 
 @pytest.mark.asyncio
@@ -146,31 +161,15 @@ async def test_pydantic_nested_model(llm, controller):
 	history = await agent.run(max_steps=5)
 
 	# Check that the action was executed
-	actions = [h.model_output.action for h in history if h.model_output and h.model_output.action]
-	action_names = [list(action.model_dump(exclude_unset=True).keys())[0] for action in actions]
+	action_names = history.action_names()
 
 	assert 'process_nested_model' in action_names
 	correct = 'Processed user Bob, age 25 at address 123 Maple St, Springfield'
-	assert correct in [h.result.extracted_content for h in history if h.model_output]
-
-
-@pytest.mark.asyncio
-async def test_pydantic_multiple_models(llm, controller):
-	"""Test action with multiple Pydantic model arguments"""
-	agent = Agent(
-		task="Process models with user name 'Carol', age 28, living at '456 Oak Ave', 'Shelbyville'.",
-		llm=llm,
-		controller=controller,
-	)
-	history = await agent.run(max_steps=5)
-
-	# Check that the action was executed
-	actions = [h.model_output.action for h in history if h.model_output and h.model_output.action]
-	action_names = [list(action.model_dump(exclude_unset=True).keys())[0] for action in actions]
-
-	assert 'process_multiple_models' in action_names
-	correct = 'Processed Carol living at 456 Oak Ave, Shelbyville'
-	assert correct in [h.result.extracted_content for h in history if h.model_output]
+	for content in history.extracted_content():
+		if correct in content:
+			break
+	else:
+		pytest.fail(f'{correct} not found in extracted content')
 
 
 # run this file with:

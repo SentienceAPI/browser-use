@@ -7,7 +7,8 @@ import os
 from typing import Any, Dict, List
 
 import pytest
-from langchain_openai import ChatOpenAI
+from langchain_openai import AzureChatOpenAI, ChatOpenAI
+from pydantic import SecretStr
 
 from browser_use.agent.service import Agent
 from browser_use.controller.service import Controller
@@ -32,10 +33,17 @@ def test_cases() -> List[Dict[str, Any]]:
 	return subset
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture
 def llm():
-	"""Initialize the language model"""
-	return ChatOpenAI(model='gpt-4o')
+	"""Initialize language model for testing"""
+
+	# return ChatAnthropic(model_name='claude-3-5-sonnet-20240620', timeout=25, stop=None)
+	return AzureChatOpenAI(
+		model='gpt-4o',
+		api_version='2024-10-21',
+		azure_endpoint=os.getenv('AZURE_OPENAI_ENDPOINT', ''),
+		api_key=SecretStr(os.getenv('AZURE_OPENAI_KEY', '')),
+	)
 
 
 @pytest.fixture(scope='function')

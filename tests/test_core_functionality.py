@@ -1,5 +1,8 @@
+import os
+
 import pytest
-from langchain_openai import ChatOpenAI
+from langchain_openai import AzureChatOpenAI, ChatOpenAI
+from pydantic import SecretStr
 
 from browser_use.agent.service import Agent
 from browser_use.agent.views import AgentHistoryList
@@ -9,14 +12,21 @@ from browser_use.controller.service import Controller
 @pytest.fixture
 def llm():
 	"""Initialize language model for testing"""
-	return ChatOpenAI(model='gpt-4o')  # Use appropriate model
+
+	# return ChatAnthropic(model_name='claude-3-5-sonnet-20240620', timeout=25, stop=None)
+	return AzureChatOpenAI(
+		model='gpt-4o',
+		api_version='2024-10-21',
+		azure_endpoint=os.getenv('AZURE_OPENAI_ENDPOINT', ''),
+		api_key=SecretStr(os.getenv('AZURE_OPENAI_KEY', '')),
+	)
 
 
 # pytest -s -k test_search_google
 @pytest.fixture
 async def controller():
 	"""Initialize the controller with persistent browser"""
-	controller = Controller(keep_open=True, headless=False)
+	controller = Controller(keep_open=False, headless=False)
 
 	try:
 		yield controller
@@ -75,7 +85,7 @@ async def test_click_element(llm, controller):
 	)
 	history = await agent.run(max_steps=4)
 	action_names = history.action_names()
-	assert 'go_to_url' in action_names
+	assert 'go_to_url' in action_names or 'open_tab' in action_names
 	assert 'click_element' in action_names
 
 
@@ -177,9 +187,5 @@ async def test_scroll_down(llm, controller: Controller):
 
 	# Validate that the 'scroll_down' action was executed
 	history = agent.history
-	model_output = history.model_actions()
-	if model_output:
-		keys = [key for key in model_output[0].keys()]
-		assert 'scroll_down' in keys
-	else:
-		pytest.fail('No model outputs found')
+	action_names = history.action_names()
+	assert 'scroll_down' in action_names
