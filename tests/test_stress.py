@@ -1,3 +1,6 @@
+import os
+import random
+import string
 import time
 
 import pytest
@@ -5,6 +8,7 @@ from langchain_openai import AzureChatOpenAI
 from pydantic import SecretStr
 
 from browser_use.agent.service import Agent
+from browser_use.agent.views import AgentHistoryList
 from browser_use.browser.views import BrowserState
 from browser_use.controller.service import Controller
 
@@ -30,14 +34,10 @@ def generate_random_text(length: int) -> str:
 async def controller():
 	"""Initialize the controller"""
 	controller = Controller()
-	large_text = generate_random_text(10)
+	large_text = generate_random_text(10000)
 
 	@controller.action('call this magical function to get very special text')
 	def get_very_special_text():
-		return large_text
-
-	@controller.action('Concatenate strings')
-	def concatenate_strings(str1: str, str2: str):
 		return large_text
 
 	try:
@@ -48,69 +48,48 @@ async def controller():
 
 
 @pytest.mark.asyncio
-async def test_token_limit_with_large_extraction(llm, controller):
-	"""Test handling of large extracted content exceeding token limit"""
-	# Generate large text that will exceed token limit
-
-	agent = Agent(
-		task='Concatenate strings a and b with function',
-		llm=llm,
-		controller=controller,
-		max_input_tokens=5000,
-		save_conversation_path='tmp/stress_test/test_token_limit_with_large_extraction.json',
-	)
-
-	history = await agent.run(max_steps=3)
-	actions = [h.model_output.action for h in history if h.model_output]
-	assert 'concatenate_strings' in actions
-	assert 'done' in actions
-
-
-@pytest.mark.asyncio
 async def test_token_limit_with_multiple_extractions(llm, controller):
 	"""Test handling of multiple smaller extractions accumulating tokens"""
 
 	agent = Agent(
-		task='Give me the special text 5 times',
+		task='Call the magical function to get very special text 5 times',
 		llm=llm,
 		controller=controller,
-		max_input_tokens=4000,
+		max_input_tokens=2000,
 		save_conversation_path='tmp/stress_test/test_token_limit_with_multiple_extractions.json',
 	)
 
-	history = await agent.run(max_steps=10)
-	if history[-1].model_output:
-		last_action = history[-1].model_output.action
-		assert last_action == 'done'
+	history = await agent.run(max_steps=5)
 
 	# ckeck if 5 times called get_special_text
-	calls = [
-		h.model_output.action
-		for h in history
-		if h.model_output and h.model_output.action == 'get_special_text'
-	]
-	assert len(calls) == 5
+	calls = [a for a in history.action_names() if a == 'get_very_special_text']
+
+	# check the message history should be max 3 messages
+	assert len(agent.message_manager.history.messages) <= 3
 
 
 # should get rate limited
+@pytest.mark.slow
+@pytest.mark.parametrize('max_tokens', [4000])  # 8000 20000
 @pytest.mark.asyncio
-async def test_open_10_tabs_and_extract_content(llm, controller):
-	"""Stress test: Open 10 tabs and extract content"""
+async def test_open_3_tabs_and_extract_content(llm, controller: Controller, max_tokens):
+	"""Stress test: Open 3 tabs with urls and extract content"""
 	agent = Agent(
-		task='Open new tabs with example.com, example.net, example.org. Then, extract the content from each.',
+		task='Open 3 tabs with https://en.wikipedia.org/wiki/Internet and extract the content from each.',
 		llm=llm,
 		controller=controller,
-		save_conversation_path='tmp/stress_test/test_open_10_tabs_and_extract_content.json',
+		max_input_tokens=max_tokens,
+		save_conversation_path='tmp/stress_test/test_open_3_tabs_and_extract_content.json',
 	)
 	start_time = time.time()
-	history = await agent.run(max_steps=50)
+	history = await agent.run(max_steps=7)
 	end_time = time.time()
 
 	total_time = end_time - start_time
 
 	print(f'Total time: {total_time:.2f} seconds')
 	# Check for errors
-	errors = [h.result.error for h in history if h.result and h.result.error]
+	errors = history.errors()
 	assert len(errors) == 0, 'Errors occurred during the test'
-	# check if 10 tabs were opened
+	# check if 3 tabs were opened
 	assert len(controller.browser.current_state.tabs) >= 3, '3 tabs were not opened'

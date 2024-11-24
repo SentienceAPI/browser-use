@@ -135,9 +135,10 @@ class MessageManager:
 		if proportion_to_remove > 1:
 			raise ValueError(
 				f'Max token limit reached - history is too long - reduce the system prompt or task. '
+				f'proportion_to_remove: {proportion_to_remove}'
 			)
 		logger.debug(
-			f'Removing {proportion_to_remove * 100}% of message with {msg.metadata.input_tokens} tokens ({proportion_to_remove * msg.metadata.input_tokens} tokens)'
+			f'Removing {proportion_to_remove * 100:.2f}% of the last message with {msg.metadata.input_tokens} tokens (removing approx {proportion_to_remove * msg.metadata.input_tokens} tokens)'
 		)
 
 		content = msg.message.content
@@ -145,16 +146,17 @@ class MessageManager:
 		content = content[:-characters_to_remove]
 
 		# remove tokens and old long message
-		self.history.total_tokens -= msg.metadata.input_tokens
-		self.history.messages.pop(2)
-
-		logger.debug(
-			f'Added message with {msg.metadata.input_tokens} tokens - total tokens now: {self.history.total_tokens}/{self.max_input_tokens}'
-		)
+		self.history.remove_message(index=2)
 
 		# new message with updated content
 		msg = HumanMessage(content=content)
 		self._add_message_with_tokens(msg)
+
+		last_msg = self.history.messages[-1]
+
+		logger.debug(
+			f'Added message with {last_msg.metadata.input_tokens} tokens - total tokens now: {self.history.total_tokens}/{self.max_input_tokens}'
+		)
 
 	def _add_message_with_tokens(self, message: BaseMessage) -> None:
 		"""Add message with token count metadata"""
