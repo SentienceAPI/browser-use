@@ -16,11 +16,6 @@ from browser_use.controller.service import Controller
 controller = Controller()
 
 
-@controller.action('Ask me for information / help')
-def ask_human(question: str) -> str:
-	return input(f'\n{question}\nInput: ')
-
-
 @controller.action(
 	'Upload file - the file name is inside the function - you only need to call this with the  correct index',
 	requires_browser=True,
@@ -47,8 +42,16 @@ async def main():
 		'https://ps.uci.edu/~franklin/doc/file_upload.html',
 	]
 	task = f'go to {" ".join(sites)} each in new tabs and Upload my file then subbmit '
+	task = f'go to {" ".join(sites)} each in new tabs and Upload my file then subbmit extract the page content and go to google and find elon musk '
+
 	model = ChatOpenAI(model='gpt-4o-mini')
-	agent = Agent(task=task, llm=model, controller=controller)
+	agent = Agent(
+		task=task,
+		llm=model,
+		controller=controller,
+		save_conversation_path='tmp/examples/file_upload',
+		max_input_tokens=8000,
+	)
 
 	await agent.run()
 
