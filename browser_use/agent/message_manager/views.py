@@ -34,3 +34,8 @@ class MessageHistory(BaseModel):
 		)
 		if metadata and metadata.total_tokens:
 			self.total_tokens += metadata.total_tokens
+
+	def remove_last_state_message(self) -> None:
+		"""Remove last state message from history"""
+		if self.messages:
+			self.messages.pop()

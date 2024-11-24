@@ -14,9 +14,6 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import (
 	AIMessage,
 	BaseMessage,
-	HumanMessage,
-	SystemMessage,
-	get_buffer_string,
 )
 from langchain_openai import ChatOpenAI
 from openai import RateLimitError
@@ -69,6 +66,7 @@ class Agent:
 		self.use_vision = use_vision
 		self.llm = llm
 		self.save_conversation_path = save_conversation_path
+		self._last_result = None
 
 		# Controller setup
 		self.controller_injected = controller is not None
@@ -91,8 +89,6 @@ class Agent:
 			system_prompt_class=self.system_prompt_class,
 			max_input_tokens=self.max_input_tokens,
 		)
-
-		self.messages = self.message_manager.get_messages()
 
 		# Tracking variables
 		self.history: AgentHistoryList = AgentHistoryList(history=[])
@@ -124,18 +120,28 @@ class Agent:
 		"""Execute one step of the task"""
 		logger.info(f'\n📍 Step {self.n_steps}')
 		state = None
+
 		try:
 			state = await self.controller.browser.get_state(use_vision=self.use_vision)
-			model_output = await self.get_next_action(state)
+			self.message_manager.add_state_message(state, self._last_result)
+			input_messages = self.message_manager.get_messages()
+			model_output = await self.get_next_action(input_messages)
+			self.message_manager.add_model_output(model_output)
+
 			result = await self.controller.act(model_output.action)
+			self._last_result = result
+
 			if result.extracted_content:
 				logger.info(f'📄 Result: {result.extracted_content}')
 			if result.is_done:
-				logger.result(f'{result.extracted_content}')
+				logger.info(f'{result.extracted_content}')
+
 			self.consecutive_failures = 0
 
 		except Exception as e:
 			result = self._handle_step_error(e)
+			self._last_result = result
+
 			model_output = None
 
 			if result.error:
@@ -177,17 +183,14 @@ class Agent:
 		self.history.history.append(history_item)
 
 	@time_execution_async('--get_next_action')
-	async def get_next_action(self, state: BrowserState) -> AgentOutput:
+	async def get_next_action(self, input_messages: list[BaseMessage]) -> AgentOutput:
 		"""Get next action from LLM based on current state"""
-		new_message = AgentMessagePrompt(state).get_user_message()
-		input_messages = self.messages + [new_message]
 
 		structured_llm = self.llm.with_structured_output(self.AgentOutput, include_raw=True)
 		response: dict[str, Any] = await structured_llm.ainvoke(input_messages)  # type: ignore
 
 		parsed: AgentOutput = response['parsed']
 
-		self._update_message_history(parsed)
 		self._log_response(parsed)
 		self._save_conversation(input_messages, parsed)
 		self.n_steps += 1
@@ -319,10 +322,6 @@ class Agent:
 			logger.debug(
 				f'🔢 Last  Tokens: input: {current_tokens.input_tokens} (cached: {current_tokens.input_token_details.cache_read}) + output: {current_tokens.output_tokens} = {current_tokens.total_tokens} '
 			)
-
-	def _update_message_history(self, response: AgentOutput) -> None:
-		"""Update message history with new interactions"""
-		self.messages.append(AIMessage(content=response.model_dump_json(exclude_unset=True)))
 
 	def _log_response(self, response: Any) -> None:
 		"""Log the model's response"""

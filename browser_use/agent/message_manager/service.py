@@ -74,8 +74,7 @@ class MessageManager:
 
 	def _remove_last_state_message(self) -> None:
 		"""Remove last state message from history"""
-		if self.history.messages:
-			self.history.messages.pop()
+		self.history.remove_last_state_message()
 
 	def add_model_output(self, model_output: AgentOutput) -> None:
 		"""Add model output as AI message"""
@@ -86,7 +85,47 @@ class MessageManager:
 
 	def get_messages(self) -> List[BaseMessage]:
 		"""Get current message list, potentially trimmed to max tokens"""
+		self.cut_messages()
 		return [m.message for m in self.history.messages]
+
+	def cut_messages(self):
+		"""Get current message list, potentially trimmed to max tokens"""
+		diff = self.history.total_tokens - self.max_input_tokens
+		if diff <= 0:
+			return None
+		else:
+			while diff > 0 and len(self.history.messages) > 3:
+				# remove message from index 2 (which is the oldest message after system and task) until current message until within max tokens
+				msg = self.history.messages[2]
+				tokens = msg.metadata.input_tokens or 0
+				diff -= tokens
+				# update total tokens
+				self.history.total_tokens -= tokens
+				self.history.messages.pop(2)
+
+			if diff > 0:
+				# if still over, remove text from state message proportionally to the number of tokens needed with buffer
+				msg = self.history.messages[2]
+				tokens_to_remove = diff
+				msg_tokens = msg.metadata.input_tokens or 0
+				# if image do - 800
+				if msg_tokens > 0:
+					# Calculate the proportion of content to remove
+					proportion_to_remove = tokens_to_remove / msg_tokens
+					if proportion_to_remove > 1:
+						raise ValueError(
+							f'To many tokens - history is too long - reduce the system prompt or task. '
+						)
+					characters_to_remove = int(len(msg.message.content) * proportion_to_remove)
+					if isinstance(msg.message.content, str):
+						msg.message.content = msg.message.content[:-characters_to_remove]
+					elif isinstance(msg.message.content, list):
+						for item in msg.message.content:
+							if 'text' in item:
+								item['text'] = item['text'][:-characters_to_remove]
+				self.history.total_tokens -= diff
+				# count real tokens
+				msg.metadata.input_tokens = self._count_tokens(msg.message)
 
 	def _add_message_with_tokens(self, message: BaseMessage) -> None:
 		"""Add message with token count metadata"""
