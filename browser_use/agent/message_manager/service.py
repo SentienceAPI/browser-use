@@ -24,13 +24,6 @@ logger = logging.getLogger(__name__)
 
 
 class MessageManager:
-	# system prompt
-	# task message
-	# state message
-	# model output
-	# state message
-	# model output
-	# state message
 	def __init__(
 		self,
 		llm: BaseChatModel,
@@ -38,6 +31,8 @@ class MessageManager:
 		action_descriptions: str,
 		system_prompt_class: Type[SystemPrompt],
 		max_input_tokens: int = 128000,
+		estimated_tokens_per_character: int = 3,
+		image_tokens: int = 800,
 	):
 		self.llm = llm
 		self.system_prompt_class = system_prompt_class
@@ -45,13 +40,14 @@ class MessageManager:
 		self.history = MessageHistory()
 		self.task = task
 		self.action_descriptions = action_descriptions
+		self.ESTIMATED_TOKENS_PER_CHARACTER = estimated_tokens_per_character
+		self.IMG_TOKENS = image_tokens
 
 		system_message = self.system_prompt_class(
 			self.action_descriptions, current_date=datetime.now()
 		).get_system_message()
 		self._add_message_with_tokens(system_message)
 
-		# Add task message
 		task_message = HumanMessage(content=f'Your task is: {task}')
 		self._add_message_with_tokens(task_message)
 
@@ -67,18 +63,21 @@ class MessageManager:
 				msg = HumanMessage(content=str(result.error))
 				self._add_message_with_tokens(msg)
 			result = None
+
 		# otherwise add state message and result to next message (which will not stay in memory)
-		else:
-			state_message = AgentMessagePrompt(state, result).get_user_message()
-			self._add_message_with_tokens(state_message)
+		state_message = AgentMessagePrompt(state, result).get_user_message()
+		self._add_message_with_tokens(state_message)
 
 	def _remove_last_state_message(self) -> None:
 		"""Remove last state message from history"""
-		self.history.remove_last_state_message()
+		if len(self.history.messages) > 2 and isinstance(
+			self.history.messages[-1].message, HumanMessage
+		):
+			self.history.remove_message()
 
 	def add_model_output(self, model_output: AgentOutput) -> None:
 		"""Add model output as AI message"""
-		self._remove_last_state_message()
+
 		content = model_output.model_dump_json(exclude_unset=True)
 		msg = AIMessage(content=content)
 		self._add_message_with_tokens(msg)
@@ -93,59 +92,100 @@ class MessageManager:
 		diff = self.history.total_tokens - self.max_input_tokens
 		if diff <= 0:
 			return None
-		else:
-			while diff > 0 and len(self.history.messages) > 3:
-				# remove message from index 2 (which is the oldest message after system and task) until current message until within max tokens
-				msg = self.history.messages[2]
-				tokens = msg.metadata.input_tokens or 0
-				diff -= tokens
-				# update total tokens
-				self.history.total_tokens -= tokens
-				self.history.messages.pop(2)
 
-			if diff > 0:
-				# if still over, remove text from state message proportionally to the number of tokens needed with buffer
-				msg = self.history.messages[2]
-				tokens_to_remove = diff
-				msg_tokens = msg.metadata.input_tokens or 0
-				# if image do - 800
-				if msg_tokens > 0:
-					# Calculate the proportion of content to remove
-					proportion_to_remove = tokens_to_remove / msg_tokens
-					if proportion_to_remove > 1:
-						raise ValueError(
-							f'Max token limit reached - history is too long - reduce the system prompt or task. '
-						)
-					characters_to_remove = int(len(msg.message.content) * proportion_to_remove)
-					if isinstance(msg.message.content, str):
-						msg.message.content = msg.message.content[:-characters_to_remove]
-					elif isinstance(msg.message.content, list):
-						for item in msg.message.content:
-							if 'text' in item:
-								item['text'] = item['text'][:-characters_to_remove]
-				self.history.total_tokens -= diff
-				# count real tokens
-				msg.metadata.input_tokens = self._count_tokens(msg.message)
+		while diff > 0 and len(self.history.messages) > 3:
+			# remove message from index 2 (which is the oldest message after system and task) until current message until within max tokens
+			msg = self.history.messages[2]
+			tokens = msg.metadata.input_tokens
+			diff -= tokens
+			# update total tokens
+			self.history.remove_message(index=2)
+			logger.debug(
+				f'Removed message with {tokens} tokens - total tokens now: {self.history.total_tokens}/{self.max_input_tokens}'
+			)
+
+		if diff <= 0:
+			return None
+
+		msg = self.history.messages[2]
+
+		# if list with image remove image
+		if isinstance(msg.message.content, list):
+			text = ''
+			for item in msg.message.content:
+				if 'image_url' in item:
+					msg.message.content.remove(item)
+					diff -= self.IMG_TOKENS
+					msg.metadata.input_tokens -= self.IMG_TOKENS
+					self.history.total_tokens -= self.IMG_TOKENS
+					logger.debug(
+						f'Removed image with {self.IMG_TOKENS} tokens - total tokens now: {self.history.total_tokens}/{self.max_input_tokens}'
+					)
+				elif 'text' in item and isinstance(item, dict):
+					text += item['text']
+			msg.message.content = text
+			self.history.messages[2] = msg
+
+		if diff <= 0:
+			return None
+
+		# if still over, remove text from state message proportionally to the number of tokens needed with buffer
+		# Calculate the proportion of content to remove
+		proportion_to_remove = diff / msg.metadata.input_tokens
+		if proportion_to_remove > 1:
+			raise ValueError(
+				f'Max token limit reached - history is too long - reduce the system prompt or task. '
+			)
+		logger.debug(
+			f'Removing {proportion_to_remove * 100}% of message with {msg.metadata.input_tokens} tokens ({proportion_to_remove * msg.metadata.input_tokens} tokens)'
+		)
+
+		content = msg.message.content
+		characters_to_remove = int(len(content) * proportion_to_remove)
+		content = content[:-characters_to_remove]
+
+		# remove tokens and old long message
+		self.history.total_tokens -= msg.metadata.input_tokens
+		self.history.messages.pop(2)
+
+		logger.debug(
+			f'Added message with {msg.metadata.input_tokens} tokens - total tokens now: {self.history.total_tokens}/{self.max_input_tokens}'
+		)
+
+		# new message with updated content
+		msg = HumanMessage(content=content)
+		self._add_message_with_tokens(msg)
 
 	def _add_message_with_tokens(self, message: BaseMessage) -> None:
 		"""Add message with token count metadata"""
 		token_count = self._count_tokens(message)
-		metadata = MessageMetadata(
-			input_tokens=token_count, output_tokens=0, total_tokens=token_count
-		)
+		metadata = MessageMetadata(input_tokens=token_count)
 		self.history.add_message(message, metadata)
 
 	def _count_tokens(self, message: BaseMessage) -> int:
 		"""Count tokens in a message using the model's tokenizer"""
 		tokens = 0
+		if isinstance(message.content, list):
+			for item in message.content:
+				if 'image_url' in item:
+					tokens += self.IMG_TOKENS
+				elif isinstance(item, dict) and 'text' in item:
+					tokens += self._count_text_tokens(item['text'])
+		else:
+			tokens += self._count_text_tokens(message.content)
+		return tokens
+
+	def _count_text_tokens(self, text: str) -> int:
+		"""Count tokens in a text string"""
 		if isinstance(self.llm, (ChatOpenAI, ChatAnthropic)):
 			try:
-				tokens = self.llm.get_num_tokens(get_buffer_string([message]))
+				tokens = self.llm.get_num_tokens(text)
 			except Exception as e:
-				tokens = len(str(message.content)) // 4  # Rough estimate if no tokenizer available
-				logger.warning(
-					f'Error counting tokens: {e} - using estimate of characters/4 tokens'
-				)
+				tokens = (
+					len(text) // self.ESTIMATED_TOKENS_PER_CHARACTER
+				)  # Rough estimate if no tokenizer available
 		else:
-			tokens = len(str(message.content)) // 4  # Rough estimate if no tokenizer available
+			tokens = (
+				len(text) // self.ESTIMATED_TOKENS_PER_CHARACTER
+			)  # Rough estimate if no tokenizer available
 		return tokens

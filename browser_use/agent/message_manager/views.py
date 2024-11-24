@@ -9,9 +9,7 @@ from pydantic import BaseModel, Field
 class MessageMetadata(BaseModel):
 	"""Metadata for a message including token counts"""
 
-	input_tokens: Optional[int] = None
-	output_tokens: Optional[int] = None
-	total_tokens: Optional[int] = None
+	input_tokens: int = 0
 
 
 class ManagedMessage(BaseModel):
@@ -27,15 +25,13 @@ class MessageHistory(BaseModel):
 	messages: List[ManagedMessage] = Field(default_factory=list)
 	total_tokens: int = 0
 
-	def add_message(self, message: BaseMessage, metadata: Optional[MessageMetadata] = None) -> None:
-		"""Add a message with optional metadata"""
-		self.messages.append(
-			ManagedMessage(message=message, metadata=metadata or MessageMetadata())
-		)
-		if metadata and metadata.total_tokens:
-			self.total_tokens += metadata.total_tokens
+	def add_message(self, message: BaseMessage, metadata: MessageMetadata) -> None:
+		"""Add a message with metadata"""
+		self.messages.append(ManagedMessage(message=message, metadata=metadata))
+		self.total_tokens += metadata.input_tokens
 
-	def remove_last_state_message(self) -> None:
-		"""Remove last state message from history"""
+	def remove_message(self, index: int = -1) -> None:
+		"""Remove last message from history"""
 		if self.messages:
-			self.messages.pop()
+			msg = self.messages.pop(index)
+			self.total_tokens -= msg.metadata.input_tokens
