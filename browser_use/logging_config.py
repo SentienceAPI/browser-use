@@ -104,6 +104,8 @@ def setup_logging():
 	browser_use_logger.addHandler(console)
 	browser_use_logger.setLevel(root.level)  # Set same level as root logger
 
+	logger = logging.getLogger('browser_use')
+	logger.info('BrowserUse logging setup complete with level %s', log_type)
 	# Silence third-party loggers
 	for logger in [
 		'WDM',

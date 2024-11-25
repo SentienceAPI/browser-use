@@ -3,7 +3,7 @@ Find and apply to jobs.
 
 @dev You need to add OPENAI_API_KEY to your environment variables.
 
-Also you have to install PyPDF2: pip install PyPDF2
+Also you have to install PyPDF2 to read pdf files: pip install PyPDF2
 """
 
 import csv
@@ -18,14 +18,16 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import asyncio
 from typing import List, Optional
 
+from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
 
-from browser_use.agent.service import Agent
-from browser_use.browser.service import Browser
-from browser_use.controller.service import Controller
+from browser_use import ActionResult, Agent, Browser, Controller
+
+load_dotenv()
 
 controller = Controller(keep_open=True)
+CV = Path.cwd() / 'cv_04_24.pdf'
 
 
 class Job(BaseModel):
@@ -45,7 +47,7 @@ def save_jobs(params: Jobs):
 	with open('jobs.csv', 'a', newline='') as f:
 		writer = csv.writer(f)
 		for job in params.jobs:
-			writer.writerow([job.title, job.company, job.salary, job.link])
+			writer.writerow([job.title, job.company, job.link, job.salary, job.location])
 
 
 @controller.action('Read jobs from file')
@@ -61,22 +63,21 @@ def ask_human(question: str) -> str:
 
 @controller.action('Read my cv for context to fill forms')
 def read_cv():
-	pdf = PdfReader('your_cv.pdf')
+	pdf = PdfReader(CV)
 	text = ''
 	for page in pdf.pages:
 		text += page.extract_text() or ''
-	return text
+	return ActionResult(extracted_content=text, include_in_memory=True)
 
 
 @controller.action('Upload cv to index', requires_browser=True)
 async def upload_cv(index: int, browser: Browser):
 	await close_file_dialog(browser)
 	element = await browser.get_element_by_index(index)
-	my_cv = Path.cwd() / 'your_cv.pdf'
 	if not element:
 		raise Exception(f'Element with index {index} not found')
 
-	await element.set_input_files(str(my_cv.absolute()))
+	await element.set_input_files(str(CV.absolute()))
 	return f'Uploaded cv to index {index}'
 
 
