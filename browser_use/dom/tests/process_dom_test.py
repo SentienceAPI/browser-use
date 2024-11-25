@@ -14,7 +14,8 @@ async def test_process_dom():
 
 	# await page.goto('https://kayak.com/flights')
 	# browser.go_to_url('https://google.com/flights')
-	await page.goto('https://immobilienscout24.de')
+	# await page.goto('https://immobilienscout24.de')
+	await page.goto('https://www.w3schools.com/html/html_iframe.asp')
 
 	time.sleep(1.5)
 
@@ -31,5 +32,11 @@ async def test_process_dom():
 	os.makedirs('./tmp', exist_ok=True)
 	with open('./tmp/dom.json', 'w') as f:
 		json.dump(dom_tree, f, indent=1)
+
+	# both of these work for immobilienscout24.de
+	# await page.click('.sc-dcJsrY.ezjNCe')
+	# await page.click(
+	# 	'div > div:nth-of-type(2) > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div > div > div > button:nth-of-type(2)'
+	# )
 
 	input('Press Enter to continue...')

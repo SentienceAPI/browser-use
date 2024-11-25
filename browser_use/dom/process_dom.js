@@ -6,9 +6,7 @@
 
         while (currentElement && currentElement.nodeType === Node.ELEMENT_NODE) {
             // Stop if we hit a shadow root or iframe
-            if (stopAtBoundary &&
-                (currentElement.parentNode instanceof ShadowRoot ||
-                    currentElement.parentNode instanceof HTMLIFrameElement)) {
+            if (stopAtBoundary && (currentElement.parentNode instanceof ShadowRoot || currentElement.parentNode instanceof HTMLIFrameElement)) {
                 break;
             }
 
@@ -54,6 +52,13 @@
             xpath: node.nodeType === Node.ELEMENT_NODE ? getXPathTree(node, true) : null,
             children: []
         };
+
+        // Copy all attributes if the node is an element
+        if (node.nodeType === Node.ELEMENT_NODE && node.attributes) {
+            for (const attr of node.attributes) {
+                nodeData.attributes[attr.name] = attr.value;
+            }
+        }
 
         // Only add iframeContext if we're inside an iframe
         if (parentIframe) {
