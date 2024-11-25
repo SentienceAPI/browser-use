@@ -38,8 +38,8 @@ async def main():
 	sites = [
 		'https://practice.expandtesting.com/upload',
 	]
-	task = f'go to {", ".join(sites)} and Upload my file then subbmit and stop '
-	# task = f'go to {" ".join(sites)} each in new tabs and Upload my file then subbmit extract the page content and go to google and find elon musk '
+	# task = f'go to {", ".join(sites)} and Upload my file then subbmit and stop '
+	task = f'go to {" ".join(sites)} each in new tabs and Upload my file then subbmit extract the page content and go to google and find elon musk '
 
 	model = ChatOpenAI(model='gpt-4o-mini')
 	agent = Agent(

@@ -93,21 +93,7 @@ class MessageManager:
 		if diff <= 0:
 			return None
 
-		while diff > 0 and len(self.history.messages) > 3:
-			# remove message from index 2 (which is the oldest message after system and task) until current message until within max tokens
-			msg = self.history.messages[2]
-			tokens = msg.metadata.input_tokens
-			diff -= tokens
-			# update total tokens
-			self.history.remove_message(index=2)
-			logger.debug(
-				f'Removed message with {tokens} tokens - total tokens now: {self.history.total_tokens}/{self.max_input_tokens}'
-			)
-
-		if diff <= 0:
-			return None
-
-		msg = self.history.messages[2]
+		msg = self.history.messages[-1]
 
 		# if list with image remove image
 		if isinstance(msg.message.content, list):
@@ -124,7 +110,7 @@ class MessageManager:
 				elif 'text' in item and isinstance(item, dict):
 					text += item['text']
 			msg.message.content = text
-			self.history.messages[2] = msg
+			self.history.messages[-1] = msg
 
 		if diff <= 0:
 			return None
@@ -132,13 +118,13 @@ class MessageManager:
 		# if still over, remove text from state message proportionally to the number of tokens needed with buffer
 		# Calculate the proportion of content to remove
 		proportion_to_remove = diff / msg.metadata.input_tokens
-		if proportion_to_remove > 1:
+		if proportion_to_remove > 0.99:
 			raise ValueError(
-				f'Max token limit reached - history is too long - reduce the system prompt or task. '
+				f'Max token limit reached - history is too long - reduce the system prompt or task less tasks or remove old messages. '
 				f'proportion_to_remove: {proportion_to_remove}'
 			)
 		logger.debug(
-			f'Removing {proportion_to_remove * 100:.2f}% of the last message with {msg.metadata.input_tokens} tokens (removing approx {proportion_to_remove * msg.metadata.input_tokens} tokens)'
+			f'Removing {proportion_to_remove * 100:.2f}% of the last message  {proportion_to_remove * msg.metadata.input_tokens:.2f} / {msg.metadata.input_tokens:.2f} tokens)'
 		)
 
 		content = msg.message.content
@@ -146,7 +132,7 @@ class MessageManager:
 		content = content[:-characters_to_remove]
 
 		# remove tokens and old long message
-		self.history.remove_message(index=2)
+		self.history.remove_message(index=-1)
 
 		# new message with updated content
 		msg = HumanMessage(content=content)
@@ -155,7 +141,7 @@ class MessageManager:
 		last_msg = self.history.messages[-1]
 
 		logger.debug(
-			f'Added message with {last_msg.metadata.input_tokens} tokens - total tokens now: {self.history.total_tokens}/{self.max_input_tokens}'
+			f'Added message with {last_msg.metadata.input_tokens} tokens - total tokens now: {self.history.total_tokens}/{self.max_input_tokens} - total messages: {len(self.history.messages)}'
 		)
 
 	def _add_message_with_tokens(self, message: BaseMessage) -> None:
