@@ -27,6 +27,7 @@ from browser_use import ActionResult, Agent, Browser, Controller
 load_dotenv()
 
 controller = Controller(keep_open=True)
+CV = Path.cwd() / 'cv_04_24.pdf'
 
 
 class Job(BaseModel):
@@ -62,7 +63,7 @@ def ask_human(question: str) -> str:
 
 @controller.action('Read my cv for context to fill forms')
 def read_cv():
-	pdf = PdfReader('cv_04_24.pdf')
+	pdf = PdfReader(CV)
 	text = ''
 	for page in pdf.pages:
 		text += page.extract_text() or ''
@@ -73,11 +74,10 @@ def read_cv():
 async def upload_cv(index: int, browser: Browser):
 	await close_file_dialog(browser)
 	element = await browser.get_element_by_index(index)
-	my_cv = Path.cwd() / 'cv_04_24.pdf'
 	if not element:
 		raise Exception(f'Element with index {index} not found')
 
-	await element.set_input_files(str(my_cv.absolute()))
+	await element.set_input_files(str(CV.absolute()))
 	return f'Uploaded cv to index {index}'
 
 
