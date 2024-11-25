@@ -183,38 +183,52 @@ function highlightElement(element, index) {
     function isTopElement(element) {
         // Find the correct document context and root element
         let doc = element.ownerDocument;
-        let rootContext = doc.documentElement;
 
-        // If we're in an iframe or shadow DOM, adjust accordingly
+        // If we're in an iframe, elements are considered top by default
         if (doc !== window.document) {
-            return true; // Elements in iframes are considered top by default
-        } else if (element.getRootNode() instanceof ShadowRoot) {
-            rootContext = element.getRootNode().host;
+            return true;
         }
 
-        const rect = element.getBoundingClientRect();
-        const points = [
-            { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
-        ];
+        // For shadow DOM, we need to check within its own root context
+        const shadowRoot = element.getRootNode();
+        if (shadowRoot instanceof ShadowRoot) {
+            const rect = element.getBoundingClientRect();
+            const point = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
 
-        return points.some(point => {
-            let topEl;
             try {
-                topEl = doc.elementFromPoint(point.x, point.y);
+                // Use shadow root's elementFromPoint to check within shadow DOM context
+                const topEl = shadowRoot.elementFromPoint(point.x, point.y);
                 if (!topEl) return false;
 
                 // Check if the element or any of its parents match our target element
                 let current = topEl;
-                while (current && current !== rootContext) {
+                while (current && current !== shadowRoot) {
                     if (current === element) return true;
                     current = current.parentElement;
                 }
+                return false;
             } catch (e) {
-                // If we can't determine the top element, consider it visible
-                return true;
+                return true; // If we can't determine, consider it visible
+            }
+        }
+
+        // Regular DOM elements
+        const rect = element.getBoundingClientRect();
+        const point = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+
+        try {
+            const topEl = document.elementFromPoint(point.x, point.y);
+            if (!topEl) return false;
+
+            let current = topEl;
+            while (current && current !== document.documentElement) {
+                if (current === element) return true;
+                current = current.parentElement;
             }
             return false;
-        });
+        } catch (e) {
+            return true;
+        }
     }
 
     // Helper function to check if text node is visible
