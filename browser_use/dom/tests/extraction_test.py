@@ -9,15 +9,15 @@ from browser_use.utils import time_execution_sync
 
 # @pytest.mark.skip("slow af")
 async def test_process_html_file():
-	browser = Browser(headless=False)
+	browser = Browser(headless=True)
 
 	page = await browser.get_current_page()
 
 	dom_service = DomService(page)
 
-	await page.goto('https://kayak.com/flights')
+	# await page.goto('https://kayak.com/flights')
 	# browser.go_to_url('https://google.com/flights')
-	# browser.go_to_url('https://immobilienscout24.de')
+	await page.goto('https://immobilienscout24.de')
 
 	time.sleep(3)
 	# browser._click_element_by_xpath(
