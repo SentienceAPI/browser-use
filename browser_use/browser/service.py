@@ -13,7 +13,7 @@ from playwright.async_api import BrowserContext, ElementHandle, Page, Playwright
 
 from browser_use.browser.views import BrowserError, BrowserState, TabInfo
 from browser_use.dom.service import DomService
-from browser_use.dom.views import SelectorMap
+from browser_use.dom.views import DOMElementNode, SelectorMap
 from browser_use.utils import time_execution_sync
 
 logger = logging.getLogger(__name__)
@@ -50,7 +50,9 @@ class Browser:
 
 		# Instead of calling _update_state(), create an empty initial state
 		initial_state = BrowserState(
-			items=[],
+			element_tree=DOMElementNode(
+				tag_name='root', is_visible=True, parent=None, xpath='', attributes={}, children=[]
+			),
 			selector_map={},
 			url=page.url,
 			title=await page.title(),
@@ -258,10 +260,10 @@ class Browser:
 
 		screenshot_b64 = None
 		if use_vision:
-			screenshot_b64 = await self.take_screenshot(selector_map=content.selector_map)
+			screenshot_b64 = await self.take_screenshot()
 
 		self.current_state = BrowserState(
-			items=content.items,
+			element_tree=content.element_tree,
 			selector_map=content.selector_map,
 			url=page.url,
 			title=await page.title(),
@@ -273,16 +275,11 @@ class Browser:
 
 	# region - Browser Actions
 
-	async def take_screenshot(
-		self, selector_map: SelectorMap | None, full_page: bool = False
-	) -> str:
+	async def take_screenshot(self, full_page: bool = False) -> str:
 		"""
 		Returns a base64 encoded screenshot of the current page.
 		"""
 		page = await self.get_current_page()
-
-		if selector_map:
-			await self.highlight_selector_map_elements(selector_map)
 
 		screenshot = await page.screenshot(
 			full_page=full_page,
@@ -291,86 +288,44 @@ class Browser:
 
 		screenshot_b64 = base64.b64encode(screenshot).decode('utf-8')
 
-		if selector_map:
-			await self.remove_highlights()
+		await self.remove_highlights()
 
 		return screenshot_b64
 
-	async def highlight_selector_map_elements(self, selector_map: SelectorMap):
-		page = await self.get_current_page()
-		await self.remove_highlights()
-
-		script = """
-		const highlights = {
-		"""
-
-		# Build the highlights object with all selectors and indices
-		for index, selector in selector_map.items():
-			# Adjusting the JavaScript code to accept variables
-			script += f'"{index}": "{selector}",\n'
-
-		script += """
-		};
-		
-		for (const [index, selector] of Object.entries(highlights)) {
-			const el = document.evaluate(selector, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-			if (!el) continue;  // Skip if element not found
-			el.style.outline = "2px solid red";
-			el.setAttribute('browser-user-highlight-id', 'playwright-highlight');
-			
-			const label = document.createElement("div");
-			label.className = 'playwright-highlight-label';
-			label.style.position = "fixed";
-			label.style.background = "red";
-			label.style.color = "white";
-			label.style.padding = "2px 6px";
-			label.style.borderRadius = "10px";
-			label.style.fontSize = "12px";
-			label.style.zIndex = "9999999";
-			label.textContent = index;
-			const rect = el.getBoundingClientRect();
-			label.style.top = (rect.top - 20) + "px";
-			label.style.left = rect.left + "px";
-			document.body.appendChild(label);
-		}
-		"""
-
-		await page.evaluate(script)
-
 	async def remove_highlights(self):
 		"""
-		Removes all highlight outlines and labels created by highlight_selector_map_elements
-
+		Removes all highlight overlays and labels created by the highlightElement function.
 		"""
 		page = await self.get_current_page()
 		await page.evaluate(
 			"""
-			// Remove all highlight outlines
-			const highlightedElements = document.querySelectorAll('[browser-user-highlight-id="playwright-highlight"]');
+			// Remove the highlight container and all its contents
+			const container = document.getElementById('playwright-highlight-container');
+			if (container) {
+				container.remove();
+			}
+
+			// Remove highlight attributes from elements
+			const highlightedElements = document.querySelectorAll('[browser-user-highlight-id^="playwright-highlight-"]');
 			highlightedElements.forEach(el => {
-				el.style.outline = '';
 				el.removeAttribute('browser-user-highlight-id');
 			});
-			
-
-			// Remove all labels
-			const labels = document.querySelectorAll('.playwright-highlight-label');
-			labels.forEach(label => label.remove());
 			"""
 		)
 
 	# endregion
 
 	# region - User Actions
-
-	async def _input_text_by_xpath(self, xpath: str, text: str):
+	async def get_locate_element(self, element: DOMElementNode):
 		page = await self.get_current_page()
+		return await page.wait_for_selector(f'xpath={element.xpath}', timeout=5000, state='visible')
 
+	async def _input_text_element_node(self, element_node: DOMElementNode, text: str):
 		try:
-			element = await page.wait_for_selector(f'xpath={xpath}', timeout=5000, state='visible')
+			element = await self.get_locate_element(element_node)
 
 			if element is None:
-				raise Exception(f'Element with xpath: {xpath} not found')
+				raise Exception(f'Element with xpath: {element_node.xpath} not found')
 
 			await element.scroll_into_view_if_needed(timeout=2500)
 			await element.fill('')
@@ -379,20 +334,20 @@ class Browser:
 
 		except Exception as e:
 			raise Exception(
-				f'Failed to input text into element with xpath: {xpath}. Error: {str(e)}'
+				f'Failed to input text into element with xpath: {element_node.xpath}. Error: {str(e)}'
 			)
 
-	async def _click_element_by_xpath(self, xpath: str):
+	async def _click_element_node(self, element_node: DOMElementNode):
 		"""
 		Optimized method to click an element using xpath.
 		"""
 		page = await self.get_current_page()
 
 		try:
-			element = await page.wait_for_selector(f'xpath={xpath}', timeout=5000, state='visible')
+			element = await self.get_locate_element(element_node)
 
 			if element is None:
-				raise Exception(f'Element with xpath: {xpath} not found')
+				raise Exception(f'Element with xpath: {element_node.xpath} not found')
 
 			# await element.scroll_into_view_if_needed()
 
@@ -411,7 +366,9 @@ class Browser:
 				raise Exception(f'Failed to click element: {str(e)}')
 
 		except Exception as e:
-			raise Exception(f'Failed to click element with xpath: {xpath}. Error: {str(e)}')
+			raise Exception(
+				f'Failed to click element with xpath: {element_node.xpath}. Error: {str(e)}'
+			)
 
 	async def get_tabs_info(self) -> list[TabInfo]:
 		"""Get information about all tabs"""
@@ -464,7 +421,7 @@ class Browser:
 
 	async def get_xpath(self, index: int) -> str:
 		selector_map = await self.get_selector_map()
-		return selector_map[index]
+		return selector_map[index].xpath
 
 	async def get_element_by_index(self, index: int) -> ElementHandle | None:
 		page = await self.get_current_page()

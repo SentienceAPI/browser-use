@@ -65,15 +65,15 @@ class Controller:
 					f'Element with index {params.index} does not exist - retry or use alternative actions'
 				)
 
-			xpath = state.selector_map[params.index]
+			element_node = state.selector_map[params.index]
 			initial_pages = len(session.context.pages)
 
 			msg = None
 
 			for _ in range(params.num_clicks):
 				try:
-					await browser._click_element_by_xpath(xpath)
-					msg = f'🖱️  Clicked element {params.index}: {xpath}'
+					await browser._click_element_node(element_node)
+					msg = f'🖱️  Clicked element {params.index}: {element_node.xpath}'
 					if params.num_clicks > 1:
 						msg += f' ({_ + 1}/{params.num_clicks} clicks)'
 				except Exception as e:
@@ -95,9 +95,9 @@ class Controller:
 					f'Element index {params.index} does not exist - retry or use alternative actions'
 				)
 
-			xpath = state.selector_map[params.index]
-			await browser._input_text_by_xpath(xpath, params.text)
-			msg = f'⌨️  Input "{params.text}" into {params.index}: {xpath}'
+			element_node = state.selector_map[params.index]
+			await browser._input_text_element_node(element_node, params.text)
+			msg = f'⌨️  Input "{params.text}" into {params.index}: {element_node.xpath}'
 			return ActionResult(extracted_content=msg)
 
 		# Tab Management Actions

@@ -3,14 +3,15 @@ import time
 from tokencost import count_string_tokens
 
 from browser_use.browser.service import Browser
+
+# from browser_use.browser.service import Browser
 from browser_use.dom.service import DomService
 from browser_use.utils import time_execution_sync
 
 
 # @pytest.mark.skip("slow af")
 async def test_process_html_file():
-	browser = Browser(headless=True)
-
+	browser = Browser(headless=False)
 	page = await browser.get_current_page()
 
 	dom_service = DomService(page)
@@ -25,11 +26,14 @@ async def test_process_html_file():
 	# )
 	# browser._click_element_by_xpath("//button[div/div[text()='Alle akzeptieren']]")
 
-	elements = await time_execution_sync('get_clickable_elements')(
+	dom_state = await time_execution_sync('get_clickable_elements')(
 		dom_service.get_clickable_elements
 	)()
+	elements = dom_state.element_tree
+	selector_map = dom_state.selector_map
 
-	print(elements.dom_items_to_string(use_tabs=False))
-	print('Tokens:', count_string_tokens(elements.dom_items_to_string(), model='gpt-4o'))
+	print(elements.clickable_elements_to_string(use_tabs=False))
+	print('Tokens:', count_string_tokens(elements.clickable_elements_to_string(), model='gpt-4o'))
+	print(len(selector_map.keys()), 'elements highlighted')
 
 	input('Press Enter to continue...')

@@ -12,9 +12,9 @@ async def test_process_dom():
 
 	# dom_service = DomService(page)
 
-	# await page.goto('https://kayak.com/flights')
-	# browser.go_to_url('https://google.com/flights')
-	await page.goto('https://immobilienscout24.de')
+	await page.goto('https://kayak.com/flights')
+	# await page.goto('https://google.com/flights')
+	# await page.goto('https://immobilienscout24.de')
 	# await page.goto('https://seleniumbase.io/w3schools/iframes')
 
 	time.sleep(3)

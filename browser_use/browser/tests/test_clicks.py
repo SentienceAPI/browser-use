@@ -18,7 +18,7 @@ async def test_highlight_elements():
 	# await page.goto('https://immobilienscout24.de')
 	await page.goto('https://kayak.com')
 
-	time.sleep(3)
+	time.sleep(1.5)
 	# browser._click_element_by_xpath(
 	# 	'/html/body/div[5]/div/div[2]/div/div/div[3]/div/div[1]/button[1]'
 	# )
@@ -27,20 +27,21 @@ async def test_highlight_elements():
 	while True:
 		state = await browser.get_state()
 
-		await time_execution_sync('highlight_selector_map_elements')(
-			browser.highlight_selector_map_elements
-		)(state.selector_map)
+		# await time_execution_sync('highlight_selector_map_elements')(
+		# 	browser.highlight_selector_map_elements
+		# )(state.selector_map)
 
-		print(state.dom_items_to_string(use_tabs=False))
+		# print(state.dom_items_to_string(use_tabs=False))
 		# print(state.selector_map)
 
 		# Find and print duplicate XPaths
 		xpath_counts = {}
 		for selector in state.selector_map.values():
-			if selector in xpath_counts:
-				xpath_counts[selector] += 1
+			xpath = selector.xpath
+			if xpath in xpath_counts:
+				xpath_counts[xpath] += 1
 			else:
-				xpath_counts[selector] = 1
+				xpath_counts[xpath] = 1
 
 		print('\nDuplicate XPaths found:')
 		for xpath, count in xpath_counts.items():
@@ -57,9 +58,4 @@ async def test_highlight_elements():
 
 		# check if index of selector map are the same as index of items in dom_items
 
-		indcies = list(state.selector_map.keys())
-		dom_items = state.items
-		dom_indices = [item.index for item in dom_items if not item.is_text_only]
-		assert indcies == dom_indices, 'Indices of selector map and dom items do not match'
-
-		await browser._click_element_by_xpath(xpath)
+		await browser._click_element_node(xpath)
