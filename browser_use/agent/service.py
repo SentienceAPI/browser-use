@@ -325,8 +325,9 @@ class Agent:
 		parsed: ValidationResult = response['parsed']
 		is_valid = parsed.is_valid
 		if not is_valid:
-			logger.warning(f'❌ Validator decision: {parsed.reason}')
+			logger.info(f'❌ Validator decision: {parsed.reason}')
 			msg = f'The ouput is not yet correct. {parsed.reason}.'
 			self._last_result = ActionResult(extracted_content=msg, include_in_memory=True)
-
+		else:
+			logger.info(f'✅ Validator decision: {parsed.reason}')
 		return is_valid
