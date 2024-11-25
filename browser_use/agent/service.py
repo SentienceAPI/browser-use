@@ -11,11 +11,15 @@ from typing import Any, Optional, Type, TypeVar
 from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages import (
+	AIMessage,
+	BaseMessage,
+)
 from langchain_openai import ChatOpenAI
 from openai import RateLimitError
 from pydantic import BaseModel, ValidationError
 
+from browser_use.agent.message_manager.service import MessageManager
 from browser_use.agent.prompts import AgentMessagePrompt, SystemPrompt
 from browser_use.agent.views import (
 	ActionResult,
@@ -23,9 +27,6 @@ from browser_use.agent.views import (
 	AgentHistory,
 	AgentHistoryList,
 	AgentOutput,
-	ModelPricingCatalog,
-	TokenDetails,
-	TokenUsage,
 )
 from browser_use.browser.views import BrowserState
 from browser_use.controller.service import Controller
@@ -35,7 +36,7 @@ from browser_use.telemetry.views import (
 	AgentRunTelemetryEvent,
 	AgentStepErrorTelemetryEvent,
 )
-from browser_use.utils import time_execution_async
+from browser_use.utils import time_execution_async, time_execution_sync
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -54,6 +55,7 @@ class Agent:
 		max_failures: int = 5,
 		retry_delay: int = 10,
 		system_prompt_class: Type[SystemPrompt] = SystemPrompt,
+		max_input_tokens: int = 128000,
 	):
 		self.agent_id = str(uuid.uuid4())  # unique identifier for the agent
 
@@ -61,6 +63,7 @@ class Agent:
 		self.use_vision = use_vision
 		self.llm = llm
 		self.save_conversation_path = save_conversation_path
+		self._last_result = None
 
 		# Controller setup
 		self.controller_injected = controller is not None
@@ -74,8 +77,15 @@ class Agent:
 		# Action and output models setup
 		self._setup_action_models()
 
-		self.messages = []
-		self._initialize_messages()
+		self.max_input_tokens = max_input_tokens
+
+		self.message_manager = MessageManager(
+			llm=self.llm,
+			task=self.task,
+			action_descriptions=self.controller.registry.get_prompt_description(),
+			system_prompt_class=self.system_prompt_class,
+			max_input_tokens=self.max_input_tokens,
+		)
 
 		# Tracking variables
 		self.history: AgentHistoryList = AgentHistoryList(history=[])
@@ -87,14 +97,6 @@ class Agent:
 		if save_conversation_path:
 			logger.info(f'Saving conversation to {save_conversation_path}')
 
-		self.usage_metadata = TokenUsage(
-			input_tokens=0,
-			output_tokens=0,
-			total_tokens=0,
-			input_token_details=TokenDetails(),
-			output_token_details=TokenDetails(),
-		)
-
 	def _setup_action_models(self) -> None:
 		"""Setup dynamic action models from controller's registry"""
 		# Get the dynamic action model from controller's registry
@@ -102,34 +104,35 @@ class Agent:
 		# Create output model with the dynamic actions
 		self.AgentOutput = AgentOutput.type_with_custom_actions(self.ActionModel)
 
-	def _initialize_messages(self) -> None:
-		"""Initialize message history with system and first message"""
-		# Get action descriptions from controller's registry
-		action_descriptions = self.controller.registry.get_prompt_description()
-		self.system_prompt = self.system_prompt_class(action_descriptions, datetime.now())
-		self.messages.append(self.system_prompt.get_system_message())
-		self.set_task(self.task)
-
-	def set_task(self, task: str) -> None:
-		self.messages.append(HumanMessage(content=f'Your task is: {task}'))
-
 	@time_execution_async('--step')
 	async def step(self) -> None:
 		"""Execute one step of the task"""
 		logger.info(f'\n📍 Step {self.n_steps}')
 		state = None
+
 		try:
 			state = await self.controller.browser.get_state(use_vision=self.use_vision)
-			model_output = await self.get_next_action(state)
+			self.message_manager.add_state_message(state, self._last_result)
+			input_messages = self.message_manager.get_messages()
+			model_output = await self.get_next_action(input_messages)
+			self._save_conversation(input_messages, model_output)
+			self.message_manager._remove_last_state_message()  # we dont want the whole state in the chat history
+			self.message_manager.add_model_output(model_output)
+
 			result = await self.controller.act(model_output.action)
+			self._last_result = result
+
 			if result.extracted_content:
 				logger.info(f'📄 Result: {result.extracted_content}')
 			if result.is_done:
 				logger.result(f'{result.extracted_content}')
+
 			self.consecutive_failures = 0
 
 		except Exception as e:
 			result = self._handle_step_error(e)
+			self._last_result = result
+
 			model_output = None
 
 			if result.error:
@@ -140,16 +143,22 @@ class Agent:
 					)
 				)
 		if state:
-			self._update_messages_with_result(result)
 			self._make_history_item(model_output, state, result)
 
 	def _handle_step_error(self, error: Exception) -> ActionResult:
 		"""Handle all types of errors that can occur during a step"""
-		error_msg = AgentError.format_error(error)
+		error_msg = AgentError.format_error(error, include_trace=True)
 		prefix = f'❌ Result failed {self.consecutive_failures + 1}/{self.max_failures} times:\n '
 
 		if isinstance(error, (ValidationError, ValueError)):
 			logger.error(f'{prefix}{error_msg}')
+			if 'Max token limit reached' in error_msg:
+				# cut tokens from history
+				self.message_manager.max_input_tokens = self.max_input_tokens - 500
+				logger.info(
+					f'Cutting tokens from history - new max input tokens: {self.message_manager.max_input_tokens}'
+				)
+				self.message_manager.cut_messages()
 			self.consecutive_failures += 1
 		elif isinstance(error, RateLimitError):
 			logger.warning(f'{prefix}{error_msg}')
@@ -159,14 +168,7 @@ class Agent:
 			logger.error(f'{prefix}{error_msg}')
 			self.consecutive_failures += 1
 
-		return ActionResult(error=error_msg)
-
-	def _update_messages_with_result(self, result: ActionResult) -> None:
-		"""Update message history with action results"""
-		if result.extracted_content:
-			self.messages.append(HumanMessage(content=result.extracted_content))
-		if result.error:
-			self.messages.append(HumanMessage(content=result.error))
+		return ActionResult(error=error_msg, include_in_memory=True)
 
 	def _make_history_item(
 		self,
@@ -179,153 +181,18 @@ class Agent:
 		self.history.history.append(history_item)
 
 	@time_execution_async('--get_next_action')
-	async def get_next_action(self, state: BrowserState) -> AgentOutput:
+	async def get_next_action(self, input_messages: list[BaseMessage]) -> AgentOutput:
 		"""Get next action from LLM based on current state"""
-		new_message = AgentMessagePrompt(state).get_user_message()
-		input_messages = self.messages + [new_message]
 
 		structured_llm = self.llm.with_structured_output(self.AgentOutput, include_raw=True)
 		response: dict[str, Any] = await structured_llm.ainvoke(input_messages)  # type: ignore
 
 		parsed: AgentOutput = response['parsed']
 
-		self._update_message_history(state, parsed)
 		self._log_response(parsed)
-		self._save_conversation(input_messages, parsed)
-		# self._update_usage_metadata(response['raw'])
-		return parsed
-
-	def _calc_token_cost(self) -> float:
-		"""
-		Calculate the cost of tokens used in a request based on the model.
-
-		:param usage_metadata: TokenUsage model containing token usage details.
-		:param model_name: The name of the model used.
-		:return: Cost of the tokens used.
-		"""
-		if isinstance(self.llm, ChatOpenAI):
-			model_name = self.llm.model_name
-		elif isinstance(self.llm, ChatAnthropic):
-			model_name = self.llm.model
-		else:
-			logger.debug('Model name not supported for pricing calculation')
-			return 0
-
-		pricing_catalog = ModelPricingCatalog()
-
-		if model_name == 'gpt-4o':
-			model_pricing = pricing_catalog.gpt_4o
-		elif model_name == 'gpt-4o-mini':
-			model_pricing = pricing_catalog.gpt_4o_mini
-		elif model_name == 'claude-3-5-sonnet-20240620':
-			model_pricing = pricing_catalog.claude_3_5_sonnet
-		else:
-			logger.debug(f'Unsupported model: {model_name}')
-			return 0
-
-		uncached_input_tokens = (
-			self.usage_metadata.input_tokens - self.usage_metadata.input_token_details.cache_read
-		)
-		factor = 1e6
-		cost = (
-			(uncached_input_tokens / factor) * model_pricing.uncached_input
-			+ (self.usage_metadata.input_token_details.cache_read / factor)
-			* model_pricing.cached_input
-			+ (self.usage_metadata.output_tokens / factor) * model_pricing.output
-		)
-		return cost
-
-	def _update_usage_metadata(self, raw_response: AIMessage) -> None:
-		"""
-		Process the response and update usage.
-
-		:param raw_response: The response object containing usage metadata.
-		"""
-		# only supported for openai models for now
-		if isinstance(self.llm, ChatAnthropic):
-			token_usage_data: dict[str, Any] = raw_response.response_metadata['usage']
-			usage_metadata = TokenUsage(
-				input_tokens=token_usage_data.get('input_tokens', 0),
-				output_tokens=token_usage_data.get('output_tokens', 0),
-				total_tokens=token_usage_data.get('input_tokens', 0)
-				+ token_usage_data.get('output_tokens', 0),
-			)
-			self.usage_metadata.input_tokens += usage_metadata.input_tokens
-			self.usage_metadata.output_tokens += usage_metadata.output_tokens
-			self.usage_metadata.total_tokens += usage_metadata.total_tokens
-
-		elif isinstance(self.llm, ChatOpenAI):
-			token_usage_data: dict[str, Any] = raw_response.response_metadata['token_usage']
-			usage_metadata = TokenUsage(
-				input_tokens=token_usage_data.get('prompt_tokens', 0),
-				output_tokens=token_usage_data.get('completion_tokens', 0),
-				total_tokens=token_usage_data.get('total_tokens', 0),
-				input_token_details=TokenDetails(
-					audio=token_usage_data.get('prompt_tokens_details', {}).get('audio_tokens', 0),
-					cache_read=token_usage_data.get('prompt_tokens_details', {}).get(
-						'cached_tokens', 0
-					),
-					reasoning=0,  # Assuming reasoning is not part of prompt_tokens_details
-				),
-				output_token_details=TokenDetails(
-					audio=token_usage_data.get('completion_tokens_details', {}).get(
-						'audio_tokens', 0
-					),
-					cache_read=0,  # Assuming cache_read is not part of completion_tokens_details
-					reasoning=token_usage_data.get('completion_tokens_details', {}).get(
-						'reasoning_tokens', 0
-					),
-				),
-			)
-
-			self.usage_metadata.input_tokens += usage_metadata.input_tokens
-			self.usage_metadata.output_tokens += usage_metadata.output_tokens
-			self.usage_metadata.total_tokens += usage_metadata.total_tokens
-
-			# update usage metadata
-			if usage_metadata.input_token_details:
-				for detail_key in usage_metadata.input_token_details.model_dump():
-					setattr(
-						self.usage_metadata.input_token_details,
-						detail_key,
-						getattr(self.usage_metadata.input_token_details, detail_key)
-						+ getattr(usage_metadata.input_token_details, detail_key),
-					)
-
-			if usage_metadata.output_token_details:
-				for detail_key in usage_metadata.output_token_details.model_dump():
-					setattr(
-						self.usage_metadata.output_token_details,
-						detail_key,
-						getattr(self.usage_metadata.output_token_details, detail_key)
-						+ getattr(usage_metadata.output_token_details, detail_key),
-					)
-
-		else:
-			logger.debug('Model name not supported for pricing calculation')
-			return
-
-		self._log_usage_metadata(usage_metadata)
-
-	def _log_usage_metadata(self, current_tokens: Optional[TokenUsage] = None) -> None:
-		"""Log the usage metadata"""
-		total_cost = self._calc_token_cost()
-		total_tokens = self.usage_metadata.total_tokens
-		logger.debug(
-			f'🔢 Total Tokens: input: {self.usage_metadata.input_tokens} (cached: {self.usage_metadata.input_token_details.cache_read}) + output: {self.usage_metadata.output_tokens} = {total_tokens} = ${total_cost:.4f} 💰'
-		)
-
-		if current_tokens:
-			logger.debug(
-				f'🔢 Last  Tokens: input: {current_tokens.input_tokens} (cached: {current_tokens.input_token_details.cache_read}) + output: {current_tokens.output_tokens} = {current_tokens.total_tokens} '
-			)
-
-	def _update_message_history(self, state: BrowserState, response: Any) -> None:
-		"""Update message history with new interactions"""
-		history_message = AgentMessagePrompt(state).get_message_for_history()
-		self.messages.append(history_message)
-		self.messages.append(AIMessage(content=response.model_dump_json(exclude_unset=True)))
 		self.n_steps += 1
+
+		return parsed
 
 	def _log_response(self, response: Any) -> None:
 		"""Log the model's response"""

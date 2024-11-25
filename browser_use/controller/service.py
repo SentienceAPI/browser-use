@@ -144,9 +144,15 @@ class Controller:
 			else:
 				await page.keyboard.press('PageDown')
 
+			amount = params.amount if params.amount is not None else 'one page'
+			return ActionResult(
+				extracted_content=f'Scrolled down the page by {amount} pixels',
+				include_in_memory=True,
+			)
+
 		# scroll up
 		@self.registry.action(
-			'Scroll up the page by pixel amount',
+			'Scroll up the page by pixel amount - if no amount is specified, scroll up one page',
 			param_model=ScrollAction,
 			requires_browser=True,
 		)
@@ -156,6 +162,12 @@ class Controller:
 				await page.evaluate(f'window.scrollBy(0, -{params.amount});')
 			else:
 				await page.keyboard.press('PageUp')
+
+			amount = params.amount if params.amount is not None else 'one page'
+			return ActionResult(
+				extracted_content=f'Scrolled up the page by {amount} pixels',
+				include_in_memory=True,
+			)
 
 	def action(self, description: str, **kwargs):
 		"""Decorator for registering custom actions

@@ -167,3 +167,6 @@ tmp
 .DS_Store
 
 private_example.py
+private_example
+
+browser_cookies.json

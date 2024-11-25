@@ -10,45 +10,13 @@ from browser_use.browser.views import BrowserState
 from browser_use.controller.registry.views import ActionModel
 
 
-class TokenDetails(BaseModel):
-	audio: int = 0
-	cache_read: int = 0
-	reasoning: int = 0
-
-
-class TokenUsage(BaseModel):
-	input_tokens: int
-	output_tokens: int
-	total_tokens: int
-	input_token_details: TokenDetails = Field(default=TokenDetails())
-	output_token_details: TokenDetails = Field(default=TokenDetails())
-
-	# allow arbitrary types
-	model_config = ConfigDict(arbitrary_types_allowed=True)
-
-
-class Pricing(BaseModel):
-	uncached_input: float  # per 1M tokens
-	cached_input: float
-	output: float
-
-
-class ModelPricingCatalog(BaseModel):
-	gpt_4o: Pricing = Field(default=Pricing(uncached_input=2.50, cached_input=1.25, output=10.00))
-	gpt_4o_mini: Pricing = Field(
-		default=Pricing(uncached_input=0.15, cached_input=0.075, output=0.60)
-	)
-	claude_3_5_sonnet: Pricing = Field(
-		default=Pricing(uncached_input=3.00, cached_input=1.50, output=15.00)
-	)
-
-
 class ActionResult(BaseModel):
 	"""Result of executing an action"""
 
 	is_done: Optional[bool] = False
 	extracted_content: Optional[str] = None
 	error: Optional[str] = None
+	include_in_memory: bool = False  # whether to include in past messages as context or not
 
 
 class AgentBrain(BaseModel):
@@ -198,8 +166,9 @@ class AgentError:
 	NO_VALID_ACTION = 'No valid action found'
 
 	@staticmethod
-	def format_error(error: Exception) -> str:
-		"""Format error message based on error type"""
+	def format_error(error: Exception, include_trace: bool = False) -> str:
+		"""Format error message based on error type and optionally include trace"""
+		message = ''
 		if isinstance(error, ValidationError):
 			return f'{AgentError.VALIDATION_ERROR}\nDetails: {str(error)}'
 		if isinstance(error, RateLimitError):

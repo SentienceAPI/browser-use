@@ -1,7 +1,9 @@
 from datetime import datetime
+from typing import Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from browser_use.agent.views import ActionResult
 from browser_use.browser.views import BrowserState
 
 
@@ -54,6 +56,7 @@ class SystemPrompt:
 7. If the page is empty use actions like "go_to_url", "search_google" or "open_tab"
 8. Remember: Choose EXACTLY ONE action per response. Invalid combinations or multiple actions will be rejected.
 9. If popups like cookies appear, accept or close them
+10. Call 'done' when you are done with the task - dont hallucinate or make up actions which the user did not ask for
 	"""
 
 	def input_format(self) -> str:
@@ -99,8 +102,9 @@ IMPORTANT RULES:
 
 
 class AgentMessagePrompt:
-	def __init__(self, state: BrowserState):
+	def __init__(self, state: BrowserState, result: Optional[ActionResult] = None):
 		self.state = state
+		self.result = result
 
 	def get_user_message(self) -> HumanMessage:
 		state_description = f"""
@@ -110,6 +114,12 @@ Available tabs:
 Interactive elements:
 {self.state.dom_items_to_string()}
         """
+
+		if self.result:
+			if self.result.extracted_content:
+				state_description += f'\nResult of last action: {self.result.extracted_content}'
+			if self.result.error:
+				state_description += f'\nError of last action: {self.result.error}'
 
 		if self.state.screenshot:
 			# Format message for vision model
@@ -124,6 +134,3 @@ Interactive elements:
 			)
 
 		return HumanMessage(content=state_description)
-
-	def get_message_for_history(self) -> HumanMessage:
-		return HumanMessage(content=f'Step url: {self.state.url}')
