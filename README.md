@@ -52,7 +52,13 @@ ANTHROPIC_API_KEY=
 # Demos
 
 <div style="font-size: 4em;">
-    Prompt: Find flights on kayak.com from Zurich to Beijing on 25.12.2024 to 02.02.2025. (8x speed)
+    Prompt: Read my CV & find ML jobs, save them to a file, and then start applying for them in new tabs, if you need help, ask me.' (8x speed)
+</div>
+
+https://github.com/user-attachments/assets/171fb4d6-0355-46f2-863e-edb04a828d04
+
+<div style="font-size: 4em;">
+    Prompt: Find flights on kayak.com from Zurich to Beijing from 25.12.2024 to 02.02.2025. (8x speed)
 </div>
 
 ![flight search 8x 10fps](https://github.com/user-attachments/assets/ea605d4a-90e6-481e-a569-f0e0db7e6390)
