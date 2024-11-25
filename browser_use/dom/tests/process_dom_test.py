@@ -16,7 +16,7 @@ async def test_process_dom():
 	# browser.go_to_url('https://google.com/flights')
 	await page.goto('https://immobilienscout24.de')
 
-	time.sleep(3)
+	time.sleep(1.5)
 
 	with open('browser_use/dom/process_dom.js', 'r') as f:
 		js_code = f.read()
@@ -30,6 +30,6 @@ async def test_process_dom():
 
 	os.makedirs('./tmp', exist_ok=True)
 	with open('./tmp/dom.json', 'w') as f:
-		json.dump(dom_tree, f, indent=2)
+		json.dump(dom_tree, f, indent=1)
 
 	input('Press Enter to continue...')

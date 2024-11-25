@@ -1,21 +1,34 @@
 () => {
     // Helper function to generate XPath as a tree
-    function getXPathTree(element) {
+    function getXPathTree(element, stopAtBoundary = true) {
         const segments = [];
-        while (element && element.nodeType === Node.ELEMENT_NODE) {
+        let currentElement = element;
+
+        while (currentElement && currentElement.nodeType === Node.ELEMENT_NODE) {
+            // Stop if we hit a shadow root or iframe
+            if (stopAtBoundary &&
+                (currentElement.parentNode instanceof ShadowRoot ||
+                    currentElement.parentNode instanceof HTMLIFrameElement)) {
+                break;
+            }
+
             let index = 0;
-            let sibling = element.previousSibling;
+            let sibling = currentElement.previousSibling;
             while (sibling) {
-                if (sibling.nodeType === Node.ELEMENT_NODE && sibling.nodeName === element.nodeName) {
+                if (sibling.nodeType === Node.ELEMENT_NODE &&
+                    sibling.nodeName === currentElement.nodeName) {
                     index++;
                 }
                 sibling = sibling.previousSibling;
             }
-            const tagName = element.nodeName.toLowerCase();
+
+            const tagName = currentElement.nodeName.toLowerCase();
             const xpathIndex = index > 0 ? `[${index + 1}]` : '';
             segments.unshift(`${tagName}${xpathIndex}`);
-            element = element.parentNode;
+
+            currentElement = currentElement.parentNode;
         }
+
         return segments.join('/');
     }
 
@@ -38,7 +51,7 @@
         const nodeData = {
             tagName: node.tagName ? node.tagName.toLowerCase() : null,
             attributes: {},
-            xpath: node.nodeType === Node.ELEMENT_NODE ? getXPathTree(node) : null,
+            xpath: node.nodeType === Node.ELEMENT_NODE ? getXPathTree(node, true) : null,
             children: []
         };
 
