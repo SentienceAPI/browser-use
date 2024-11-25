@@ -128,7 +128,7 @@ class DomService:
 				if result.isVisible and result.isTopElement:
 					text_content = self._extract_text_from_all_children(element)
 					tag_name = element.name
-					attributes = self._get_essential_attributes(element)
+					attributes = self._get_all_attributes(element)
 					output_string = f"<{tag_name}{' ' + attributes if attributes else ''}>{text_content}</{tag_name}>"
 
 					depth = len(xpath.split('/')) - 2
@@ -139,7 +139,7 @@ class DomService:
 			if xpath in text_results.texts:
 				result = text_results.texts[xpath]
 				if result.isVisible:
-					text_content = self._cap_text_length(text_node.strip())
+					text_content = text_node.strip()
 					if text_content:
 						depth = len(xpath.split('/')) - 2
 						ordered_results.append((order, xpath, False, text_content, depth, True))
@@ -290,11 +290,6 @@ class DomService:
 			logger.error('Error in batch text check: %s', e)
 			return BatchCheckResults(elements={}, texts={})
 
-	def _cap_text_length(self, text: str, max_length: int = 250) -> str:
-		if len(text) > max_length:
-			half_length = max_length // 2
-			return text[:half_length] + '...' + text[-half_length:]
-		return text
 
 	def _extract_text_from_all_children(self, element: Tag) -> str:
 		# Tell BeautifulSoup that button tags can contain content
@@ -310,7 +305,7 @@ class DomService:
 
 			text_content += '\n' + current_child_text
 
-		return self._cap_text_length(text_content.strip()) or ''
+		return text_content.strip() or ''
 
 	def _is_interactive_element(self, element: Tag) -> bool:
 		"""Check if element is interactive based on tag name and attributes."""
@@ -384,7 +379,7 @@ class DomService:
 
 	def _is_element_accepted(self, element: Tag) -> bool:
 		"""Check if element is accepted based on tag name and special cases."""
-		leaf_element_deny_list = {'svg', 'iframe', 'script', 'style', 'link', 'meta'}
+		leaf_element_deny_list = {'svg', 'script', 'style', 'link', 'meta'}
 
 		# First check if it's in deny list
 		if element.name in leaf_element_deny_list:
@@ -392,72 +387,3 @@ class DomService:
 
 		return element.name not in leaf_element_deny_list
 
-	def _get_essential_attributes(self, element: Tag) -> str:
-		"""
-		Collects essential attributes from an element.
-		Args:
-		    element: The BeautifulSoup PageElement
-		Returns:
-		    A string of formatted essential attributes
-		"""
-		essential_attributes = [
-			'id',
-			'class',
-			'href',
-			'src',
-			'readonly',
-			'disabled',
-			'checked',
-			'selected',
-			'role',
-			'type',  # Important for inputs, buttons
-			'name',  # Important for form elements
-			'value',  # Current value of form elements
-			'placeholder',  # Helpful for understanding input purpose
-			'title',  # Additional descriptive text
-			'alt',  # Alternative text for images
-			'for',  # Important for label associations
-			'autocomplete',  # Form field behavior
-		]
-
-		# These attributes should never be capped
-		no_cap_attributes = {
-			'href',  # URLs should never be capped
-			'src',  # Source URLs should never be capped
-			'action',  # Form submission URLs should never be capped
-		}
-
-		# Collect essential attributes that have values
-		attrs = []
-		for attr in essential_attributes:
-			if attr in element.attrs:
-				element_attr = element[attr]
-				if isinstance(element_attr, str):
-					element_attr = element_attr
-				elif isinstance(element_attr, (list, tuple)):
-					element_attr = ' '.join(str(v) for v in element_attr)
-
-				if attr not in no_cap_attributes:
-					element_attr = self._cap_text_length(element_attr, 25)
-
-				attrs.append(f'{attr}="{element_attr}"')
-
-		state_attributes_prefixes = (
-			'aria-',
-			'data-',
-		)
-
-		# Collect data- attributes
-		for attr in element.attrs:
-			if attr.startswith(state_attributes_prefixes):
-				attrs.append(f'{attr}="{element[attr]}"')
-
-		return ' '.join(attrs)
-
-	def _is_active(self, element: Tag) -> bool:
-		"""Check if element is active (not disabled)."""
-		return not (
-			element.get('disabled') is not None
-			or element.get('hidden') is not None
-			or element.get('aria-disabled') == 'true'
-		)

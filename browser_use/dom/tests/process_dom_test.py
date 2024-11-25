@@ -14,10 +14,10 @@ async def test_process_dom():
 
 	# await page.goto('https://kayak.com/flights')
 	# browser.go_to_url('https://google.com/flights')
-	# await page.goto('https://immobilienscout24.de')
-	await page.goto('https://www.w3schools.com/html/html_iframe.asp')
+	await page.goto('https://immobilienscout24.de')
+	# await page.goto('https://seleniumbase.io/w3schools/iframes')
 
-	time.sleep(1.5)
+	time.sleep(3)
 
 	with open('browser_use/dom/process_dom.js', 'r') as f:
 		js_code = f.read()
