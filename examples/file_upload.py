@@ -8,9 +8,7 @@ import asyncio
 
 from langchain_openai import ChatOpenAI
 
-from browser_use.agent.service import Agent
-from browser_use.browser.service import Browser
-from browser_use.controller.service import Controller
+from browser_use import Agent, Browser, Controller
 
 # Initialize controller first
 controller = Controller()
@@ -39,10 +37,9 @@ async def close_file_dialog(browser: Browser):
 async def main():
 	sites = [
 		'https://practice.expandtesting.com/upload',
-		'https://ps.uci.edu/~franklin/doc/file_upload.html',
 	]
-	task = f'go to {" ".join(sites)} each in new tabs and Upload my file then subbmit '
-	task = f'go to {" ".join(sites)} each in new tabs and Upload my file then subbmit extract the page content and go to google and find elon musk '
+	task = f'go to {", ".join(sites)} and Upload my file then subbmit and stop '
+	# task = f'go to {" ".join(sites)} each in new tabs and Upload my file then subbmit extract the page content and go to google and find elon musk '
 
 	model = ChatOpenAI(model='gpt-4o-mini')
 	agent = Agent(
@@ -50,7 +47,7 @@ async def main():
 		llm=model,
 		controller=controller,
 		save_conversation_path='tmp/examples/file_upload',
-		max_input_tokens=8000,
+		max_input_tokens=32000,
 	)
 
 	await agent.run()
