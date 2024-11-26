@@ -29,15 +29,43 @@ class DOMTextNode(DOMBaseNode):
 
 @dataclass(frozen=False)
 class DOMElementNode(DOMBaseNode):
+	"""
+	xpath: the xpath of the element from the last root node (shadow root or iframe OR document if no shadow root or iframe).
+	To properly reference the element we need to recursively switch the root node until we find the element (work you way up the tree with `.parent`)
+	"""
+
 	tag_name: str
 	xpath: str
 	attributes: Dict[str, str]
 	children: List[DOMBaseNode]
 	is_interactive: bool = False
 	is_top_element: bool = False
-	iframe_context: Optional[str] = None
 	shadow_root: bool = False
 	highlight_index: Optional[int] = None
+
+	def __repr__(self) -> str:
+		tag_str = f'<{self.tag_name}'
+
+		# Add attributes
+		for key, value in self.attributes.items():
+			tag_str += f' {key}="{value}"'
+		tag_str += '>'
+
+		# Add extra info
+		extras = []
+		if self.is_interactive:
+			extras.append('interactive')
+		if self.is_top_element:
+			extras.append('top')
+		if self.shadow_root:
+			extras.append('shadow-root')
+		if self.highlight_index is not None:
+			extras.append(f'highlight:{self.highlight_index}')
+
+		if extras:
+			tag_str += f' [{", ".join(extras)}]'
+
+		return tag_str
 
 	def get_all_text_till_next_clickable_element(self) -> str:
 		text_parts = []
@@ -92,30 +120,22 @@ class ElementTreeSerializer:
 	def serialize_clickable_elements(element_tree: DOMElementNode) -> str:
 		return element_tree.clickable_elements_to_string()
 
-	# def reconstruct_html_from_clickable_elements(self, element_tree: ElementNode) -> str:
-	# 	"""Convert the clickable elements back into HTML format."""
-	# 	html_parts = []
+	@staticmethod
+	def dom_element_node_to_json(element_tree: DOMElementNode) -> dict:
+		def node_to_dict(node: DOMBaseNode) -> dict:
+			if isinstance(node, DOMTextNode):
+				return {'type': 'text', 'text': node.text}
+			elif isinstance(node, DOMElementNode):
+				return {
+					'type': 'element',
+					'tag_name': node.tag_name,
+					'attributes': node.attributes,
+					'highlight_index': node.highlight_index,
+					'children': [node_to_dict(child) for child in node.children],
+				}
+			return {}
 
-	# 	def process_node(node: BaseNode) -> None:
-	# 		if isinstance(node, ElementNode):
-	# 			# Start tag
-	# 			attributes = ' '.join(f'{k}="{v}"' for k, v in node.attributes.items())
-	# 			tag_start = f'<{node.tag_name}'
-	# 			if attributes:
-	# 				tag_start += f' {attributes}'
-	# 			html_parts.append(f'{tag_start}>')
-
-	# 			# Process children
-	# 			for child in node.children:
-	# 				process_node(child)
-
-	# 			# End tag
-	# 			html_parts.append(f'</{node.tag_name}>')
-	# 		elif isinstance(node, TextNode) and node.is_visible:
-	# 			html_parts.append(node.text)
-
-	# 	process_node(element_tree)
-	# 	return ''.join(html_parts)
+		return node_to_dict(element_tree)
 
 
 SelectorMap = dict[int, DOMElementNode]

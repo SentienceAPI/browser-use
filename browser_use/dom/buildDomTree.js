@@ -270,7 +270,7 @@ function isTextNodeVisible(textNode) {
         rect.height !== 0 &&
         rect.top >= 0 &&
         rect.top <= window.innerHeight &&
-        textNode.parentElement.checkVisibility({
+        textNode.parentElement?.checkVisibility({
             checkOpacity: true,
             checkVisibilityCSS: true
         });
@@ -311,8 +311,10 @@ function buildDomTree(node, parentIframe = null) {
 
     // Copy all attributes if the node is an element
     if (node.nodeType === Node.ELEMENT_NODE && node.attributes) {
-        for (const attr of node.attributes) {
-            nodeData.attributes[attr.name] = attr.value;
+        // Use getAttributeNames() instead of directly iterating attributes
+        const attributeNames = node.getAttributeNames?.() || [];
+        for (const name of attributeNames) {
+            nodeData.attributes[name] = node.getAttribute(name);
         }
     }
 
@@ -333,9 +335,9 @@ function buildDomTree(node, parentIframe = null) {
     }
 
     // Only add iframeContext if we're inside an iframe
-    if (parentIframe) {
-        nodeData.iframeContext = `iframe[src="${parentIframe.src || ''}"]`;
-    }
+    // if (parentIframe) {
+    //     nodeData.iframeContext = `iframe[src="${parentIframe.src || ''}"]`;
+    // }
 
     // Only add shadowRoot field if it exists
     if (node.shadowRoot) {

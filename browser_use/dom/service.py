@@ -52,7 +52,9 @@ class DomService:
 		return selector_map
 
 	def _parse_node(
-		self, node_data: dict, parent: Optional[DOMElementNode] = None
+		self,
+		node_data: dict,
+		parent: Optional[DOMElementNode] = None,
 	) -> Optional[DOMBaseNode]:
 		if not node_data:
 			return None
@@ -66,16 +68,17 @@ class DomService:
 
 			return text_node
 
+		tag_name = node_data['tagName']
+
 		element_node = DOMElementNode(
-			tag_name=node_data['tagName'],
+			tag_name=tag_name,
 			xpath=node_data['xpath'],
 			attributes=node_data.get('attributes', {}),
 			children=[],  # Initialize empty, will fill later
-			is_visible=node_data['isVisible'],
-			is_interactive=node_data['isInteractive'],
-			is_top_element=node_data['isTopElement'],
+			is_visible=node_data.get('isVisible', False),
+			is_interactive=node_data.get('isInteractive', False),
+			is_top_element=node_data.get('isTopElement', False),
 			highlight_index=node_data.get('highlightIndex'),
-			iframe_context=node_data.get('iframeContext'),
 			shadow_root=node_data.get('shadowRoot', False),
 			parent=parent,
 		)

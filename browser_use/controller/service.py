@@ -37,19 +37,19 @@ class Controller:
 		async def search_google(params: SearchGoogleAction, browser: Browser):
 			page = await browser.get_current_page()
 			await page.goto(f'https://www.google.com/search?q={params.query}')
-			await browser.wait_for_page_load()
+			await page.wait_for_load_state()
 
 		@self.registry.action('Navigate to URL', param_model=GoToUrlAction, requires_browser=True)
 		async def go_to_url(params: GoToUrlAction, browser: Browser):
 			page = await browser.get_current_page()
 			await page.goto(params.url)
-			await browser.wait_for_page_load()
+			await page.wait_for_load_state()
 
 		@self.registry.action('Go back', requires_browser=True)
 		async def go_back(browser: Browser):
 			page = await browser.get_current_page()
 			await page.go_back()
-			await browser.wait_for_page_load()
+			await page.wait_for_load_state()
 
 		# Element Interaction Actions
 		@self.registry.action(
@@ -105,7 +105,8 @@ class Controller:
 		async def switch_tab(params: SwitchTabAction, browser: Browser):
 			await browser.switch_to_tab(params.page_id)
 			# Wait for tab to be ready
-			await browser.wait_for_page_load()
+			page = await browser.get_current_page()
+			await page.wait_for_load_state()
 
 		@self.registry.action('Open new tab', param_model=OpenTabAction, requires_browser=True)
 		async def open_tab(params: OpenTabAction, browser: Browser):
