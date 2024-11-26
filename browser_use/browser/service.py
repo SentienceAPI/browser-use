@@ -202,23 +202,6 @@ class Browser:
 			logger.warning('Page load failed, continuing...')
 			pass
 
-		# Wait for all frames to load
-		async def wait_for_frame_and_subframes(frame):
-			try:
-				await frame.wait_for_load_state('domcontentloaded', timeout=5_000)
-			except Exception:
-				logger.warning('Frame load failed, continuing...')
-				pass
-
-			# Recursively wait for all child frames
-			for child_frame in frame.child_frames:
-				await wait_for_frame_and_subframes(child_frame)
-
-		# Wait for main page frames and their subframes
-		frames = page.frames
-		for frame in frames:
-			await wait_for_frame_and_subframes(frame)
-
 		# Calculate remaining time to meet minimum WAIT_TIME
 		elapsed = time.time() - start_time
 		remaining = max((timeout_overwrite or self.MINIMUM_WAIT_TIME) - elapsed, 0)
