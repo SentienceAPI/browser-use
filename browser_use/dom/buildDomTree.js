@@ -1,6 +1,6 @@
 let highlightIndex = 0;
 
-function highlightElement(element, index) {
+function highlightElement(element, index, parentIframe = null) {
     // Create or get highlight container
     let container = document.getElementById('playwright-highlight-container');
     if (!container) {
@@ -25,8 +25,18 @@ function highlightElement(element, index) {
 
     // Position overlay based on element
     const rect = element.getBoundingClientRect();
-    overlay.style.top = `${rect.top}px`;
-    overlay.style.left = `${rect.left}px`;
+    let top = rect.top;
+    let left = rect.left;
+
+    // Adjust position if element is inside an iframe
+    if (parentIframe) {
+        const iframeRect = parentIframe.getBoundingClientRect();
+        top += iframeRect.top;
+        left += iframeRect.left;
+    }
+
+    overlay.style.top = `${top}px`;
+    overlay.style.left = `${left}px`;
     overlay.style.width = `${rect.width}px`;
     overlay.style.height = `${rect.height}px`;
 
@@ -40,8 +50,8 @@ function highlightElement(element, index) {
     label.style.borderRadius = '10px';
     label.style.fontSize = '12px';
     label.textContent = index;
-    label.style.top = `${rect.top - 20}px`;
-    label.style.left = `${rect.left}px`;
+    label.style.top = `${top - 20}px`;
+    label.style.left = `${left}px`;
 
     // Add to container
     container.appendChild(overlay);
@@ -329,7 +339,7 @@ function buildDomTree(node, parentIframe = null) {
 
         // Highlight if element meets all criteria
         if (isInteractive && isVisible && isTop) {
-            highlightIndex = highlightElement(node, highlightIndex);
+            highlightIndex = highlightElement(node, highlightIndex, parentIframe);
             nodeData.highlightIndex = highlightIndex - 1;
         }
     }
