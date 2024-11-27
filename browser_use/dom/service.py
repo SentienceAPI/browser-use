@@ -19,17 +19,19 @@ class DomService:
 		self.page = page
 		self.xpath_cache = {}
 
-	async def get_clickable_elements(self) -> DOMState:
-		element_tree = await self._build_dom_tree()
+	async def get_clickable_elements(self, highlight_elements: bool = True) -> DOMState:
+		element_tree = await self._build_dom_tree(highlight_elements)
 		selector_map = self._create_selector_map(element_tree)
 
 		return DOMState(element_tree=element_tree, selector_map=selector_map)
 
-	async def _build_dom_tree(self) -> DOMElementNode:
+	async def _build_dom_tree(self, highlight_elements: bool) -> DOMElementNode:
 		with open('browser_use/dom/buildDomTree.js', 'r') as f:
 			js_code = f.read()
 
-		eval_page = await self.page.evaluate(js_code)  # This is quite big, so be careful
+		eval_page = await self.page.evaluate(
+			js_code, [highlight_elements]
+		)  # This is quite big, so be careful
 		html_to_dict = self._parse_node(eval_page)
 
 		if html_to_dict is None or not isinstance(html_to_dict, DOMElementNode):
