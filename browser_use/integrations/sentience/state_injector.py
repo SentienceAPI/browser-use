@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
@@ -99,11 +100,14 @@ async def build_sentience_state(
         import asyncio
         await asyncio.sleep(0.5)
 
+        # Get API key from environment if available
+        api_key = os.getenv("SENTIENCE_API_KEY")
         # Limit to 50 interactive elements to minimize token usage
         # Only interactive elements are included in the formatted output
-        # Note: sentience_api_key is not used here - we're using the backend snapshot
-        # which always calls the local extension. API key is only for server-side API calls.
-        options = SnapshotOptions(limit=100)  # Get more, filter to ~50 interactive
+        if api_key:
+            options = SnapshotOptions(use_api=True, sentience_api_key=api_key, limit=100, show_overlay=True)  # Get more, filter to ~50 interactive
+        else:
+            options = SnapshotOptions(limit=100, show_overlay=True)  # Get more, filter to ~50 interactive
 
         # Take snapshot with retry logic (extension may need time to inject after navigation)
         max_retries = 2
