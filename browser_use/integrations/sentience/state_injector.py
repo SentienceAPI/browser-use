@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
@@ -27,8 +26,8 @@ def format_snapshot_for_llm(snapshot: "Snapshot", limit: int = 100) -> str:
     """
     Format Sentience snapshot for LLM consumption.
 
-    Creates a compact inventory of elements with IDs, roles, names, and bbox centers.
-    This gives the LLM a reduced action space to pick from.
+    Creates a compact inventory of interactive elements with IDs, roles, and names.
+    Optimized for minimal token usage while maintaining usability.
 
     Args:
         snapshot: Sentience Snapshot object
@@ -37,22 +36,35 @@ def format_snapshot_for_llm(snapshot: "Snapshot", limit: int = 100) -> str:
     Returns:
         Formatted string for LLM prompt
     """
+    # Filter to interactive elements only (buttons, links, inputs, etc.)
+    interactive_roles = {
+        "button", "link", "textbox", "searchbox", "combobox", "checkbox",
+        "radio", "slider", "tab", "menuitem", "option", "switch", "cell"
+    }
+    
     lines = []
-    for el in snapshot.elements[:limit]:
-        # Calculate bbox center
-        cx = int(el.bbox.x + el.bbox.width / 2)
-        cy = int(el.bbox.y + el.bbox.height / 2)
-
+    logger.info(f"received snapshot: {snapshot}")
+    for el in snapshot.elements[:limit]:  # Check more, filter down
         # Get role (prefer role, fallback to tag)
-        role = getattr(el, "role", None) or getattr(el, "tag", None) or "el"
-
-        # Get name/text (truncate if too long)
+        role = getattr(el, "role", None) or getattr(el, "tag", None) or ""
+        
+        # Skip non-interactive elements to reduce tokens
+        if role.lower() not in interactive_roles and role.lower() not in {"a", "button", "input", "select", "textarea"}:
+            continue
+        
+        # Get name/text (truncate aggressively)
         name = (getattr(el, "name", None) or getattr(el, "text", None) or "").strip()
-        if len(name) > 80:
-            name = name[:77] + "..."
-
-        # Format: [ID] <role> "name" @ (cx,cy)
-        lines.append(f"[{el.id}] <{role}> \"{name}\" @ ({cx},{cy})")
+        if len(name) > 40:  # More aggressive truncation
+            name = name[:37] + "..."
+        
+        # Compact format: ID|role|name|importance (no coordinates to save tokens)
+        # LLM can use the ID directly, coordinates aren't needed
+        # Importance helps LLM prioritize which elements to interact with
+        importance = getattr(el, "importance", 0)
+        lines.append(f"{el.id}|{role}|{name}|{importance}")
+        logger.info(f"Added element: {el.id}|{role}|{name}|{importance}")
+        if len(lines) >= limit:
+            break
 
     return "\n".join(lines)
 
@@ -87,26 +99,22 @@ async def build_sentience_state(
         import asyncio
         await asyncio.sleep(0.5)
 
-        # Get API key from environment if available
-        api_key = os.getenv("SENTIENCE_API_KEY")
-        # Limit to 100 elements to keep prompt size manageable
-        if api_key:
-            options = SnapshotOptions(sentience_api_key=api_key, limit=100)
-        else:
-            options = SnapshotOptions(limit=100)  # Use default options if no API key
+        # Limit to 50 interactive elements to minimize token usage
+        # Only interactive elements are included in the formatted output
+        # Note: sentience_api_key is not used here - we're using the backend snapshot
+        # which always calls the local extension. API key is only for server-side API calls.
+        options = SnapshotOptions(limit=100)  # Get more, filter to ~50 interactive
 
         # Take snapshot with retry logic (extension may need time to inject after navigation)
         max_retries = 2
-        last_error = None
         for attempt in range(max_retries):
             try:
                 snap = await snapshot(backend, options=options)
                 break  # Success
             except Exception as e:
-                last_error = e
                 if attempt < max_retries - 1:
                     # Wait a bit longer before retry
-                    logger.debug(f"Sentience snapshot attempt {attempt + 1} failed, retrying...")
+                    logger.debug("Sentience snapshot attempt %d failed, retrying...", attempt + 1)
                     await asyncio.sleep(1.0)
                 else:
                     raise  # Re-raise on final attempt
@@ -114,13 +122,14 @@ async def build_sentience_state(
         # Get URL from snapshot or browser state
         url = getattr(snap, "url", "") or ""
 
-        # Format for LLM (limit to 100 elements to keep prompt size manageable)
-        formatted = format_snapshot_for_llm(snap, limit=100)
+        # Format for LLM (limit to 50 interactive elements to minimize tokens)
+        formatted = format_snapshot_for_llm(snap, limit=50)
 
+        # Ultra-compact format to minimize tokens
         prompt = (
-            "## Sentience Element Inventory (semantic geometry)\n"
-            "Use these numeric IDs with tools like click(index=ID) / input_text(index=ID,...).\n"
-            "Prefer these IDs over guessing coordinates.\n\n"
+            "## Elements (ID|role|text|importance)\n"
+            "Use click(index=ID) or input_text(index=ID,...). Format: ID|role|text|importance\n"
+            "Higher importance = more likely to be relevant for the task.\n"
             f"{formatted}"
         )
 
