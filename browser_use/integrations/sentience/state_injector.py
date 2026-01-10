@@ -123,12 +123,19 @@ def format_snapshot_for_llm(snapshot: "Snapshot", top_by_importance: int = 40, t
         # Pre-encode fields for compactness
         # docYq: bucketed doc_y (round to nearest 200 for smaller numbers)
         doc_yq = int(round(doc_y / 200)) if doc_y else 0
-        
+
+        # Phase 3.2: Use pre-computed in_dominant_group field (uses fuzzy matching)
+        # This is computed by the gateway so we don't need to implement fuzzy matching here
+        in_dg = getattr(el, "in_dominant_group", None)
+        if in_dg is None:
+            # Fallback for older gateway versions: use exact string match
+            in_dg = group_key == dominant_group_key if dominant_group_key else False
+
         # ord: group_index if in dominant group, else "-"
-        ord_val = group_index if group_key == dominant_group_key else "-"
-        
+        ord_val = group_index if in_dg else "-"
+
         # DG: 1 if dominant group, else 0
-        dg_flag = "1" if group_key == dominant_group_key else "0"
+        dg_flag = "1" if in_dg else "0"
         
         # href: short token (domain or last path segment, or blank)
         href = ""
