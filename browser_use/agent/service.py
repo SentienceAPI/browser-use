@@ -1011,10 +1011,15 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 		assert self.browser_session is not None, 'BrowserSession is not set up'
 
 		self.logger.debug(f'🌐 Step {self.state.n_steps}: Getting browser state...')
-		# Always take screenshots for all steps
-		self.logger.debug('📸 Requesting browser state with include_screenshot=True')
+		# Only capture screenshots if use_vision is not False
+		# When use_vision=False, skip screenshot capture entirely to save resources
+		include_screenshot = self.settings.use_vision is not False
+		if include_screenshot:
+			self.logger.debug('📸 Requesting browser state with include_screenshot=True')
+		else:
+			self.logger.debug('📸 Skipping screenshot capture (use_vision=False)')
 		browser_state_summary = await self.browser_session.get_browser_state_summary(
-			include_screenshot=True,  # always capture even if use_vision=False so that cloud sync is useful (it's fast now anyway)
+			include_screenshot=include_screenshot,
 			include_recent_events=self.include_recent_events,
 		)
 		if browser_state_summary.screenshot:

@@ -302,6 +302,17 @@ class MessageManager:
 	) -> None:
 		"""Create single state message with all content"""
 
+		# Check if Sentience snapshot was injected BEFORE clearing context messages
+		# (Sentience message is added to context_messages, so we need to check before clearing)
+		has_sentience = any(
+			msg.content and isinstance(msg.content, str) and (
+				"Elements (ID|role|text|importance)" in msg.content or
+				"Elements: ID|role|text|imp|docYq|ord|DG|href" in msg.content or
+				"Rules: ordinal→DG=1 then ord asc" in msg.content
+			)
+			for msg in self.state.history.context_messages
+		)
+
 		# Clear contextual messages from previous steps to prevent accumulation
 		self.state.history.context_messages.clear()
 
@@ -343,8 +354,36 @@ class MessageManager:
 		if include_screenshot and browser_state_summary.screenshot:
 			screenshots.append(browser_state_summary.screenshot)
 
-		# Use vision in the user message if screenshots are included
-		effective_use_vision = len(screenshots) > 0
+		# Use vision in the user message if screenshots are included OR if there are other images
+		# When use_vision=False, exclude ALL images (screenshots, sample_images, read_state_images)
+		has_other_images = bool(self.sample_images) or bool(self.state.read_state_images)
+		# Only use vision if: (1) we have screenshots, OR (2) use_vision is not False AND we have other images
+		effective_use_vision = len(screenshots) > 0 or (use_vision is not False and has_other_images)
+		
+		# Debug logging for vision usage
+		if effective_use_vision:
+			logger.info(
+				'⚠️ Vision is ENABLED: use_vision=%s, screenshots=%d, sample_images=%d, read_state_images=%d',
+				use_vision, len(screenshots), len(self.sample_images) if self.sample_images else 0,
+				len(self.state.read_state_images) if self.state.read_state_images else 0
+			)
+		else:
+			logger.info(
+				'✅ Vision is DISABLED: use_vision=%s, screenshots=%d, sample_images=%d, read_state_images=%d',
+				use_vision, len(screenshots), len(self.sample_images) if self.sample_images else 0,
+				len(self.state.read_state_images) if self.state.read_state_images else 0
+			)
+
+		# Use the has_sentience flag we detected before clearing context_messages
+		# Log Sentience detection for debugging
+		if has_sentience:
+			logger.info('✅ Sentience detected - reducing DOM size to 5000 chars')
+		else:
+			logger.info('❌ Sentience NOT detected - using full DOM size (40000 chars)')
+		
+		# Reduce DOM tree size when Sentience provides semantic geometry
+		# Default is 40,000 chars, reduce to 5,000 when Sentience is available
+		max_clickable_elements_length = 5000 if has_sentience else 40000
 
 		# Create single state message with all content
 		assert browser_state_summary
@@ -357,6 +396,7 @@ class MessageManager:
 			include_attributes=self.include_attributes,
 			step_info=step_info,
 			page_filtered_actions=page_filtered_actions,
+			max_clickable_elements_length=max_clickable_elements_length,
 			sensitive_data=self.sensitive_data_description,
 			available_file_paths=available_file_paths,
 			screenshots=screenshots,

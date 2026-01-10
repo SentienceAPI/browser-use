@@ -1315,6 +1315,15 @@ class BrowserSession(BaseModel):
 			if include_screenshot and not self._cached_browser_state_summary.screenshot:
 				self.logger.debug('⚠️ Cached browser state has no screenshot, fetching fresh state with screenshot')
 				# Fall through to fetch fresh state with screenshot
+			elif not include_screenshot and self._cached_browser_state_summary.screenshot:
+				# If we don't want a screenshot but cached state has one, create a copy without screenshot
+				from dataclasses import replace
+				cached_copy = replace(
+					self._cached_browser_state_summary,
+					screenshot=None,  # Remove screenshot when not requested
+				)
+				self.logger.debug('🔄 Using pre-cached browser state summary (screenshot removed per request)')
+				return cached_copy
 			elif selector_map and len(selector_map) > 0:
 				self.logger.debug('🔄 Using pre-cached browser state summary for open tab')
 				return self._cached_browser_state_summary

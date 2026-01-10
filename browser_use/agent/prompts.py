@@ -1,4 +1,5 @@
 import importlib.resources
+import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Literal, Optional
 
@@ -6,6 +7,8 @@ from browser_use.dom.views import NodeType, SimplifiedNode
 from browser_use.llm.messages import ContentPartImageParam, ContentPartTextParam, ImageURL, SystemMessage, UserMessage
 from browser_use.observability import observe_debug
 from browser_use.utils import is_new_tab_page, sanitize_surrogates
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
 	from browser_use.agent.views import AgentStepInfo
@@ -214,12 +217,21 @@ class AgentMessagePrompt:
 		stats_text += '</page_stats>\n'
 
 		elements_text = self.browser_state.dom_state.llm_representation(include_attributes=self.include_attributes)
+		
+		# Log DOM size before truncation
+		original_dom_size = len(elements_text)
+		dom_tokens_estimate = original_dom_size // 4
 
 		if len(elements_text) > self.max_clickable_elements_length:
 			elements_text = elements_text[: self.max_clickable_elements_length]
 			truncated_text = f' (truncated to {self.max_clickable_elements_length} characters)'
+			logger.info(
+				'📊 DOM state: %d chars (~%d tokens) truncated to %d chars (~%d tokens)',
+				original_dom_size, dom_tokens_estimate, self.max_clickable_elements_length, self.max_clickable_elements_length // 4
+			)
 		else:
 			truncated_text = ''
+			logger.info('📊 DOM state: %d chars (~%d tokens)', original_dom_size, dom_tokens_estimate)
 
 		has_content_above = False
 		has_content_below = False
@@ -400,10 +412,54 @@ Available tabs:
 		# Sanitize surrogates from all text content
 		state_description = sanitize_surrogates(state_description)
 
-		# Check if we have images to include (from read_file action)
-		has_images = bool(self.read_state_images)
+		# Log token usage breakdown for debugging
+		agent_history_len = len(self.agent_history_description) if self.agent_history_description else 0
+		browser_state_len = len(self._get_browser_state_description())
+		agent_state_len = len(self._get_agent_state_description())
+		read_state_len = len(self.read_state_description) if self.read_state_description else 0
+		total_len = len(state_description)
+		
+		# Rough token estimate (1 token ≈ 4 characters)
+		logger.info(
+			'📊 Token breakdown (chars): agent_history=%d (~%d tokens), browser_state=%d (~%d tokens), '
+			'agent_state=%d (~%d tokens), read_state=%d (~%d tokens), total=%d (~%d tokens)',
+			agent_history_len, agent_history_len // 4,
+			browser_state_len, browser_state_len // 4,
+			agent_state_len, agent_state_len // 4,
+			read_state_len, read_state_len // 4,
+			total_len, total_len // 4
+		)
 
-		if (use_vision is True and self.screenshots) or has_images:
+		# Check if we have images to include
+		# When use_vision=False, exclude ALL images (screenshots, sample_images, read_state_images)
+		has_read_state_images = bool(self.read_state_images)
+		has_sample_images = bool(self.sample_images)
+		has_screenshots = bool(self.screenshots)
+
+		# Include images only if use_vision is not False and we have images
+		# When use_vision=False, never use vision (even for read_state_images from read_file)
+		should_use_vision = (
+			use_vision is not False and
+			(has_screenshots or has_sample_images or has_read_state_images)
+		)
+
+		# Debug logging
+		if should_use_vision:
+			logger.info(
+				'⚠️ AgentMessagePrompt: Vision ENABLED - use_vision=%s, screenshots=%d, sample_images=%d, read_state_images=%d',
+				use_vision, len(self.screenshots) if self.screenshots else 0,
+				len(self.sample_images) if self.sample_images else 0,
+				len(self.read_state_images) if self.read_state_images else 0
+			)
+		else:
+			logger.info(
+				'✅ AgentMessagePrompt: Vision DISABLED - use_vision=%s, screenshots=%d, sample_images=%d, read_state_images=%d',
+				use_vision, len(self.screenshots) if self.screenshots else 0,
+				len(self.sample_images) if self.sample_images else 0,
+				len(self.read_state_images) if self.read_state_images else 0
+			)
+
+		if should_use_vision:
 			# Start with text description
 			content_parts: list[ContentPartTextParam | ContentPartImageParam] = [ContentPartTextParam(text=state_description)]
 
@@ -412,28 +468,28 @@ Available tabs:
 
 			# Add screenshots with labels
 			for i, screenshot in enumerate(self.screenshots):
-				if i == len(self.screenshots) - 1:
-					label = 'Current screenshot:'
-				else:
-					# Use simple, accurate labeling since we don't have actual step timing info
-					label = 'Previous screenshot:'
+					if i == len(self.screenshots) - 1:
+						label = 'Current screenshot:'
+					else:
+						# Use simple, accurate labeling since we don't have actual step timing info
+						label = 'Previous screenshot:'
 
-				# Add label as text content
-				content_parts.append(ContentPartTextParam(text=label))
+					# Add label as text content
+					content_parts.append(ContentPartTextParam(text=label))
 
-				# Resize screenshot if llm_screenshot_size is configured
-				processed_screenshot = self._resize_screenshot(screenshot)
+					# Resize screenshot if llm_screenshot_size is configured
+					processed_screenshot = self._resize_screenshot(screenshot)
 
-				# Add the screenshot
-				content_parts.append(
-					ContentPartImageParam(
-						image_url=ImageURL(
-							url=f'data:image/png;base64,{processed_screenshot}',
-							media_type='image/png',
-							detail=self.vision_detail_level,
-						),
+					# Add the screenshot
+					content_parts.append(
+						ContentPartImageParam(
+							image_url=ImageURL(
+								url=f'data:image/png;base64,{processed_screenshot}',
+								media_type='image/png',
+								detail=self.vision_detail_level,
+							),
+						)
 					)
-				)
 
 			# Add read_state images (from read_file action) before screenshots
 			for img_data in self.read_state_images:
