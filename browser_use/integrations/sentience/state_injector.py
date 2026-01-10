@@ -45,6 +45,10 @@ def format_snapshot_for_llm(snapshot: "Snapshot", limit: int = 100) -> str:
     
     lines = []
     logger.info(f"received snapshot: {snapshot}")
+    dominant_group_key = snapshot.dominant_group_key
+    href_url = snapshot.url
+    print(f"dominant_group_key: {dominant_group_key}")
+    print(f"href_url: {href_url}")
     for el in snapshot.elements[:limit]:  # Check more, filter down
         # Get role (prefer role, fallback to tag)
         role = getattr(el, "role", None) or getattr(el, "tag", None) or ""
@@ -58,12 +62,29 @@ def format_snapshot_for_llm(snapshot: "Snapshot", limit: int = 100) -> str:
         if len(name) > 40:  # More aggressive truncation
             name = name[:37] + "..."
         
-        # Compact format: ID|role|name|importance (no coordinates to save tokens)
-        # LLM can use the ID directly, coordinates aren't needed
+        # Compact format: ID|role|name|importance|doc_y|center_y|group_key|group_index|dominant_group_key|href_url
+        # LLM can use the ID directly for actions
+        # Coordinates (doc_y, center_y) help with spatial reasoning
+        # Group information (group_key, group_index, dominant_group_key) helps with element relationships
         # Importance helps LLM prioritize which elements to interact with
         importance = getattr(el, "importance", 0)
-        lines.append(f"{el.id}|{role}|{name}|{importance}")
-        logger.info(f"Added element: {el.id}|{role}|{name}|{importance}")
+        rerank_index = getattr(el, "rerank_index", 0)
+        center_x = getattr(el, "center_x", 0)
+        center_y = getattr(el, "center_y", 0)
+        doc_y = getattr(el, "doc_y", 0)
+        group_key = getattr(el, "group_key", "")
+        group_index = getattr(el, "group_index", 0)
+        '''
+        center_x: float | None = None  # X coordinate of element center (viewport coords)
+        center_y: float | None = None  # Y coordinate of element center (viewport coords)
+        doc_y: float | None = None  # Y coordinate in document (center_y + scroll_y)
+        group_key: str | None = None  # Geometric bucket key for ordinal grouping
+        group_index: int | None = None  # Position within group (0-indexed, sorted by doc_y)
+        Format: {id}|{role}|{text}|{importance}|{doc_y}|{center_y}|{group_key}|{group_index}|{dominant_group_key}|{href_url}
+        '''
+        cur_line = f"{el.id}|{role}|{name}|{importance}|{doc_y}|{center_y}|{group_key}|{group_index}|{dominant_group_key}|{href_url}"
+        lines.append(cur_line)
+        logger.info(f"Added element: {cur_line}")
         if len(lines) >= limit:
             break
 
@@ -105,9 +126,9 @@ async def build_sentience_state(
         # Limit to 50 interactive elements to minimize token usage
         # Only interactive elements are included in the formatted output
         if api_key:
-            options = SnapshotOptions(use_api=True, sentience_api_key=api_key, limit=100, show_overlay=True)  # Get more, filter to ~50 interactive
+            options = SnapshotOptions(use_api=True, sentience_api_key=api_key, limit=50, show_overlay=True, goal="Click the first ShowHN link")  # Get more, filter to ~50 interactive
         else:
-            options = SnapshotOptions(limit=100, show_overlay=True)  # Get more, filter to ~50 interactive
+            options = SnapshotOptions(limit=50, show_overlay=True, goal="Click the first ShowHN link")  # Get more, filter to ~50 interactive
 
         # Take snapshot with retry logic (extension may need time to inject after navigation)
         max_retries = 2
@@ -131,11 +152,28 @@ async def build_sentience_state(
 
         # Ultra-compact format to minimize tokens
         prompt = (
-            "## Elements (ID|role|text|importance)\n"
-            "Use click(index=ID) or input_text(index=ID,...). Format: ID|role|text|importance\n"
-            "Higher importance = more likely to be relevant for the task.\n"
+            "## Elements (ID|role|text|importance|doc_y|center_y|group_key|group_index|dominant_group_key|href_url)\n"
+            "Use click(index=ID) or input_text(index=ID,...).\n"
+            "Format: ID|role|text|importance|doc_y|center_y|group_key|group_index|dominant_group_key|href_url\n\n"
+
+            "Field meanings:\n"
+            "- importance: general salience (NOT ordering for lists)\n"
+            "- doc_y: vertical position on the page (smaller = higher on page)\n"
+            "- center_y: vertical position in the current viewport\n"
+            "- group_key: geometric list/group identifier\n"
+            "- group_index: position within its group (0 = first)\n"
+            "- dominant_group_key: main repeated list on the page\n"
+            "- href_url: link target if applicable\n\n"
+
+            "Selection rules:\n"
+            "- For ordinal goals (first/top/last/nth): prefer elements where group_key == dominant_group_key, then use group_index or doc_y.\n"
+            "- For visible-only ordinals: use center_y among visible elements.\n"
+            "- Use importance only as a tie-breaker, not as the primary ordering signal.\n"
+            "- For actions like search/login/submit, importance may dominate.\n\n"
+
             f"{formatted}"
         )
+
 
         logger.info(f"✅ Sentience snapshot: {len(snap.elements)} elements, URL: {url}")
         return SentienceState(url=url, snapshot=snap, prompt_block=prompt)
