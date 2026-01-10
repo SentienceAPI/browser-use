@@ -202,9 +202,9 @@ async def build_sentience_state(
         # Limit to 50 interactive elements to minimize token usage
         # Only interactive elements are included in the formatted output
         if api_key:
-            options = SnapshotOptions(use_api=True, sentience_api_key=api_key, limit=100, show_overlay=True, goal="Click the first ShowHN link")  # Get more, filter to ~50 interactive
+            options = SnapshotOptions(use_api=True, sentience_api_key=api_key, limit=50, show_overlay=True, goal="Click the first ShowHN link")  # Get more, filter to ~50 interactive
         else:
-            options = SnapshotOptions(limit=100, show_overlay=True, goal="Click the first ShowHN link")  # Get more, filter to ~50 interactive
+            options = SnapshotOptions(limit=50, show_overlay=True, goal="Click the first ShowHN link")  # Get more, filter to ~50 interactive
 
         # Take snapshot with retry logic (extension may need time to inject after navigation)
         max_retries = 2
