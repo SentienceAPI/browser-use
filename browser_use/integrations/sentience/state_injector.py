@@ -119,6 +119,7 @@ def format_snapshot_for_llm(snapshot: "Snapshot", top_by_importance: int = 40, t
         doc_y = getattr(el, "doc_y", 0) or 0
         group_key = getattr(el, "group_key", "") or ""
         group_index = getattr(el, "group_index", 0) or 0
+        print(f"group_key: {group_key}, dominant_group_key: {dominant_group_key}")
         
         # Pre-encode fields for compactness
         # docYq: bucketed doc_y (round to nearest 200 for smaller numbers)
@@ -201,9 +202,9 @@ async def build_sentience_state(
         # Limit to 50 interactive elements to minimize token usage
         # Only interactive elements are included in the formatted output
         if api_key:
-            options = SnapshotOptions(use_api=True, sentience_api_key=api_key, limit=50, show_overlay=True, goal="Click the first ShowHN link")  # Get more, filter to ~50 interactive
+            options = SnapshotOptions(use_api=True, sentience_api_key=api_key, limit=100, show_overlay=True, goal="Click the first ShowHN link")  # Get more, filter to ~50 interactive
         else:
-            options = SnapshotOptions(limit=50, show_overlay=True, goal="Click the first ShowHN link")  # Get more, filter to ~50 interactive
+            options = SnapshotOptions(limit=100, show_overlay=True, goal="Click the first ShowHN link")  # Get more, filter to ~50 interactive
 
         # Take snapshot with retry logic (extension may need time to inject after navigation)
         max_retries = 2
@@ -223,7 +224,7 @@ async def build_sentience_state(
         url = getattr(snap, "url", "") or ""
 
         # Format for LLM (top 20 by importance + top 15 from dominant group + top 10 by position)
-        formatted = format_snapshot_for_llm(snap, top_by_importance=40, top_from_dominant_group=15, top_by_position=10)
+        formatted = format_snapshot_for_llm(snap, top_by_importance=60, top_from_dominant_group=15, top_by_position=10)
         print(f"formatted: {formatted}")
 
         # Ultra-compact per-step prompt (minimal token usage)
