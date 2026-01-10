@@ -70,7 +70,8 @@ async def main():
         task=task,
         llm=llm,
         browser_profile=browser_profile,
-        calculate_cost=True
+        calculate_cost=True,
+        use_vision=False  # Disable screenshots to reduce token usage (Sentience provides semantic geometry)
     )
     history = await agent.run()
     print(f"Token usage: {history.usage}")
