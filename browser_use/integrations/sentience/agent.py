@@ -110,7 +110,7 @@ class SentienceAgent:
         # Sentience configuration
         sentience_api_key: str | None = None,
         sentience_use_api: bool | None = None,
-        sentience_max_elements: int = 60,
+        sentience_max_elements: int = 40,
         sentience_show_overlay: bool = False,
         sentience_wait_for_extension_ms: int = 5000,
         sentience_retries: int = 2,
@@ -208,13 +208,14 @@ class SentienceAgent:
         self.message_manager = CustomMessageManager(
             task=task,
             system_message=system_message,
-            max_history_items=10,  # Limit history to reduce token usage
+            max_history_items=4,  # Keep recent history for context (0 may cause issues with some LLMs)
         )
 
         # Track state
         self._current_step = 0
         self._consecutive_failures = 0
         self._sentience_used_in_last_step = False
+        self._current_sentience_state: Any | None = None  # Store current Sentience snapshot for element lookup
 
         logger.info(
             f"Initialized SentienceAgent: task='{task}', "
@@ -253,12 +254,16 @@ class SentienceAgent:
         sentience_state = await self._try_sentience_snapshot()
 
         if sentience_state:
+            # Store current Sentience state for element lookup during action execution
+            self._current_sentience_state = sentience_state
             # Use Sentience prompt block
-            user_message = self._build_sentience_message(sentience_state)
+            user_message = await self._build_sentience_message(sentience_state)
             self._sentience_used_in_last_step = True
             logger.info("✅ Using Sentience snapshot for prompt")
             return user_message, True
         else:
+            # Clear Sentience state if snapshot failed
+            self._current_sentience_state = None
             # Fall back to vision
             if self.settings.vision_fallback.enabled:
                 user_message = await self._build_vision_message()
@@ -312,7 +317,50 @@ class SentienceAgent:
             logger.debug(f"Sentience snapshot failure traceback:\n{traceback.format_exc()}")
             return None
 
-    def _build_sentience_message(self, sentience_state: Any) -> UserMessage:
+    def _find_element_in_snapshot(self, snapshot: Any, element_id: int | None = None, text: str | None = None) -> Any | None:
+        """
+        Find an element in Sentience snapshot using SDK's find() function.
+        
+        Args:
+            snapshot: Sentience Snapshot object
+            element_id: Element ID to find (backend_node_id)
+            text: Text to search for (uses SDK's text matching)
+        
+        Returns:
+            Element if found, None otherwise
+        """
+        if not hasattr(snapshot, 'elements'):
+            return None
+        
+        # If searching by ID, iterate directly (most efficient)
+        if element_id is not None:
+            for el in snapshot.elements:
+                if hasattr(el, 'id') and el.id == element_id:
+                    return el
+        
+        # If searching by text, use SDK's find() function
+        if text:
+            try:
+                from sentience.query import find
+                # Try exact match first
+                element = find(snapshot, f"text='{text}'")
+                if element:
+                    return element
+                # Fallback to contains match (case-insensitive)
+                element = find(snapshot, f"text~'{text[:50]}'")  # Limit to 50 chars for contains
+                if element:
+                    return element
+            except ImportError:
+                logger.debug("SDK query module not available, using direct iteration for text search")
+                # Fallback: iterate and match text manually
+                text_lower = text.lower()
+                for el in snapshot.elements:
+                    if hasattr(el, 'text') and el.text and text_lower in el.text.lower():
+                        return el
+        
+        return None
+
+    async def _build_sentience_message(self, sentience_state: Any) -> UserMessage:
         """
         Build user message using Sentience prompt block.
 
@@ -335,6 +383,41 @@ class SentienceAgent:
         # Include task in agent_state (required for LLM to know what to do)
         agent_state_text = f"<user_request>\n{self.task}\n</user_request>"
 
+        # Extract and validate Sentience element IDs against browser-use selector_map
+        available_ids = []
+        if hasattr(sentience_state, 'snapshot') and hasattr(sentience_state.snapshot, 'elements'):
+            available_ids = [el.id for el in sentience_state.snapshot.elements if hasattr(el, 'id')]
+            
+            # Get browser-use selector_map to check overlap
+            selector_map = await self.browser_session.get_selector_map()
+            if not selector_map:
+                # Trigger DOM build if selector_map is empty
+                from browser_use.browser.events import BrowserStateRequestEvent
+                event = self.browser_session.event_bus.dispatch(
+                    BrowserStateRequestEvent(include_screenshot=False)
+                )
+                await event
+                await event.event_result(raise_if_any=True, raise_if_none=False)
+                selector_map = await self.browser_session.get_selector_map()
+            
+            # Check which Sentience IDs exist in selector_map
+            selector_map_keys = set(selector_map.keys()) if selector_map else set()
+            sentience_ids_set = set(available_ids)
+            matching_ids = sentience_ids_set & selector_map_keys
+            missing_ids = sentience_ids_set - selector_map_keys
+            
+            logger.info(
+                f"📋 Sentience snapshot: {len(available_ids)} elements, "
+                f"{len(matching_ids)} match selector_map, {len(missing_ids)} missing from selector_map"
+            )
+            if missing_ids:
+                missing_list = sorted(list(missing_ids))[:10]
+                logger.info(
+                    f"  ⚠️  Sentience IDs not in selector_map (first 10): {missing_list}"
+                    f"{'...' if len(missing_ids) > 10 else ''} "
+                    f"(These elements may not be interactive by browser-use's criteria)"
+                )
+        
         # Log the FULL Sentience prompt block for debugging
         logger.info(
             f"📋 Sentience prompt block ({len(sentience_state.prompt_block)} chars, "
@@ -835,9 +918,24 @@ class SentienceAgent:
             List of ActionResult instances
         """
         from browser_use.agent.views import ActionResult
+        from browser_use.browser.events import BrowserStateRequestEvent
 
         results: list[ActionResult] = []
         total_actions = len(actions)
+
+        # Ensure selector_map is built before executing actions
+        # This is needed because Sentience uses backend_node_ids that must exist in selector_map
+        selector_map = await self.browser_session.get_selector_map()
+        if not selector_map:
+            logger.info("  🔄 Selector map is empty, triggering DOM build...")
+            # Trigger browser state request to build DOM and selector_map
+            event = self.browser_session.event_bus.dispatch(
+                BrowserStateRequestEvent(include_screenshot=False)
+            )
+            await event
+            await event.event_result(raise_if_any=True, raise_if_none=False)
+            selector_map = await self.browser_session.get_selector_map()
+            logger.info(f"  ✅ Selector map built: {len(selector_map)} elements available")
 
         for i, action in enumerate(actions):
             # Wait between actions (except first)
@@ -852,6 +950,137 @@ class SentienceAgent:
                 action_data = action.model_dump(exclude_unset=True)
                 action_name = next(iter(action_data.keys())) if action_data else "unknown"
                 action_params = action_data.get(action_name, {})
+                
+                # Check if action uses an index and validate it exists in selector_map
+                action_index = action_params.get('index')
+                if action_index is not None and action_name in ('click', 'input', 'input_text'):
+                    selector_map = await self.browser_session.get_selector_map()
+                    if action_index not in selector_map:
+                        # Try to find element in Sentience snapshot using SDK's find() function
+                        sentience_element = None
+                        if self._current_sentience_state and hasattr(self._current_sentience_state, 'snapshot'):
+                            snapshot = self._current_sentience_state.snapshot
+                            
+                            # First, try to find by ID
+                            sentience_element = self._find_element_in_snapshot(snapshot, element_id=action_index)
+                            
+                            # If not found by ID and this is an input action, try to find by text
+                            if not sentience_element and action_name == 'input' and 'text' in action_params:
+                                text_to_find = action_params.get('text', '')
+                                if text_to_find:
+                                    sentience_element = self._find_element_in_snapshot(snapshot, text=text_to_find)
+                                    if sentience_element:
+                                        logger.info(
+                                            f"  🔍 Element {action_index} not found by ID, but found by text '{text_to_find[:30]}...' "
+                                            f"in Sentience snapshot. Using element ID {sentience_element.id}."
+                                        )
+                                        # Update action_index to use the found element's ID
+                                        action_index = sentience_element.id
+                                        action_params['index'] = action_index
+                        
+                        if sentience_element:
+                            logger.info(
+                                f"  🔍 Element {action_index} not in selector_map, but found in Sentience snapshot. "
+                                f"Validating backend_node_id exists in CDP before adding to selector_map."
+                            )
+                            
+                            # Get current target_id for the element - use agent_focus_target_id which is the active tab
+                            target_id = self.browser_session.agent_focus_target_id
+                            if not target_id:
+                                # Fallback: get first available target
+                                targets = await self.browser_session.session_manager.get_all_targets()
+                                if targets:
+                                    target_id = list(targets.keys())[0]
+                            
+                            # Validate that the backend_node_id actually exists in CDP before adding to selector_map
+                            # This prevents "No node with given id found" errors
+                            backend_node_id = action_index
+                            node_exists = False
+                            try:
+                                cdp_session = await self.browser_session.get_or_create_cdp_session(
+                                    target_id=target_id, focus=False
+                                )
+                                # Try to resolve the node to verify it exists
+                                result = await cdp_session.cdp_client.send.DOM.resolveNode(
+                                    params={'backendNodeId': backend_node_id},
+                                    session_id=cdp_session.session_id,
+                                )
+                                if result.get('object') and result['object'].get('objectId'):
+                                    node_exists = True
+                                    logger.info(f"  ✅ Validated backend_node_id {backend_node_id} exists in CDP")
+                            except Exception as e:
+                                logger.warning(
+                                    f"  ⚠️  backend_node_id {backend_node_id} not found in CDP (node may be stale): {e}. "
+                                    f"Skipping adding to selector_map to avoid fallback typing."
+                                )
+                            
+                            if not node_exists:
+                                # Node doesn't exist - don't add to selector_map, let the action fail naturally
+                                logger.info(
+                                    f"  ⚠️  Cannot add element {action_index} to selector_map - backend_node_id is stale. "
+                                    f"Action will fail and agent should retry with a fresh snapshot."
+                                )
+                            else:
+                                # Node exists - create minimal EnhancedDOMTreeNode and add to selector_map
+                                from browser_use.dom.views import EnhancedDOMTreeNode, NodeType
+                                
+                                # Extract role and other info from Sentience element
+                                role = getattr(sentience_element, 'role', 'div') or 'div'
+                                
+                                # For input actions, prefer textbox/searchbox over combobox if the element text suggests it's a search box
+                                if action_name == 'input' and role.lower() == 'combobox':
+                                    element_text = getattr(sentience_element, 'text', '') or ''
+                                    if any(keyword in element_text.lower() for keyword in ['search', 'query', 'find']):
+                                        logger.info(f"  🔄 Overriding role from 'combobox' to 'searchbox' based on element text")
+                                        role = 'searchbox'
+                                
+                                # Map common roles to HTML tag names
+                                role_to_tag = {
+                                    'textbox': 'input',
+                                    'searchbox': 'input',
+                                    'button': 'button',
+                                    'link': 'a',
+                                    'combobox': 'select',
+                                }
+                                tag_name = role_to_tag.get(role.lower(), 'div')
+                                
+                                # Create minimal EnhancedDOMTreeNode with proper target_id
+                                # Don't set session_id - let cdp_client_for_node use target_id strategy (more reliable)
+                                minimal_node = EnhancedDOMTreeNode(
+                                    node_id=0,  # Will be resolved when needed via CDP using backend_node_id
+                                    backend_node_id=backend_node_id,  # This is the key - matches Sentience element.id
+                                    node_type=NodeType.ELEMENT_NODE,
+                                    node_name=tag_name,
+                                    node_value='',
+                                    attributes={'role': role, 'type': 'text'} if role in ('textbox', 'searchbox') else {'role': role} if role else {},
+                                    is_visible=True,  # Sentience elements are visible
+                                    target_id=target_id or '',  # type: ignore
+                                    session_id=None,  # Let cdp_client_for_node use target_id strategy instead
+                                    frame_id=None,
+                                    content_document=None,
+                                    shadow_root_type=None,
+                                    shadow_roots=None,
+                                    parent_node=None,
+                                    children_nodes=None,
+                                    ax_node=None,
+                                    snapshot_node=None,
+                                    is_scrollable=None,
+                                    absolute_position=None,
+                                )
+                                
+                                # Add to selector_map temporarily
+                                selector_map[backend_node_id] = minimal_node
+                                # Also update cached selector_map
+                                self.browser_session.update_cached_selector_map(selector_map)
+                                logger.info(f"  ✅ Added element {backend_node_id} (role={role}, tag={tag_name}) to selector_map temporarily")
+                        else:
+                            available_indices = sorted(list(selector_map.keys()))[:20]
+                            logger.info(
+                                f"  ⚠️  Action {action_name} uses index {action_index}, but it's not in selector_map or Sentience snapshot. "
+                                f"Available indices: {available_indices}{'...' if len(selector_map) > 20 else ''} "
+                                f"(total: {len(selector_map)})"
+                            )
+                
                 logger.info(f"  ▶️  {action_name}: {action_params}")
                 
                 # Warn about multiple scroll actions (potential jittery behavior)
@@ -914,15 +1143,37 @@ class SentienceAgent:
             is_browser_use_model=False,  # Will be auto-detected if needed
             extend_system_message=(
                 "\n<sentience_format>\n"
-                "CRITICAL: When browser_state contains elements in Sentience format (ID|role|text|...), "
-                "you MUST use the element ID (first field) DIRECTLY as the index parameter for ALL interactions.\n"
-                "- Format: ID|role|text|imp|is_primary|docYq|ord|DG|href\n"
-                "- The ID is the FIRST number in each line (e.g., '65|span|Show HN:...' has ID=65)\n"
-                "- ALWAYS use click with index=ID (e.g., from '65|span|Show HN:...' use: click with index: 65)\n"
-                "- ALWAYS use input with index=ID for text inputs (e.g., from '48|textbox|Search...' use: input with index: 48)\n"
-                "- The Sentience ID IS the browser-use index - use it directly, do NOT convert or calculate\n"
-                "- Example: For '65|span|Show HN: Rocket Launch...', use: click with index: 65\n"
-                "- Example: For '48|textbox|Search...', use: input with index: 48, text: \"your text\"\n"
+                "CRITICAL: When browser_state contains elements in Sentience format, "
+                "the first column is labeled 'ID' but browser-use actions use a parameter called 'index'.\n"
+                "You MUST use the ID value (first column) as the 'index' parameter value for ALL interactions.\n"
+                "\n"
+                "Format: ID|role|text|imp|is_primary|docYq|ord|DG|href\n"
+                "- The first column is the ID (e.g., in '21|link|Some text|...', the ID is 21)\n"
+                "- This ID is a backend_node_id from Chrome DevTools Protocol\n"
+                "- Browser-use actions use a parameter called 'index' (not 'id')\n"
+                "- Use the ID value as the index parameter value: ID → index parameter\n"
+                "\n"
+                "Usage Rules:\n"
+                "- For '21|link|Some text|...', use: click with index: 21 (the ID value becomes the index value)\n"
+                "- For '48|textbox|Search...', use: input with index: 48, text: \"your text\"\n"
+                "- The Sentience ID value IS the browser-use index value - use it directly\n"
+                "\n"
+                "Examples:\n"
+                "- Sentience format: '21|link|Click here|100|1|0|1|1|https://...'\n"
+                "  → Action: click with index: 21 (use the ID value 21 as the index parameter)\n"
+                "- Sentience format: '48|textbox|Search...|95|0|0|-|0|'\n"
+                "  → Action: input with index: 48, text: \"your text\"\n"
+                "\n"
+                "Terminology Note:\n"
+                "- Sentience format column name: 'ID' (first column)\n"
+                "- Browser-use action parameter name: 'index'\n"
+                "- The ID value from Sentience becomes the index value for browser-use actions\n"
+                "\n"
+                "IMPORTANT WARNINGS:\n"
+                "- ONLY use ID values that appear in the Sentience format list\n"
+                "- Some Sentience IDs may not be available if the element is not interactive by browser-use's criteria\n"
+                "- If an action fails with 'Element index X not available', that ID doesn't exist in the selector_map\n"
+                "- In that case, try a different element ID from the Sentience format list\n"
                 "- NEVER use arbitrary index numbers when Sentience format is present\n"
                 "- NEVER ignore the ID from the Sentience format - it is the ONLY valid index to use\n"
                 "</sentience_format>\n"

@@ -76,6 +76,12 @@ class CustomMessageManager:
             # Include all items
             return "\n".join(item.to_string() for item in self.state.agent_history_items)
 
+        # If max_history_items is 0, return empty string (no history)
+        # Note: Some LLMs may need at least minimal context, so 0 might not work well
+        # Consider using 1-2 instead of 0 for minimal history
+        if self.max_history_items == 0:
+            return ""
+
         total_items = len(self.state.agent_history_items)
 
         # If we have fewer items than the limit, just return all items
@@ -230,9 +236,16 @@ class CustomMessageManager:
             )
             self.state.agent_history_items.append(history_item)
 
+        # Log history tracking (note: items are tracked but may not be sent to LLM)
+        history_sent_count = (
+            0 if self.max_history_items == 0
+            else min(len(self.state.agent_history_items), self.max_history_items) if self.max_history_items
+            else len(self.state.agent_history_items)
+        )
         logger.info(
             f"Updated history: step={step_number}, "
-            f"history_items={len(self.state.agent_history_items)}"
+            f"items_tracked={len(self.state.agent_history_items)}, "
+            f"items_sent_to_llm={history_sent_count}"
         )
 
     def get_messages(
