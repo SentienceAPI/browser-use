@@ -668,15 +668,125 @@ class Tools(Generic[Context]):
 			extract_links = params['extract_links'] if isinstance(params, dict) else params.extract_links
 			start_from_char = params['start_from_char'] if isinstance(params, dict) else params.start_from_char
 
-			# Extract clean markdown using the unified method
-			try:
-				from browser_use.dom.markdown_extractor import extract_clean_markdown
+			# Try to use Sentience SDK's read() function first (more efficient, lower token cost)
+			content = None
+			content_stats = None
+			sentience_used = False
 
-				content, content_stats = await extract_clean_markdown(
-					browser_session=browser_session, extract_links=extract_links
+			try:
+				# Get CDP session for the current page
+				cdp_session = await browser_session.get_or_create_cdp_session()
+				
+				# Try to call Sentience extension's read() function
+				# First try to get raw HTML, then convert with Python's markdownify for best quality
+				# If that fails, use extension's lightweight markdown converter
+				result = await cdp_session.cdp_client.send.Runtime.evaluate(
+					params={
+						'expression': """
+						(async () => {
+							try {
+								// Check if Sentience extension is available
+								if (typeof window.sentience === 'undefined' || typeof window.sentience.read !== 'function') {
+									return { status: 'error', error: 'Sentience extension not available' };
+								}
+								
+								// Try to get raw HTML first (for enhanced markdown conversion with Python markdownify)
+								const rawResult = window.sentience.read({ format: 'raw' });
+								if (rawResult.status === 'success') {
+									return {
+										status: 'success',
+										url: rawResult.url,
+										format: 'raw',
+										content: rawResult.content,
+										length: rawResult.length
+									};
+								}
+								
+								// Fall back to extension's markdown converter
+								return window.sentience.read({ format: 'markdown' });
+							} catch (error) {
+								return { status: 'error', error: error.message || String(error) };
+							}
+						})()
+						""",
+						'awaitPromise': True,
+						'returnByValue': True,
+					},
+					session_id=cdp_session.session_id,
 				)
+
+				# Check if Sentience read() succeeded
+				if result.get('result', {}).get('type') == 'object':
+					read_result = result['result'].get('value', {})
+					if read_result.get('status') == 'success':
+						content_format = read_result.get('format', '')
+						
+						if content_format == 'raw':
+							# Got raw HTML, convert to markdown using Python's markdownify (same as SDK does)
+							try:
+								from markdownify import markdownify
+								
+								html_content = read_result.get('content', '')
+								content = markdownify(
+									html_content,
+									heading_style='ATX',
+									bullets='-',
+									strip=['script', 'style'],
+									escape_asterisks=False,
+									escape_underscores=False,
+									escape_misc=False,
+									autolinks=False,
+								)
+								sentience_used = True
+								
+								# Create stats
+								content_length = len(content)
+								content_stats = {
+									'method': 'sentience_sdk_read_enhanced',
+									'original_html_chars': len(html_content),
+									'initial_markdown_chars': content_length,
+									'filtered_chars_removed': 0,
+									'final_filtered_chars': content_length,
+									'url': read_result.get('url', ''),
+								}
+								logger.info(f'✅ Using Sentience SDK read() with markdownify enhancement (length: {content_length:,} chars)')
+							except ImportError:
+								# markdownify not available, fall back to browser-use method
+								logger.debug('markdownify not available, falling back to browser-use extraction')
+							except Exception as e:
+								logger.debug(f'markdownify conversion failed: {e}, falling back to browser-use extraction')
+						
+						elif content_format == 'markdown':
+							# Got markdown directly from extension
+							content = read_result.get('content', '')
+							sentience_used = True
+							
+							# Create stats
+							content_length = len(content)
+							content_stats = {
+								'method': 'sentience_sdk_read',
+								'original_html_chars': read_result.get('length', content_length),  # Approximate
+								'initial_markdown_chars': content_length,
+								'filtered_chars_removed': 0,  # Sentience already filters
+								'final_filtered_chars': content_length,
+								'url': read_result.get('url', ''),
+							}
+							logger.info(f'✅ Using Sentience SDK read() for markdown extraction (length: {content_length:,} chars)')
 			except Exception as e:
-				raise RuntimeError(f'Could not extract clean markdown: {type(e).__name__}')
+				# Sentience not available or failed, will fall back to browser-use method
+				logger.debug(f'Sentience SDK read() not available or failed: {e}, falling back to browser-use extraction')
+
+			# Fall back to browser-use's extract_clean_markdown if Sentience wasn't used
+			if not sentience_used:
+				try:
+					from browser_use.dom.markdown_extractor import extract_clean_markdown
+
+					content, content_stats = await extract_clean_markdown(
+						browser_session=browser_session, extract_links=extract_links
+					)
+					logger.info(f'Using browser-use extract_clean_markdown (length: {len(content):,} chars)')
+				except Exception as e:
+					raise RuntimeError(f'Could not extract clean markdown: {type(e).__name__}')
 
 			# Original content length for processing
 			final_filtered_length = content_stats['final_filtered_chars']
