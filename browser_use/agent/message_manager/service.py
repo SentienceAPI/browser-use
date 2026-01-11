@@ -307,7 +307,7 @@ class MessageManager:
 		has_sentience = any(
 			msg.content and isinstance(msg.content, str) and (
 				"Elements (ID|role|text|importance)" in msg.content or
-				"Elements: ID|role|text|imp|docYq|ord|DG|href" in msg.content or
+				"Elements: ID|role|text|imp|is_primary|docYq|ord|DG|href" in msg.content or
 				"Rules: ordinal→DG=1 then ord asc" in msg.content
 			)
 			for msg in self.state.history.context_messages
