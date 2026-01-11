@@ -806,14 +806,76 @@ class SentienceAgent:
                 messages = self.message_manager.get_messages(user_message=user_message)
 
                 # Call LLM with structured output
+                # NOTE: For Hugging Face models, this is where model loading/downloading happens
+                logger.info("🤖 Calling LLM (this may trigger model download/loading for Hugging Face models)...")
                 kwargs: dict = {"output_format": AgentOutputType, "session_id": self.browser_session.id}
                 response = await asyncio.wait_for(
                     self.llm.ainvoke(messages, **kwargs),
                     timeout=self.settings.llm_timeout,
                 )
+                logger.info("✅ LLM response received")
 
                 # Parse AgentOutput from response
-                model_output: AgentOutput = response.completion  # type: ignore[assignment]
+                # Handle case where LLM returns string instead of structured output
+                if isinstance(response.completion, str):
+                    logger.warning(
+                        f"⚠️  LLM returned raw text instead of structured output. "
+                        f"This may happen with smaller local models. Response: {response.completion[:200]}..."
+                    )
+                    # Try to parse as JSON manually
+                    try:
+                        import json
+                        import re
+                        
+                        # Try to extract JSON from response (might be wrapped in markdown or have extra text)
+                        json_text = response.completion.strip()
+                        
+                        # Remove markdown code blocks if present
+                        if json_text.startswith('```json'):
+                            json_text = re.sub(r'^```json\s*', '', json_text, flags=re.MULTILINE)
+                            json_text = re.sub(r'```\s*$', '', json_text, flags=re.MULTILINE)
+                        elif json_text.startswith('```'):
+                            json_text = re.sub(r'^```\s*', '', json_text, flags=re.MULTILINE)
+                            json_text = re.sub(r'```\s*$', '', json_text, flags=re.MULTILINE)
+                        
+                        # Try to find JSON object in the text
+                        json_match = re.search(r'\{.*\}', json_text, re.DOTALL)
+                        if json_match:
+                            json_text = json_match.group(0)
+                        
+                        # Try to fix incomplete JSON (common with truncated responses)
+                        # If JSON is incomplete, try to close it properly
+                        if json_text.count('{') > json_text.count('}'):
+                            # Missing closing braces
+                            missing_braces = json_text.count('{') - json_text.count('}')
+                            json_text += '\n' + '}' * missing_braces
+                        if json_text.count('[') > json_text.count(']'):
+                            # Missing closing brackets
+                            missing_brackets = json_text.count('[') - json_text.count(']')
+                            json_text += ']' * missing_brackets
+                        
+                        parsed = json.loads(json_text)
+                        model_output = AgentOutputType.model_validate(parsed)
+                    except (json.JSONDecodeError, Exception) as e:
+                        logger.error(f"Failed to parse LLM response as JSON: {e}")
+                        logger.debug(f"Raw response (first 500 chars): {response.completion[:500]}")
+                        # Create a minimal AgentOutput with error (using required fields only)
+                        model_output = AgentOutputType(
+                            evaluation_previous_goal="Failed to parse LLM output",
+                            memory=f"LLM returned invalid JSON: {str(e)[:100]}",
+                            next_goal="Retry with simpler request",
+                            action=[],  # Empty action list to indicate failure
+                        )
+                        # Add error to history
+                        self.message_manager.update_history(
+                            model_output=None,
+                            result=[ActionResult(error=f"LLM failed to generate valid structured output: {str(e)[:200]}")],
+                            step_info=step_info,
+                        )
+                        self._consecutive_failures += 1
+                        continue
+                else:
+                    model_output: AgentOutput = response.completion  # type: ignore[assignment]
 
                 logger.info(
                     f"LLM response received: {len(model_output.action) if model_output.action else 0} actions"
@@ -1095,7 +1157,7 @@ class SentienceAgent:
                     action=action,
                     browser_session=self.browser_session,
                     file_system=self.file_system,
-                    page_extraction_llm=None,  # TODO: Add page extraction LLM support
+                    page_extraction_llm=self.llm,  # Use the same LLM for extraction
                     sensitive_data=None,  # TODO: Add sensitive data support
                     available_file_paths=None,  # TODO: Add file paths support
                 )
