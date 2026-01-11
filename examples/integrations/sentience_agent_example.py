@@ -122,7 +122,13 @@ async def main():
 
         # Initialize SentienceAgent
         llm = ChatBrowserUse()
-        task = "Find the top 1 post on Show HN"
+        task = """Go to HackerNews Show at https://news.ycombinator.com/show and find the top 1 Show HN post.
+
+IMPORTANT: Do NOT click the post. Instead:
+1. Identify the top post from the Sentience snapshot (it will be the first post in the list)
+2. Note its element ID (index number) and title from the snapshot
+3. Call the done action with the element ID and title in this format: "Top post: element ID [index], title: [title]"
+"""
 
         log(f"\n🚀 Starting SentienceAgent: {task}\n")
 

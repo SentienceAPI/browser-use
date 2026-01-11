@@ -200,13 +200,13 @@ async def main():
         log(f"   Model will be cached locally for future runs.\n")
 
         # Initialize SentienceAgent
-        task = """Navigate to https://news.ycombinator.com/show. 
-        
-Steps:
-1. Use the extract action to get the page markdown with all Show HN posts (include post titles, points, comments count, and links).
-2. From the extracted markdown, identify which post is the top post (highest points or first in the list).
-3. Verify the top post by checking the extracted markdown shows it has the highest points among all visible posts.
-4. Once verified, call done with the top post's title, points, comments count, and link."""
+        task = """Go to HackerNews Show at https://news.ycombinator.com/show and find the top 1 Show HN post.
+
+IMPORTANT: Do NOT click the post. Instead:
+1. Identify the top post from the Sentience snapshot (it will be the first post in the list)
+2. Note its element ID (index number) and title from the snapshot
+3. Call the done action with the element ID and title in this format: "Top post: element ID [index], title: [title]"
+"""
 
         log(f"\n🚀 Starting SentienceAgent: {task}\n")
 
