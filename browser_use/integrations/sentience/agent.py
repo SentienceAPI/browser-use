@@ -208,7 +208,7 @@ class SentienceAgent:
         self.message_manager = CustomMessageManager(
             task=task,
             system_message=system_message,
-            max_history_items=None,  # Keep all history for now
+            max_history_items=10,  # Limit history to reduce token usage
         )
 
         # Track state
@@ -281,6 +281,12 @@ class SentienceAgent:
         """
         try:
             sentience_context = self._get_sentience_context()
+            logger.info(
+                f"Attempting Sentience snapshot: "
+                f"wait_for_extension_ms={self.settings.sentience_config.sentience_wait_for_extension_ms}, "
+                f"retries={self.settings.sentience_config.sentience_retries}, "
+                f"use_api={self.settings.sentience_config.sentience_use_api}"
+            )
             sentience_state = await sentience_context.build(
                 self.browser_session,
                 goal=self.task,
@@ -288,9 +294,22 @@ class SentienceAgent:
                 retries=self.settings.sentience_config.sentience_retries,
                 retry_delay_s=self.settings.sentience_config.sentience_retry_delay_s,
             )
+            if sentience_state:
+                logger.info(f"✅ Sentience snapshot successful: {len(sentience_state.snapshot.elements) if hasattr(sentience_state, 'snapshot') else 'unknown'} elements")
             return sentience_state
         except Exception as e:
-            logger.info(f"Sentience snapshot failed: {e}")
+            error_type = type(e).__name__
+            error_msg = str(e)
+            logger.info(
+                f"❌ Sentience snapshot failed: {error_type}: {error_msg}\n"
+                f"   This usually means:\n"
+                f"   - Extension not injected (check if extension is loaded in browser)\n"
+                f"   - Extension injection timeout (increase wait_for_extension_ms)\n"
+                f"   - Snapshot API call failed (check network/API key)\n"
+                f"   - Page not ready (wait for page load to complete)"
+            )
+            import traceback
+            logger.debug(f"Sentience snapshot failure traceback:\n{traceback.format_exc()}")
             return None
 
     def _build_sentience_message(self, sentience_state: Any) -> UserMessage:
@@ -316,12 +335,11 @@ class SentienceAgent:
         # Include task in agent_state (required for LLM to know what to do)
         agent_state_text = f"<user_request>\n{self.task}\n</user_request>"
 
-        # Log the Sentience prompt block for debugging
+        # Log the FULL Sentience prompt block for debugging
         logger.info(
-            f"📋 Sentience prompt block ({len(sentience_state.prompt_block)} chars):\n"
-            f"{sentience_state.prompt_block[:500]}..."  # First 500 chars
-            if len(sentience_state.prompt_block) > 500
-            else sentience_state.prompt_block
+            f"📋 Sentience prompt block ({len(sentience_state.prompt_block)} chars, "
+            f"~{len(sentience_state.prompt_block) // 4} tokens):\n"
+            f"{sentience_state.prompt_block}"
         )
 
         # Combine agent history + agent state + Sentience prompt block + read_state
@@ -681,6 +699,7 @@ class SentienceAgent:
 
         # Track execution history
         execution_history: list[dict[str, Any]] = []
+        sentience_used_in_any_step = False  # Track if Sentience was used in ANY step
 
         # Main agent loop
         for step in range(self.settings.max_steps):
@@ -691,9 +710,13 @@ class SentienceAgent:
             # Prepare context
             try:
                 user_message, sentience_used = await self._prepare_context()
+                # Log token usage breakdown
+                message_content = str(user_message.content)
+                history_text = self.message_manager.agent_history_description
                 logger.info(
                     f"Context prepared: sentience_used={sentience_used}, "
-                    f"message_length={len(str(user_message.content))}"
+                    f"message_length={len(message_content)} chars (~{len(message_content) // 4} tokens), "
+                    f"history_length={len(history_text)} chars (~{len(history_text) // 4} tokens)"
                 )
 
                 # Get messages from message manager
@@ -724,6 +747,10 @@ class SentienceAgent:
                     result=action_results,
                     step_info=step_info,
                 )
+
+                # Track Sentience usage across all steps
+                if sentience_used:
+                    sentience_used_in_any_step = True
 
                 # Track in execution history
                 execution_history.append(
@@ -780,10 +807,19 @@ class SentienceAgent:
         usage_summary = await self.token_cost_service.get_usage_summary()
         logger.info(f"Agent completed: {usage_summary}")
 
+        # Count how many steps used Sentience
+        steps_using_sentience = sum(1 for entry in execution_history if entry.get("sentience_used", False))
+        total_steps = len(execution_history)
+
         # Return execution summary (will return AgentHistoryList in future phases)
         return {
             "steps": self._current_step + 1,
-            "sentience_used": self._sentience_used_in_last_step,
+            "sentience_used": sentience_used_in_any_step,
+            "sentience_usage_stats": {
+                "steps_using_sentience": steps_using_sentience,
+                "total_steps": total_steps,
+                "sentience_percentage": (steps_using_sentience / total_steps * 100) if total_steps > 0 else 0,
+            },
             "usage": usage_summary,
             "execution_history": execution_history,
         }
@@ -815,7 +851,15 @@ class SentienceAgent:
                 # Get action name for logging
                 action_data = action.model_dump(exclude_unset=True)
                 action_name = next(iter(action_data.keys())) if action_data else "unknown"
-                logger.info(f"  ▶️  {action_name}: {action_data.get(action_name, {})}")
+                action_params = action_data.get(action_name, {})
+                logger.info(f"  ▶️  {action_name}: {action_params}")
+                
+                # Warn about multiple scroll actions (potential jittery behavior)
+                if action_name == "scroll" and i > 0:
+                    prev_action_data = actions[i - 1].model_dump(exclude_unset=True)
+                    prev_action_name = next(iter(prev_action_data.keys())) if prev_action_data else "unknown"
+                    if prev_action_name == "scroll":
+                        logger.info(f"  ⚠️  Multiple scroll actions detected - may cause jittery behavior")
 
                 # Execute action
                 result = await self.tools.act(
@@ -870,14 +914,17 @@ class SentienceAgent:
             is_browser_use_model=False,  # Will be auto-detected if needed
             extend_system_message=(
                 "\n<sentience_format>\n"
-                "IMPORTANT: When browser_state contains elements in Sentience format (ID|role|text|...), "
-                "you MUST use the element ID (first field) as the index parameter for interactions.\n"
-                "- The format shows: ID|role|text|imp|is_primary|docYq|ord|DG|href\n"
-                "- Use click with index=ID where ID is the first number (e.g., from '65|span|Show HN:...' use click with index: 65)\n"
-                "- Use input with index=ID for text inputs (e.g., from '48|textbox|Search...' use input with index: 48)\n"
-                "- The ID in the Sentience format IS the index to use - they are the same value\n"
-                "- Example: For element '65|span|Show HN: Rocket Launch...', use click with index: 65\n"
-                "- DO NOT use arbitrary index numbers when Sentience format is present - always use the ID from the element line\n"
+                "CRITICAL: When browser_state contains elements in Sentience format (ID|role|text|...), "
+                "you MUST use the element ID (first field) DIRECTLY as the index parameter for ALL interactions.\n"
+                "- Format: ID|role|text|imp|is_primary|docYq|ord|DG|href\n"
+                "- The ID is the FIRST number in each line (e.g., '65|span|Show HN:...' has ID=65)\n"
+                "- ALWAYS use click with index=ID (e.g., from '65|span|Show HN:...' use: click with index: 65)\n"
+                "- ALWAYS use input with index=ID for text inputs (e.g., from '48|textbox|Search...' use: input with index: 48)\n"
+                "- The Sentience ID IS the browser-use index - use it directly, do NOT convert or calculate\n"
+                "- Example: For '65|span|Show HN: Rocket Launch...', use: click with index: 65\n"
+                "- Example: For '48|textbox|Search...', use: input with index: 48, text: \"your text\"\n"
+                "- NEVER use arbitrary index numbers when Sentience format is present\n"
+                "- NEVER ignore the ID from the Sentience format - it is the ONLY valid index to use\n"
                 "</sentience_format>\n"
             ),
         ).get_system_message()

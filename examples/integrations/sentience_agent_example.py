@@ -134,7 +134,7 @@ async def main():
             # Sentience configuration
             sentience_api_key=os.getenv("SENTIENCE_API_KEY"),
             sentience_use_api=True,  # use gateway/API mode
-            sentience_max_elements=60,
+            sentience_max_elements=40,
             sentience_show_overlay=True,
             # Vision fallback configuration
             vision_fallback_enabled=True,
@@ -156,7 +156,17 @@ async def main():
         log(f"  Total tokens: {usage_summary.total_tokens}")
         log(f"  Total cost: ${usage_summary.total_cost:.6f}")
         log(f"  Steps: {result.get('steps', 'unknown')}")
-        log(f"  Sentience used: {result.get('sentience_used', 'unknown')}")
+        
+        # Show detailed Sentience usage stats
+        sentience_stats = result.get('sentience_usage_stats', {})
+        if sentience_stats:
+            steps_using = sentience_stats.get('steps_using_sentience', 0)
+            total_steps = sentience_stats.get('total_steps', 0)
+            percentage = sentience_stats.get('sentience_percentage', 0)
+            log(f"  Sentience used: {result.get('sentience_used', False)}")
+            log(f"  Sentience usage: {steps_using}/{total_steps} steps ({percentage:.1f}%)")
+        else:
+            log(f"  Sentience used: {result.get('sentience_used', 'unknown')}")
 
     except ImportError as e:
         print(f"❌ Import error: {e}")
