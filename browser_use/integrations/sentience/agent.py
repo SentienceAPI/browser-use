@@ -119,6 +119,7 @@ class SentienceAgent:
         vision_fallback_enabled: bool = True,
         vision_detail_level: Literal['auto', 'low', 'high'] = 'auto',
         vision_include_screenshots: bool = True,
+        vision_llm: BaseChatModel | None = None,
         # Token tracking
         calculate_cost: bool = True,
         # Agent settings
@@ -133,7 +134,7 @@ class SentienceAgent:
 
         Args:
             task: The task for the agent to complete
-            llm: Language model to use
+            llm: Language model to use (primary model for Sentience snapshots)
             browser_session: Browser session instance
             tools: Tools registry (optional)
             sentience_api_key: Sentience API key for gateway mode
@@ -146,6 +147,8 @@ class SentienceAgent:
             vision_fallback_enabled: Enable vision fallback
             vision_detail_level: Vision detail level
             vision_include_screenshots: Include screenshots in fallback
+            vision_llm: Optional vision-capable LLM for vision fallback mode.
+                      If None, uses the primary `llm` for vision fallback too.
             calculate_cost: Track token usage
             max_steps: Maximum steps
             max_failures: Maximum failures
@@ -154,6 +157,7 @@ class SentienceAgent:
         """
         self.task = task
         self.llm = llm
+        self.vision_llm = vision_llm  # Optional vision-capable model for fallback
         self.browser_session = browser_session
         
         # Initialize tools if not provided
@@ -851,12 +855,19 @@ class SentienceAgent:
                 # Get messages from message manager
                 messages = self.message_manager.get_messages(user_message=user_message)
 
+                # Select LLM: use vision_llm for vision fallback, primary llm for Sentience
+                active_llm = self.vision_llm if (not sentience_used and self.vision_llm is not None) else self.llm
+                if not sentience_used and self.vision_llm is not None:
+                    logger.info("👁️ Using vision LLM for vision fallback mode")
+                elif sentience_used:
+                    logger.info("📊 Using primary LLM for Sentience snapshot mode")
+
                 # Call LLM with structured output
                 # NOTE: For Hugging Face models, this is where model loading/downloading happens
                 logger.info("🤖 Calling LLM (this may trigger model download/loading for Hugging Face models)...")
                 kwargs: dict = {"output_format": AgentOutputType, "session_id": self.browser_session.id}
                 response = await asyncio.wait_for(
-                    self.llm.ainvoke(messages, **kwargs),
+                    active_llm.ainvoke(messages, **kwargs),
                     timeout=self.settings.llm_timeout,
                 )
                 logger.info("✅ LLM response received")

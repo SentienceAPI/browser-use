@@ -1,18 +1,18 @@
 """
-Example: SentienceAgent with local LLMs via Hugging Face transformers.
+Example: SentienceAgent with dual-model setup (local LLM + cloud vision model).
 
-This example demonstrates how to use SentienceAgent with local LLMs:
-- Qwen 2.5 3B
-- BitNet B1.58 2B 4T
-- Other Hugging Face models
+This example demonstrates how to use SentienceAgent with:
+- Primary: Local LLM (Qwen 2.5 3B) for Sentience snapshots (fast, free)
+- Fallback: Cloud vision model (GPT-4o) for vision mode when Sentience fails
 
 Requirements:
 1. Install transformers: pip install transformers torch accelerate
 2. Optional: pip install bitsandbytes (for 4-bit/8-bit quantization)
 3. Sentience SDK installed: pip install sentienceapi
 4. Sentience extension loaded in browser
+5. OPENAI_API_KEY in .env for GPT-4o vision fallback
 
-Note: Models will be downloaded from Hugging Face on first use.
+Note: Local models will be downloaded from Hugging Face on first use.
 Note: `accelerate` is required when using `device_map="auto"`.
 """
 
@@ -27,7 +27,7 @@ from dotenv import load_dotenv
 
 from browser_use import BrowserProfile, BrowserSession
 from browser_use.integrations.sentience import SentienceAgent
-from browser_use.llm.huggingface import ChatHuggingFace
+from browser_use.llm import ChatHuggingFace, ChatOpenAI
 from browser_use.llm.messages import SystemMessage, UserMessage
 from sentience import get_extension_dir
 
@@ -201,6 +201,16 @@ async def main():
         log("   This may take 5-15 minutes depending on your internet speed...")
         log("   Model will be cached locally for future runs.\n")
 
+        # Initialize vision LLM for fallback (cloud vision model)
+        log("\n" + "=" * 80)
+        log("👁️ Initializing Vision LLM (Cloud model for vision fallback)")
+        log("=" * 80)
+        log("📦 Creating ChatOpenAI instance for vision fallback...")
+        log("   Model: gpt-4o (vision-capable)")
+        log("   ⚠️  This will only be used when Sentience snapshot fails")
+        vision_llm = ChatOpenAI(model="gpt-4o")
+        log("✅ Vision LLM configured (will be used only for vision fallback)")
+
         # Initialize SentienceAgent
         task = """Go to HackerNews Show at https://news.ycombinator.com/show and find the top 1 Show HN post.
 
@@ -214,7 +224,8 @@ IMPORTANT: Do NOT click the post. Instead:
 
         agent = SentienceAgent(
             task=task,
-            llm=llm,
+            llm=llm,  # Primary LLM: Qwen 3B for Sentience snapshots
+            vision_llm=vision_llm,  # Fallback LLM: GPT-4o for vision mode
             browser_session=browser_session,
             tools=None,  # Will use default tools
             # Sentience configuration
