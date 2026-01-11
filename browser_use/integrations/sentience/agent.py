@@ -285,9 +285,45 @@ class SentienceAgent:
             SentienceContextState if successful, None otherwise
         """
         try:
+            # CRITICAL: Check if we're on about:blank - Sentience extension doesn't inject there
+            # The extension's content scripts only inject on actual URLs (<all_urls> doesn't include about:blank)
+            current_url = await self.browser_session.get_current_page_url()
+            if current_url == 'about:blank' or not current_url or current_url.startswith('about:'):
+                logger.info(
+                    f"⚠️  Current page is '{current_url}' - Sentience extension doesn't inject on about:blank. "
+                    f"Extracting URL from task or navigating to default page..."
+                )
+                
+                # Try to extract URL from task
+                import re
+                url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
+                urls = re.findall(url_pattern, self.task)
+                
+                if urls:
+                    target_url = urls[0]
+                    logger.info(f"📍 Found URL in task: {target_url} - navigating...")
+                else:
+                    # Default to a simple page if no URL in task
+                    # The agent will navigate to the actual target page in the next step
+                    target_url = "https://www.google.com"
+                    logger.info(f"📍 No URL in task - navigating to default page: {target_url}")
+                
+                # Navigate to a real URL so extension can inject
+                await self.browser_session.navigate_to(target_url)
+                
+                # Wait a moment for navigation and extension injection
+                await asyncio.sleep(1.0)
+                
+                # Verify we're no longer on about:blank
+                new_url = await self.browser_session.get_current_page_url()
+                if new_url == 'about:blank' or new_url.startswith('about:'):
+                    logger.warning(f"⚠️  Navigation may have failed, still on: {new_url}")
+                else:
+                    logger.info(f"✅ Navigated to: {new_url}")
+            
             sentience_context = self._get_sentience_context()
             logger.info(
-                f"Attempting Sentience snapshot: "
+                f"Attempting Sentience snapshot on URL: {await self.browser_session.get_current_page_url()}, "
                 f"wait_for_extension_ms={self.settings.sentience_config.sentience_wait_for_extension_ms}, "
                 f"retries={self.settings.sentience_config.sentience_retries}, "
                 f"use_api={self.settings.sentience_config.sentience_use_api}"
@@ -300,7 +336,17 @@ class SentienceAgent:
                 retry_delay_s=self.settings.sentience_config.sentience_retry_delay_s,
             )
             if sentience_state:
-                logger.info(f"✅ Sentience snapshot successful: {len(sentience_state.snapshot.elements) if hasattr(sentience_state, 'snapshot') else 'unknown'} elements")
+                num_elements = len(sentience_state.snapshot.elements) if hasattr(sentience_state, 'snapshot') else 'unknown'
+                logger.info(f"✅ Sentience snapshot successful: {num_elements} elements")
+                
+                # Log overlay status (SDK handles overlay display during snapshot if show_overlay=True)
+                if self.settings.sentience_config.sentience_show_overlay:
+                    logger.info(
+                        f"🎨 Overlay should be visible in browser (auto-clears after 5 seconds). "
+                        f"Elements highlighted: {num_elements}"
+                    )
+                else:
+                    logger.debug("Overlay disabled (sentience_show_overlay=False)")
             return sentience_state
         except Exception as e:
             error_type = type(e).__name__
@@ -822,13 +868,16 @@ class SentienceAgent:
                         f"⚠️  LLM returned raw text instead of structured output. "
                         f"This may happen with smaller local models. Response: {response.completion[:200]}..."
                     )
-                    # Try to parse as JSON manually
+                    # Try to parse as JSON manually with improved repair logic
                     try:
                         import json
                         import re
                         
                         # Try to extract JSON from response (might be wrapped in markdown or have extra text)
                         json_text = response.completion.strip()
+                        
+                        # Log the full response for debugging (truncated JSON issues)
+                        logger.debug(f"Full LLM response ({len(json_text)} chars): {json_text[:1000]}...")
                         
                         # Remove markdown code blocks if present
                         if json_text.startswith('```json'):
@@ -838,27 +887,97 @@ class SentienceAgent:
                             json_text = re.sub(r'^```\s*', '', json_text, flags=re.MULTILINE)
                             json_text = re.sub(r'```\s*$', '', json_text, flags=re.MULTILINE)
                         
-                        # Try to find JSON object in the text
-                        json_match = re.search(r'\{.*\}', json_text, re.DOTALL)
+                        # Try to find JSON object in the text (from first { to last })
+                        json_match = re.search(r'\{.*', json_text, re.DOTALL)
                         if json_match:
                             json_text = json_match.group(0)
                         
                         # Try to fix incomplete JSON (common with truncated responses)
-                        # If JSON is incomplete, try to close it properly
-                        if json_text.count('{') > json_text.count('}'):
-                            # Missing closing braces
-                            missing_braces = json_text.count('{') - json_text.count('}')
-                            json_text += '\n' + '}' * missing_braces
-                        if json_text.count('[') > json_text.count(']'):
-                            # Missing closing brackets
-                            missing_brackets = json_text.count('[') - json_text.count(']')
-                            json_text += ']' * missing_brackets
+                        # Count braces and brackets to see what's missing
+                        open_braces = json_text.count('{')
+                        close_braces = json_text.count('}')
+                        open_brackets = json_text.count('[')
+                        close_brackets = json_text.count(']')
                         
+                        # Find the last complete structure and close everything after it
+                        # Strategy: Find the last complete key-value pair or array element, then close everything
+                        if open_braces > close_braces or open_brackets > close_brackets:
+                            logger.debug(
+                                f"JSON appears incomplete: braces {open_braces}/{close_braces}, "
+                                f"brackets {open_brackets}/{close_brackets}. Attempting repair..."
+                            )
+                            
+                            # Try to find where the JSON was cut off
+                            # Look for incomplete strings, incomplete objects, etc.
+                            
+                            # Close missing brackets first (they're usually nested inside objects)
+                            if open_brackets > close_brackets:
+                                missing_brackets = open_brackets - close_brackets
+                                json_text += ']' * missing_brackets
+                            
+                            # Close missing braces
+                            if open_braces > close_braces:
+                                missing_braces = open_braces - close_braces
+                                json_text += '\n' + '}' * missing_braces
+                            
+                            # Try to fix incomplete strings (if JSON was cut off mid-string)
+                            # Count unescaped quotes
+                            unescaped_quotes = len(re.findall(r'(?<!\\)"', json_text))
+                            if unescaped_quotes % 2 != 0:
+                                # Odd number of quotes means incomplete string
+                                # Find the last unescaped quote and close the string
+                                last_quote_pos = json_text.rfind('"')
+                                if last_quote_pos > 0 and json_text[last_quote_pos - 1] != '\\':
+                                    # Check if we're in a string context
+                                    before_quote = json_text[:last_quote_pos]
+                                    # If the last quote is opening a string (not closing), add closing quote
+                                    if before_quote.count('"') % 2 == 0:
+                                        json_text = json_text[:last_quote_pos + 1] + '"' + json_text[last_quote_pos + 1:]
+                        
+                        logger.debug(f"Repaired JSON ({len(json_text)} chars): {json_text[:500]}...")
                         parsed = json.loads(json_text)
                         model_output = AgentOutputType.model_validate(parsed)
                     except (json.JSONDecodeError, Exception) as e:
                         logger.error(f"Failed to parse LLM response as JSON: {e}")
-                        logger.debug(f"Raw response (first 500 chars): {response.completion[:500]}")
+                        # Log the problematic JSON for debugging
+                        logger.error(f"Problematic JSON (first 800 chars): {json_text[:800]}")
+                        logger.error(f"Full raw response length: {len(response.completion)} chars")
+                        
+                        # Try one more aggressive repair: if JSON is clearly truncated, try to salvage what we can
+                        try:
+                            # Find the last complete field and create minimal valid JSON
+                            # Look for the last complete key-value pair
+                            last_comma = json_text.rfind(',')
+                            last_colon = json_text.rfind(':')
+                            
+                            if last_comma > 0 and last_colon > last_comma:
+                                # We have at least one complete field
+                                # Try to extract up to the last complete field and close it
+                                # Find the last complete field by looking for pattern: "key": value,
+                                field_pattern = r'"\w+":\s*[^,}]+,'
+                                matches = list(re.finditer(field_pattern, json_text))
+                                if matches:
+                                    last_match = matches[-1]
+                                    # Extract up to and including the last complete field
+                                    salvage_text = json_text[:last_match.end()]
+                                    # Close any open structures
+                                    salvage_text = salvage_text.rstrip(', \n')
+                                    if salvage_text.count('{') > salvage_text.count('}'):
+                                        salvage_text += '\n' + '}' * (salvage_text.count('{') - salvage_text.count('}'))
+                                    if salvage_text.count('[') > salvage_text.count(']'):
+                                        salvage_text += ']' * (salvage_text.count('[') - salvage_text.count(']'))
+                                    
+                                    logger.debug(f"Attempting salvage repair on: {salvage_text[:300]}...")
+                                    parsed = json.loads(salvage_text)
+                                    model_output = AgentOutputType.model_validate(parsed)
+                                    logger.info("✅ Successfully salvaged incomplete JSON")
+                                else:
+                                    raise  # Re-raise original error
+                            else:
+                                raise  # Re-raise original error
+                        except Exception:
+                            # Salvage failed, use error fallback
+                            logger.debug(f"Raw response (first 500 chars): {response.completion[:500]}")
                         # Create a minimal AgentOutput with error (using required fields only)
                         model_output = AgentOutputType(
                             evaluation_previous_goal="Failed to parse LLM output",

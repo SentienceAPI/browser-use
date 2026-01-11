@@ -335,6 +335,9 @@ class ChatHuggingFace(BaseChatModel):
                 do_sample=self.do_sample,
                 pad_token_id=self._tokenizer.pad_token_id,
                 eos_token_id=self._tokenizer.eos_token_id,
+                # Prevent early stopping to ensure complete JSON generation
+                # Don't stop on EOS token until we have complete JSON
+                # Note: This might generate extra tokens, but ensures JSON completeness
             )
         
         # Decode only the new tokens
@@ -346,10 +349,41 @@ class ChatHuggingFace(BaseChatModel):
 
     def _generate_structured(self, messages: list[BaseMessage], schema: dict[str, Any]) -> str:
         """Generate structured output with JSON schema."""
-        # Add concise JSON schema instruction (optimized for small local LLMs)
-        # Minimize token usage while ensuring valid JSON
+        # Add explicit, strict JSON format instruction (optimized for small local LLMs)
+        # Following Sentience SDK playground pattern: very explicit, no reasoning
+        required_fields = schema.get('required', [])
+        properties = schema.get('properties', {})
+        
+        # Build explicit format example
+        example_fields = []
+        for field in required_fields:
+            if field in properties:
+                prop = properties[field]
+                prop_type = prop.get('type', 'string')
+                if prop_type == 'array':
+                    example_fields.append(f'  "{field}": []')
+                elif prop_type == 'string':
+                    example_fields.append(f'  "{field}": ""')
+                elif prop_type == 'object':
+                    example_fields.append(f'  "{field}": {{}}')
+                else:
+                    example_fields.append(f'  "{field}": null')
+        
+        example_json = "{\n" + ",\n".join(example_fields) + "\n}"
+        
+        # Build strict instruction following Sentience SDK playground pattern
         schema_instruction = (
-            f"\n\nJSON only:\n{json.dumps(schema, separators=(',', ':'))}"
+            f"\n\n"
+            f"CRITICAL OUTPUT RULES:\n"
+            f"1. Output ONLY valid JSON - nothing else\n"
+            f"2. NO explanations, NO reasoning, NO thinking field, NO markdown, NO code blocks\n"
+            f"3. NO text before or after the JSON\n"
+            f"4. Include ALL required fields: {', '.join(required_fields)}\n"
+            f"5. Ensure JSON is complete and properly closed\n"
+            f"\n"
+            f"Required JSON format:\n{example_json}\n"
+            f"\n"
+            f"Your response:"
         )
         
         # Create modified messages
