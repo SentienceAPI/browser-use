@@ -21,7 +21,7 @@ from browser_use.tokens.views import UsageSummary
 
 if TYPE_CHECKING:
     from browser_use.browser.session import BrowserSession
-    from browser_use.tools.registry.service import Tools
+    from browser_use.tools.service import Tools
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +155,18 @@ class SentienceAgent:
         self.task = task
         self.llm = llm
         self.browser_session = browser_session
-        self.tools = tools
+        
+        # Initialize tools if not provided
+        if tools is None:
+            from browser_use.tools.service import Tools
+            self.tools = Tools()
+        else:
+            self.tools = tools
+
+        # Initialize file system for actions that require it (e.g., done action)
+        from browser_use.filesystem.file_system import FileSystem
+        import tempfile
+        self.file_system = FileSystem(base_dir=tempfile.mkdtemp(prefix="sentience_agent_"))
 
         # Build settings
         sentience_config = SentienceAgentConfig(
@@ -190,6 +201,16 @@ class SentienceAgent:
         self.token_cost_service = TokenCost(include_cost=calculate_cost)
         self.token_cost_service.register_llm(llm)
 
+        # Initialize message manager for history tracking
+        from browser_use.integrations.sentience.message_manager import CustomMessageManager
+
+        system_message = self._get_system_message()
+        self.message_manager = CustomMessageManager(
+            task=task,
+            system_message=system_message,
+            max_history_items=None,  # Keep all history for now
+        )
+
         # Track state
         self._current_step = 0
         self._consecutive_failures = 0
@@ -214,10 +235,10 @@ class SentienceAgent:
                     show_overlay=self.settings.sentience_config.sentience_show_overlay,
                 )
             except ImportError as e:
-                logger.warning(f"Sentience SDK not available: {e}")
+                logger.info(f"Sentience SDK not available: {e}")
                 raise ImportError(
                     "Sentience SDK is required for SentienceAgent. "
-                    "Install it with: pip install sentience-sdk"
+                    "Install it with: pip install sentienceapi"
                 ) from e
         return self._sentience_context
 
@@ -248,7 +269,7 @@ class SentienceAgent:
                 # No fallback: return minimal message
                 user_message = self._build_minimal_message()
                 self._sentience_used_in_last_step = False
-                logger.warning("⚠️ Sentience failed and vision fallback disabled, using minimal message")
+                logger.info("⚠️ Sentience failed and vision fallback disabled, using minimal message")
                 return user_message, False
 
     async def _try_sentience_snapshot(self) -> Any | None:
@@ -269,7 +290,7 @@ class SentienceAgent:
             )
             return sentience_state
         except Exception as e:
-            logger.debug(f"Sentience snapshot failed: {e}")
+            logger.info(f"Sentience snapshot failed: {e}")
             return None
 
     def _build_sentience_message(self, sentience_state: Any) -> UserMessage:
@@ -282,14 +303,34 @@ class SentienceAgent:
         Returns:
             UserMessage with Sentience prompt block
         """
-        # Get agent history (simplified for Phase 1)
+        # Get agent history from message manager
         history_text = self._get_agent_history_description()
 
-        # Combine agent history + Sentience prompt block
+        # Get read_state if available
+        read_state_text = ""
+        if self.message_manager.state.read_state_description:
+            read_state_text = (
+                f"\n<read_state>\n{self.message_manager.state.read_state_description}\n</read_state>\n"
+            )
+
+        # Include task in agent_state (required for LLM to know what to do)
+        agent_state_text = f"<user_request>\n{self.task}\n</user_request>"
+
+        # Log the Sentience prompt block for debugging
+        logger.info(
+            f"📋 Sentience prompt block ({len(sentience_state.prompt_block)} chars):\n"
+            f"{sentience_state.prompt_block[:500]}..."  # First 500 chars
+            if len(sentience_state.prompt_block) > 500
+            else sentience_state.prompt_block
+        )
+
+        # Combine agent history + agent state + Sentience prompt block + read_state
         # Note: We explicitly avoid screenshots here for clear isolation
         content = (
             f"<agent_history>\n{history_text}\n</agent_history>\n\n"
-            f"<browser_state>\n{sentience_state.prompt_block}\n</browser_state>\n"
+            f"<agent_state>\n{agent_state_text}\n</agent_state>\n\n"
+            f"<browser_state>\n{sentience_state.prompt_block}\n</browser_state>"
+            f"{read_state_text}"
         )
 
         return UserMessage(content=content, cache=True)
@@ -312,13 +353,25 @@ class SentienceAgent:
         # Build comprehensive DOM state description (Phase 2: full DOM extraction)
         dom_state = self._build_dom_state(browser_state)
 
-        # Get agent history
+        # Get agent history from message manager
         history_text = self._get_agent_history_description()
+
+        # Include task in agent_state (required for LLM to know what to do)
+        agent_state_text = f"<user_request>\n{self.task}\n</user_request>"
+
+        # Get read_state if available
+        read_state_text = ""
+        if self.message_manager.state.read_state_description:
+            read_state_text = (
+                f"\n<read_state>\n{self.message_manager.state.read_state_description}\n</read_state>\n"
+            )
 
         # Combine into message
         content = (
             f"<agent_history>\n{history_text}\n</agent_history>\n\n"
-            f"<browser_state>\n{dom_state}\n</browser_state>\n"
+            f"<agent_state>\n{agent_state_text}\n</agent_state>\n\n"
+            f"<browser_state>\n{dom_state}\n</browser_state>"
+            f"{read_state_text}"
         )
 
         # If screenshots are enabled, add them to the message
@@ -373,21 +426,30 @@ class SentienceAgent:
             UserMessage with minimal state
         """
         history_text = self._get_agent_history_description()
-        content = f"<agent_history>\n{history_text}\n</agent_history>\n\n"
+        
+        # Include task in agent_state (required for LLM to know what to do)
+        agent_state_text = f"<user_request>\n{self.task}\n</user_request>"
+        
+        read_state_text = ""
+        if self.message_manager.state.read_state_description:
+            read_state_text = (
+                f"\n<read_state>\n{self.message_manager.state.read_state_description}\n</read_state>\n"
+            )
+        content = (
+            f"<agent_history>\n{history_text}\n</agent_history>\n\n"
+            f"<agent_state>\n{agent_state_text}\n</agent_state>"
+            f"{read_state_text}"
+        )
         return UserMessage(content=content, cache=True)
 
     def _get_agent_history_description(self) -> str:
         """
-        Get agent history description.
-
-        Simplified for Phase 1 - will be expanded in later phases.
+        Get agent history description from message manager.
 
         Returns:
             History description string
         """
-        if self._current_step == 0:
-            return f"Task: {self.task}\nStep: {self._current_step + 1}"
-        return f"Task: {self.task}\nStep: {self._current_step + 1}\nPrevious steps: {self._current_step}"
+        return self.message_manager.agent_history_description
 
     def _build_dom_state(self, browser_state: Any) -> str:
         """
@@ -440,7 +502,7 @@ class SentienceAgent:
                     include_attributes=DEFAULT_INCLUDE_ATTRIBUTES
                 )
             except Exception as e:
-                logger.debug(f"Error getting DOM representation: {e}")
+                logger.info(f"Error getting DOM representation: {e}")
                 elements_text = "Error extracting DOM tree"
 
         # Truncate DOM if too long (default max for vision fallback: 40000 chars)
@@ -598,23 +660,32 @@ class SentienceAgent:
 
     async def run(self) -> Any:
         """
-        Run the agent loop.
+        Run the agent loop with full action execution and history tracking.
 
         Returns:
-            AgentHistoryList with execution history
-
-        Note: This is a simplified version for Phase 1.
-        Full implementation will include action execution, retries, etc.
+            Dictionary with execution results (will return AgentHistoryList in future phases)
         """
+        from browser_use.agent.views import AgentOutput, AgentStepInfo, ActionResult
+
         logger.info(f"Starting SentienceAgent: task='{self.task}'")
 
-        # Initialize browser session if needed
-        if not self.browser_session.is_connected():
-            await self.browser_session.start()
+        # Initialize browser session if needed (start() is idempotent)
+        await self.browser_session.start()
 
-        # Main agent loop (simplified for Phase 1)
+        # Get AgentOutput type from tools registry
+        # Create action model from registered actions
+        action_model = self.tools.registry.create_action_model()
+        # Create AgentOutput type with custom actions
+        from browser_use.agent.views import AgentOutput
+        AgentOutputType = AgentOutput.type_with_custom_actions(action_model)
+
+        # Track execution history
+        execution_history: list[dict[str, Any]] = []
+
+        # Main agent loop
         for step in range(self.settings.max_steps):
             self._current_step = step
+            step_info = AgentStepInfo(step_number=step, max_steps=self.settings.max_steps)
             logger.info(f"📍 Step {step + 1}/{self.settings.max_steps}")
 
             # Prepare context
@@ -625,67 +696,193 @@ class SentienceAgent:
                     f"message_length={len(str(user_message.content))}"
                 )
 
-                # Get system message
-                system_message = self._get_system_message()
+                # Get messages from message manager
+                messages = self.message_manager.get_messages(user_message=user_message)
 
-                # Call LLM (simplified for Phase 1)
-                messages = [system_message, user_message]
-                model_output = await asyncio.wait_for(
-                    self.llm.ainvoke(messages),
+                # Call LLM with structured output
+                kwargs: dict = {"output_format": AgentOutputType, "session_id": self.browser_session.id}
+                response = await asyncio.wait_for(
+                    self.llm.ainvoke(messages, **kwargs),
                     timeout=self.settings.llm_timeout,
                 )
 
-                logger.info(f"LLM response received: {len(str(model_output.content))} chars")
+                # Parse AgentOutput from response
+                model_output: AgentOutput = response.completion  # type: ignore[assignment]
 
-                # TODO: Parse actions, execute them, handle results
-                # This will be implemented in later phases
+                logger.info(
+                    f"LLM response received: {len(model_output.action) if model_output.action else 0} actions"
+                )
 
-                # Check if done (simplified)
-                if self._is_done(model_output):
+                # Execute actions
+                action_results: list[ActionResult] = []
+                if model_output.action:
+                    action_results = await self._execute_actions(model_output.action)
+
+                # Update history with model output and action results
+                self.message_manager.update_history(
+                    model_output=model_output,
+                    result=action_results,
+                    step_info=step_info,
+                )
+
+                # Track in execution history
+                execution_history.append(
+                    {
+                        "step": step + 1,
+                        "model_output": model_output,
+                        "action_results": action_results,
+                        "sentience_used": sentience_used,
+                    }
+                )
+
+                # Check if done
+                is_done = any(result.is_done for result in action_results if result.is_done)
+                if is_done:
                     logger.info("✅ Task completed")
                     break
 
+                # Check for errors
+                has_errors = any(result.error for result in action_results if result.error)
+                if has_errors:
+                    self._consecutive_failures += 1
+                    if self._consecutive_failures >= self.settings.max_failures:
+                        logger.info("Max failures reached, stopping")
+                        break
+                else:
+                    self._consecutive_failures = 0  # Reset on success
+
             except asyncio.TimeoutError:
-                logger.error(f"Step {step + 1} timed out after {self.settings.llm_timeout}s")
+                logger.info(f"Step {step + 1} timed out after {self.settings.llm_timeout}s")
                 self._consecutive_failures += 1
+                # Update history with error
+                self.message_manager.update_history(
+                    model_output=None,
+                    result=None,
+                    step_info=step_info,
+                )
                 if self._consecutive_failures >= self.settings.max_failures:
-                    logger.error("Max failures reached, stopping")
+                    logger.info("Max failures reached, stopping")
                     break
             except Exception as e:
-                logger.error(f"Step {step + 1} failed: {e}")
+                logger.info(f"Step {step + 1} failed: {e}", exc_info=True)
                 self._consecutive_failures += 1
+                # Update history with error
+                self.message_manager.update_history(
+                    model_output=None,
+                    result=None,
+                    step_info=step_info,
+                )
                 if self._consecutive_failures >= self.settings.max_failures:
-                    logger.error("Max failures reached, stopping")
+                    logger.info("Max failures reached, stopping")
                     break
 
-        # Return usage summary (simplified for Phase 1)
+        # Return usage summary and execution history
         usage_summary = await self.token_cost_service.get_usage_summary()
         logger.info(f"Agent completed: {usage_summary}")
 
-        # TODO: Return proper AgentHistoryList
-        # For Phase 1, return a simple dict
+        # Return execution summary (will return AgentHistoryList in future phases)
         return {
             "steps": self._current_step + 1,
             "sentience_used": self._sentience_used_in_last_step,
             "usage": usage_summary,
+            "execution_history": execution_history,
         }
+
+    async def _execute_actions(self, actions: list[Any]) -> list[Any]:
+        """
+        Execute a list of actions.
+
+        Args:
+            actions: List of ActionModel instances
+
+        Returns:
+            List of ActionResult instances
+        """
+        from browser_use.agent.views import ActionResult
+
+        results: list[ActionResult] = []
+        total_actions = len(actions)
+
+        for i, action in enumerate(actions):
+            # Wait between actions (except first)
+            if i > 0:
+                wait_time = getattr(
+                    self.browser_session.browser_profile, "wait_between_actions", 0.5
+                )
+                await asyncio.sleep(wait_time)
+
+            try:
+                # Get action name for logging
+                action_data = action.model_dump(exclude_unset=True)
+                action_name = next(iter(action_data.keys())) if action_data else "unknown"
+                logger.info(f"  ▶️  {action_name}: {action_data.get(action_name, {})}")
+
+                # Execute action
+                result = await self.tools.act(
+                    action=action,
+                    browser_session=self.browser_session,
+                    file_system=self.file_system,
+                    page_extraction_llm=None,  # TODO: Add page extraction LLM support
+                    sensitive_data=None,  # TODO: Add sensitive data support
+                    available_file_paths=None,  # TODO: Add file paths support
+                )
+
+                results.append(result)
+
+                # Log result
+                if result.error:
+                    logger.info(f"  ❌ Action failed: {result.error}")
+                elif result.is_done:
+                    logger.info(f"  ✅ Task done: {result.long_term_memory or result.extracted_content}")
+
+                # Stop if done or error (for now, continue on error)
+                if result.is_done:
+                    break
+
+            except Exception as e:
+                logger.info(f"  ❌ Action execution error: {e}", exc_info=True)
+                # Create error result
+                error_result = ActionResult(
+                    error=f"Action execution failed: {str(e)}",
+                    is_done=False,
+                )
+                results.append(error_result)
+
+        return results
 
     def _get_system_message(self) -> SystemMessage:
         """
         Get system message for the agent.
 
-        Simplified for Phase 1 - will use proper system prompts in later phases.
+        Uses the standard browser-use system prompt to ensure consistency.
 
         Returns:
             SystemMessage
         """
-        system_prompt = (
-            "You are a browser automation agent. "
-            "Use the provided tools to complete the task. "
-            "When you see element IDs in the format 'ID|role|text|...', "
-            "use click(ID) or input_text(ID, ...) to interact with them."
-        )
-        return SystemMessage(content=system_prompt, cache=True)
+        from browser_use.agent.prompts import SystemPrompt
+
+        # Use standard system prompt with Sentience-specific extensions
+        system_prompt = SystemPrompt(
+            max_actions_per_step=3,  # Default
+            use_thinking=True,
+            flash_mode=False,
+            is_anthropic=False,  # Will be auto-detected if needed
+            is_browser_use_model=False,  # Will be auto-detected if needed
+            extend_system_message=(
+                "\n<sentience_format>\n"
+                "IMPORTANT: When browser_state contains elements in Sentience format (ID|role|text|...), "
+                "you MUST use the element ID (first field) as the index parameter for interactions.\n"
+                "- The format shows: ID|role|text|imp|is_primary|docYq|ord|DG|href\n"
+                "- Use click with index=ID where ID is the first number (e.g., from '65|span|Show HN:...' use click with index: 65)\n"
+                "- Use input with index=ID for text inputs (e.g., from '48|textbox|Search...' use input with index: 48)\n"
+                "- The ID in the Sentience format IS the index to use - they are the same value\n"
+                "- Example: For element '65|span|Show HN: Rocket Launch...', use click with index: 65\n"
+                "- DO NOT use arbitrary index numbers when Sentience format is present - always use the ID from the element line\n"
+                "</sentience_format>\n"
+            ),
+        ).get_system_message()
+
+        return system_prompt
 
     def _is_done(self, model_output: Any) -> bool:
         """

@@ -13,7 +13,7 @@ import os
 from dotenv import load_dotenv
 
 # Note: This example requires:
-# 1. Sentience SDK installed: pip install sentience-sdk
+# 1. Sentience SDK installed: pip install sentienceapi
 # 2. Sentience extension loaded in browser
 # 3. Optional: SENTIENCE_API_KEY in .env for gateway mode
 
@@ -122,7 +122,7 @@ async def main():
 
         # Initialize SentienceAgent
         llm = ChatBrowserUse()
-        task = "Find the number 1 post on Show HN"
+        task = "Find the top 1 post on Show HN"
 
         log(f"\n🚀 Starting SentienceAgent: {task}\n")
 
@@ -133,6 +133,7 @@ async def main():
             tools=None,  # Will use default tools in later phases
             # Sentience configuration
             sentience_api_key=os.getenv("SENTIENCE_API_KEY"),
+            sentience_use_api=True,  # use gateway/API mode
             sentience_max_elements=60,
             sentience_show_overlay=True,
             # Vision fallback configuration
@@ -159,7 +160,7 @@ async def main():
 
     except ImportError as e:
         print(f"❌ Import error: {e}")
-        print("Make sure Sentience SDK is installed: pip install sentience-sdk")
+        print("Make sure Sentience SDK is installed: pip install sentienceapi")
     except Exception as e:
         print(f"❌ Error: {e}")
         import traceback
