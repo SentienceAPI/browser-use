@@ -18,7 +18,7 @@ from pydantic import BaseModel
 from browser_use.llm.base import BaseChatModel
 from browser_use.llm.exceptions import ModelProviderError
 from browser_use.llm.messages import BaseMessage
-from browser_use.llm.views import ChatInvokeCompletion
+from browser_use.llm.views import ChatInvokeCompletion, ChatInvokeUsage
 
 try:
     from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -280,16 +280,16 @@ class ChatHuggingFace(BaseChatModel):
         try:
             if output_format is None:
                 # Simple text generation
-                completion = await loop.run_in_executor(
+                completion, usage = await loop.run_in_executor(
                     None,
                     self._generate_text,
                     messages,
                 )
-                return ChatInvokeCompletion(completion=completion, usage=None)
+                return ChatInvokeCompletion(completion=completion, usage=usage)
             else:
                 # Structured output - use JSON schema in prompt
                 schema = output_format.model_json_schema()
-                completion = await loop.run_in_executor(
+                completion, usage = await loop.run_in_executor(
                     None,
                     self._generate_structured,
                     messages,
@@ -298,10 +298,10 @@ class ChatHuggingFace(BaseChatModel):
                 # Parse JSON response
                 try:
                     parsed = output_format.model_validate_json(completion)
-                    return ChatInvokeCompletion(completion=parsed, usage=None)
+                    return ChatInvokeCompletion(completion=parsed, usage=usage)
                 except Exception as e:
                     logger.warning(f"Failed to parse structured output: {e}, returning raw text")
-                    return ChatInvokeCompletion(completion=completion, usage=None)
+                    return ChatInvokeCompletion(completion=completion, usage=usage)
                     
         except Exception as e:
             raise ModelProviderError(
@@ -309,13 +309,18 @@ class ChatHuggingFace(BaseChatModel):
                 model=self.name,
             ) from e
 
-    def _generate_text(self, messages: list[BaseMessage]) -> str:
-        """Generate text synchronously (runs in thread pool)."""
+    def _generate_text(self, messages: list[BaseMessage]) -> tuple[str, ChatInvokeUsage]:
+        """Generate text synchronously (runs in thread pool).
+        
+        Returns:
+            Tuple of (completion_text, usage_info)
+        """
         # Format messages
         prompt = self._format_messages_for_chat(messages)
         
         # Tokenize
         inputs = self._tokenizer(prompt, return_tensors="pt")
+        prompt_tokens = inputs['input_ids'].shape[1]
         
         # Move to same device as model
         if hasattr(self._model, 'device'):
@@ -343,12 +348,28 @@ class ChatHuggingFace(BaseChatModel):
         # Decode only the new tokens
         input_length = inputs['input_ids'].shape[1]
         generated_tokens = outputs[0][input_length:]
+        completion_tokens = len(generated_tokens)
         completion = self._tokenizer.decode(generated_tokens, skip_special_tokens=True)
         
-        return completion.strip()
+        # Calculate usage
+        total_tokens = prompt_tokens + completion_tokens
+        usage = ChatInvokeUsage(
+            prompt_tokens=prompt_tokens,
+            prompt_cached_tokens=None,
+            prompt_cache_creation_tokens=None,
+            prompt_image_tokens=None,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+        )
+        
+        return completion.strip(), usage
 
-    def _generate_structured(self, messages: list[BaseMessage], schema: dict[str, Any]) -> str:
-        """Generate structured output with JSON schema."""
+    def _generate_structured(self, messages: list[BaseMessage], schema: dict[str, Any]) -> tuple[str, ChatInvokeUsage]:
+        """Generate structured output with JSON schema.
+        
+        Returns:
+            Tuple of (completion_text, usage_info)
+        """
         # Add explicit, strict JSON format instruction (optimized for small local LLMs)
         # Following Sentience SDK playground pattern: very explicit, no reasoning
         required_fields = schema.get('required', [])
@@ -371,20 +392,9 @@ class ChatHuggingFace(BaseChatModel):
         
         example_json = "{\n" + ",\n".join(example_fields) + "\n}"
         
-        # Build strict instruction following Sentience SDK playground pattern
-        schema_instruction = (
-            f"\n\n"
-            f"CRITICAL OUTPUT RULES:\n"
-            f"1. Output ONLY valid JSON - nothing else\n"
-            f"2. NO explanations, NO reasoning, NO thinking field, NO markdown, NO code blocks\n"
-            f"3. NO text before or after the JSON\n"
-            f"4. Include ALL required fields: {', '.join(required_fields)}\n"
-            f"5. Ensure JSON is complete and properly closed\n"
-            f"\n"
-            f"Required JSON format:\n{example_json}\n"
-            f"\n"
-            f"Your response:"
-        )
+        # Build minimal instruction (optimized for small local LLMs)
+        # Keep it very short to avoid confusing the model
+        schema_instruction = f"\n\nJSON only:\n{example_json}"
         
         # Create modified messages
         modified_messages = list(messages)
@@ -396,7 +406,7 @@ class ChatHuggingFace(BaseChatModel):
                 )
         
         # Generate with schema instruction
-        completion = self._generate_text(modified_messages)
+        completion, usage = self._generate_text(modified_messages)
         
         # Try to extract JSON from response
         completion = completion.strip()
@@ -414,4 +424,4 @@ class ChatHuggingFace(BaseChatModel):
         except json.JSONDecodeError:
             logger.warning(f"Generated text is not valid JSON: {completion[:200]}")
         
-        return completion
+        return completion, usage

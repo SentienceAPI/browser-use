@@ -19,8 +19,17 @@ Note: `accelerate` is required when using `device_map="auto"`.
 import asyncio
 import logging
 import os
+import traceback
+from pathlib import Path
 
+import glob
 from dotenv import load_dotenv
+
+from browser_use import BrowserProfile, BrowserSession
+from browser_use.integrations.sentience import SentienceAgent
+from browser_use.llm.huggingface import ChatHuggingFace
+from browser_use.llm.messages import SystemMessage, UserMessage
+from sentience import get_extension_dir
 
 load_dotenv()
 
@@ -36,74 +45,69 @@ def log(msg: str) -> None:
 
 async def main():
     """Example: Use SentienceAgent with local LLM (Qwen 2.5 3B or BitNet)."""
+    browser_session = None
     try:
-        from browser_use import BrowserProfile, BrowserSession
-        from browser_use.integrations.sentience import SentienceAgent
-        from browser_use.llm.huggingface import ChatHuggingFace
-        from sentience import get_extension_dir
-        from pathlib import Path
-        import glob
-
         # Get path to Sentience extension
-        sentience_ext_path = get_extension_dir()
-        log(f"Loading Sentience extension from: {sentience_ext_path}")
+        extension_path = get_extension_dir()
+        log(f"Loading Sentience extension from: {extension_path}")
 
         # Verify extension exists
-        if not os.path.exists(sentience_ext_path):
-            raise FileNotFoundError(f"Sentience extension not found at: {sentience_ext_path}")
-        if not os.path.exists(os.path.join(sentience_ext_path, "manifest.json")):
+        if not os.path.exists(extension_path):
+            raise FileNotFoundError(f"Sentience extension not found at: {extension_path}")
+        if not os.path.exists(os.path.join(extension_path, "manifest.json")):
             raise FileNotFoundError(
-                f"Sentience extension manifest not found at: {sentience_ext_path}/manifest.json"
+                f"Sentience extension manifest not found at: {extension_path}/manifest.json"
             )
-        log(f"✅ Sentience extension verified at: {sentience_ext_path}")
+        log(f"✅ Sentience extension verified at: {extension_path}")
 
         # Find browser executable (optional - browser-use will find one if not specified)
-        playwright_path = Path.home() / "Library/Caches/ms-playwright"
-        chromium_patterns = [
-            playwright_path / "chromium-*/chrome-mac*/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
-            playwright_path / "chromium-*/chrome-mac*/Chromium.app/Contents/MacOS/Chromium",
+        playwright_cache = Path.home() / "Library/Caches/ms-playwright"
+        browser_patterns = [
+            playwright_cache
+            / "chromium-*/chrome-mac*/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+            playwright_cache / "chromium-*/chrome-mac*/Chromium.app/Contents/MacOS/Chromium",
         ]
 
-        executable_path = None
-        for pattern in chromium_patterns:
+        browser_executable = None
+        for pattern in browser_patterns:
             matches = glob.glob(str(pattern))
             if matches:
                 matches.sort()
-                executable_path = matches[-1]  # Use latest version
-                if Path(executable_path).exists():
-                    log(f"✅ Found browser: {executable_path}")
+                browser_executable = matches[-1]  # Use latest version
+                if Path(browser_executable).exists():
+                    log(f"✅ Found browser: {browser_executable}")
                     break
 
-        if not executable_path:
+        if not browser_executable:
             log("⚠️  Browser not found, browser-use will try to install it")
 
         # Get default extension paths and combine with Sentience extension
         # Chrome only uses the LAST --load-extension arg, so we must combine all extensions
         log("Collecting all extension paths...")
-        all_extension_paths = [sentience_ext_path]
+        extension_paths = [extension_path]
 
         # Create a temporary profile to ensure default extensions are downloaded
         # This ensures extensions exist before we try to load them
         temp_profile = BrowserProfile(enable_default_extensions=True)
-        default_ext_paths = temp_profile._ensure_default_extensions_downloaded()
+        default_extensions = temp_profile._ensure_default_extensions_downloaded()
 
-        if default_ext_paths:
-            all_extension_paths.extend(default_ext_paths)
-            log(f"  ✅ Found {len(default_ext_paths)} default extensions")
+        if default_extensions:
+            extension_paths.extend(default_extensions)
+            log(f"  ✅ Found {len(default_extensions)} default extensions")
         else:
             log("  ⚠️  No default extensions found (this is OK, Sentience will still work)")
 
-        log(f"Total extensions to load: {len(all_extension_paths)} (including Sentience)")
+        log(f"Total extensions to load: {len(extension_paths)} (including Sentience)")
 
         # Combine all extensions into a single --load-extension arg
-        combined_extensions = ",".join(all_extension_paths)
+        combined_extensions = ",".join(extension_paths)
         log(f"Combined extension paths (first 100 chars): {combined_extensions[:100]}...")
 
         # Create browser profile with ALL extensions combined
         # Strategy: Disable default extensions, manually load all together
         browser_profile = BrowserProfile(
             headless=False,  # Run with visible browser for demo
-            executable_path=executable_path,  # Use found browser if available
+            executable_path=browser_executable,  # Use found browser if available
             enable_default_extensions=False,  # Disable auto-loading, we'll load manually
             ignore_default_args=[
                 "--enable-automation",
@@ -132,7 +136,7 @@ async def main():
         log("\n" + "=" * 80)
         log("🤖 Initializing Local LLM (Hugging Face transformers)")
         log("=" * 80)
-        
+
         # Option 1: Qwen 2.5 3B (recommended for small models)
         log("📦 Creating ChatHuggingFace instance...")
         log("   Model: Qwen/Qwen2.5-3B-Instruct")
@@ -142,11 +146,11 @@ async def main():
             model="Qwen/Qwen2.5-3B-Instruct",
             device_map="auto",  # Automatically use GPU if available
             torch_dtype="float16",  # Use float16 for faster inference
-            max_new_tokens=2048,  # Further increased for complete JSON responses (Qwen may need more tokens)
+            max_new_tokens=2048,  # Increased for complete JSON responses
             temperature=0.1,  # Very low temperature for deterministic structured output
         )
         log("✅ ChatHuggingFace instance created (model not loaded yet)")
-        
+
         # OPTIONAL: Pre-load the model now (before agent starts)
         # This will download the model immediately so you can see progress
         log("\n🔄 Pre-loading model (this will download if not cached)...")
@@ -155,10 +159,9 @@ async def main():
         try:
             # Trigger model loading by calling ainvoke with a simple message
             # This will download/load the model now
-            from browser_use.llm.messages import SystemMessage, UserMessage
             test_messages = [
                 SystemMessage(content="You are a helpful assistant."),
-                UserMessage(content="Say 'ready'")
+                UserMessage(content="Say 'ready'"),
             ]
             log("   📞 Calling model to trigger download/loading...")
             log("   ⏳ This may take 5-15 minutes on first run (~6GB download)")
@@ -168,7 +171,6 @@ async def main():
         except Exception as e:
             log(f"   ❌ Model loading failed: {e}")
             log("   Continuing anyway - model will load on first agent call")
-            import traceback
             traceback.print_exc()
 
         # Option 2: BitNet B1.58 2B 4T (if available on Hugging Face)
@@ -195,9 +197,9 @@ async def main():
 
         log(f"✅ Using local LLM: {llm.model}")
         log(f"   Device: {llm.device_map}")
-        log(f"\n⏳ Note: Model will be downloaded from Hugging Face on first use (~6GB)")
-        log(f"   This may take 5-15 minutes depending on your internet speed...")
-        log(f"   Model will be cached locally for future runs.\n")
+        log("\n⏳ Note: Model will be downloaded from Hugging Face on first use (~6GB)")
+        log("   This may take 5-15 minutes depending on your internet speed...")
+        log("   Model will be cached locally for future runs.\n")
 
         # Initialize SentienceAgent
         task = """Go to HackerNews Show at https://news.ycombinator.com/show and find the top 1 Show HN post.
@@ -214,10 +216,10 @@ IMPORTANT: Do NOT click the post. Instead:
             task=task,
             llm=llm,
             browser_session=browser_session,
-            tools=None,  # Will use default tools in later phases
+            tools=None,  # Will use default tools
             # Sentience configuration
             sentience_api_key=os.getenv("SENTIENCE_API_KEY"),
-            sentience_use_api=True,  # use gateway/API mode
+            sentience_use_api=True,  # Use gateway/API mode
             sentience_max_elements=40,
             sentience_show_overlay=True,
             # Vision fallback configuration
@@ -240,17 +242,17 @@ IMPORTANT: Do NOT click the post. Instead:
 
         # Get token usage
         usage_summary = await agent.token_cost_service.get_usage_summary()
-        log(f"\n📊 Token Usage Summary:")
+        log("\n📊 Token Usage Summary:")
         log(f"  Total tokens: {usage_summary.total_tokens}")
         log(f"  Total cost: ${usage_summary.total_cost:.6f}")
         log(f"  Steps: {result.get('steps', 'unknown')}")
-        
+
         # Show detailed Sentience usage stats
-        sentience_stats = result.get('sentience_usage_stats', {})
+        sentience_stats = result.get("sentience_usage_stats", {})
         if sentience_stats:
-            steps_using = sentience_stats.get('steps_using_sentience', 0)
-            total_steps = sentience_stats.get('total_steps', 0)
-            percentage = sentience_stats.get('sentience_percentage', 0)
+            steps_using = sentience_stats.get("steps_using_sentience", 0)
+            total_steps = sentience_stats.get("total_steps", 0)
+            percentage = sentience_stats.get("sentience_percentage", 0)
             log(f"  Sentience used: {result.get('sentience_used', False)}")
             log(f"  Sentience usage: {steps_using}/{total_steps} steps ({percentage:.1f}%)")
         else:
@@ -259,13 +261,12 @@ IMPORTANT: Do NOT click the post. Instead:
     except ImportError as e:
         log(f"❌ Import error: {e}")
         log("\nPlease install required packages:")
-        log("  pip install transformers torch sentienceapi")
+        log("  pip install transformers torch accelerate sentienceapi")
     except Exception as e:
         log(f"❌ Error: {e}")
-        import traceback
         traceback.print_exc()
     finally:
-        if "browser_session" in locals():
+        if browser_session is not None:
             try:
                 await browser_session.stop()  # Gracefully stop the browser session
             except Exception as e:
