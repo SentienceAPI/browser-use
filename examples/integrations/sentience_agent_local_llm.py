@@ -4,6 +4,8 @@ Example: SentienceAgent with dual-model setup (local LLM + cloud vision model).
 This example demonstrates how to use SentienceAgent with:
 - Primary: Local LLM (Qwen 2.5 3B) for Sentience snapshots (fast, free)
 - Fallback: Cloud vision model (GPT-4o) for vision mode when Sentience fails
+- **NEW: Machine-verifiable assertions via Sentience SDK AgentRuntime**
+- **NEW: Declarative task completion verification**
 
 Requirements:
 1. Install transformers: pip install transformers torch accelerate
@@ -26,10 +28,18 @@ import glob
 from dotenv import load_dotenv
 
 from browser_use import BrowserProfile, BrowserSession
-from browser_use.integrations.sentience import SentienceAgent
+from browser_use.integrations.sentience import SentienceAgent, SentienceAgentConfig
 from browser_use.llm import ChatHuggingFace, ChatOpenAI
 from browser_use.llm.messages import SystemMessage, UserMessage
 from sentience import get_extension_dir
+
+# Import Sentience SDK verification helpers
+from sentience.verification import (
+    url_contains,
+    exists,
+    not_exists,
+    all_of,
+)
 
 load_dotenv()
 
@@ -220,7 +230,36 @@ IMPORTANT: Do NOT click the post. Instead:
 3. Call the done action with the element ID and title in this format: "Top post: element ID [index], title: [title]"
 """
 
-        log(f"\n🚀 Starting SentienceAgent: {task}\n")
+        log(f"\n🚀 Starting SentienceAgent with Verification: {task}\n")
+
+        # Define verification assertions for local LLM
+        step_assertions = [
+            {
+                "predicate": url_contains("news.ycombinator.com"),
+                "label": "on_hackernews",
+                "required": True,
+            },
+            {
+                "predicate": exists("role=link text~'Show HN'"),
+                "label": "show_hn_posts_visible",
+            },
+        ]
+
+        # Task completion assertion
+        done_assertion = all_of(
+            url_contains("news.ycombinator.com/show"),
+            exists("role=link text~'Show HN'"),
+        )
+
+        log("📋 Verification enabled (assertions will be checked each step)")
+
+        # Create Sentience configuration
+        sentience_config = SentienceAgentConfig(
+            sentience_api_key=os.getenv("SENTIENCE_API_KEY"),
+            sentience_use_api=True,  # Use gateway/API mode
+            sentience_max_elements=40,
+            sentience_show_overlay=True,
+        )
 
         agent = SentienceAgent(
             task=task,
@@ -228,11 +267,7 @@ IMPORTANT: Do NOT click the post. Instead:
             vision_llm=vision_llm,  # Fallback LLM: GPT-4o for vision mode
             browser_session=browser_session,
             tools=None,  # Will use default tools
-            # Sentience configuration
-            sentience_api_key=os.getenv("SENTIENCE_API_KEY"),
-            sentience_use_api=True,  # Use gateway/API mode
-            sentience_max_elements=40,
-            sentience_show_overlay=True,
+            sentience_config=sentience_config,
             # Vision fallback configuration
             vision_fallback_enabled=True,
             vision_detail_level="auto",
@@ -246,6 +281,11 @@ IMPORTANT: Do NOT click the post. Instead:
             max_history_items=5,  # Keep minimal history for small models
             llm_timeout=300,  # Increased timeout for local LLMs (5 minutes)
             step_timeout=360,  # Increased step timeout (6 minutes)
+            # ✨ Verification configuration (Sentience SDK AgentRuntime)
+            enable_verification=True,
+            step_assertions=step_assertions,
+            done_assertion=done_assertion,
+            trace_dir="traces",
         )
 
         # Run agent
@@ -268,6 +308,15 @@ IMPORTANT: Do NOT click the post. Instead:
             log(f"  Sentience usage: {steps_using}/{total_steps} steps ({percentage:.1f}%)")
         else:
             log(f"  Sentience used: {result.get('sentience_used', 'unknown')}")
+
+        # ✨ Show verification results
+        verification = result.get("verification")
+        if verification:
+            log(f"\n🔍 Verification Summary:")
+            log(f"  All assertions passed: {verification.get('all_assertions_passed', 'N/A')}")
+            log(f"  Task verified complete: {verification.get('task_verified_complete', False)}")
+        else:
+            log(f"\n🔍 Verification: disabled")
 
     except ImportError as e:
         log(f"❌ Import error: {e}")

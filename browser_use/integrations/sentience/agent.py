@@ -3,14 +3,20 @@ SentienceAgent: Custom agent with full control over prompt construction.
 
 This agent uses Sentience SDK snapshots as the primary, compact prompt format,
 with automatic fallback to vision mode when snapshots fail.
+
+Features:
+- Sentience snapshot as compact prompt (~3K tokens vs ~40K for vision)
+- Vision fallback when snapshot fails
+- Native AgentRuntime integration for verification assertions
+- Machine-verifiable task completion via assert_done()
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, Callable, Literal
 
 from pydantic import BaseModel, Field
 
@@ -22,6 +28,9 @@ from browser_use.tokens.views import UsageSummary
 if TYPE_CHECKING:
     from browser_use.browser.session import BrowserSession
     from browser_use.tools.service import Tools
+    from sentience.agent_runtime import AgentRuntime
+    from sentience.tracing import Tracer
+    from sentience.verification import Predicate
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +75,49 @@ class VisionFallbackConfig:
     """Whether to include screenshots in vision fallback."""
 
 
+@dataclass
+class VerificationConfig:
+    """Configuration for Sentience SDK verification (AgentRuntime integration).
+
+    This enables machine-verifiable assertions during agent execution,
+    providing observability into agent behavior and task completion status.
+    """
+
+    enabled: bool = False
+    """Whether to enable verification via AgentRuntime."""
+
+    step_assertions: list[dict[str, Any]] = field(default_factory=list)
+    """Per-step assertions to run after each action.
+
+    Each assertion dict should have:
+    - predicate: A Predicate callable (e.g., url_contains("example.com"))
+    - label: String label for the assertion
+    - required: Optional bool, if True failing this assertion marks step as failed
+
+    Example:
+        step_assertions=[
+            {"predicate": url_contains("news.ycombinator.com"), "label": "on_hackernews", "required": True},
+            {"predicate": exists("role=link[text*='Show HN']"), "label": "show_hn_visible"},
+        ]
+    """
+
+    done_assertion: Any | None = None
+    """Predicate for machine-verifiable task completion.
+
+    When set, this predicate is evaluated after each step. If it returns True,
+    the task is considered complete (independent of LLM's done action).
+
+    Example:
+        done_assertion=all_of(
+            url_contains("news.ycombinator.com/show"),
+            exists("role=link[text*='Show HN']"),
+        )
+    """
+
+    trace_dir: str = "traces"
+    """Directory for trace output files."""
+
+
 class SentienceAgentSettings(BaseModel):
     """Settings for SentienceAgent."""
 
@@ -88,14 +140,20 @@ class SentienceAgentSettings(BaseModel):
         description="Configuration for vision fallback behavior"
     )
 
+    # Verification configuration (AgentRuntime integration)
+    verification: VerificationConfig = Field(
+        default_factory=VerificationConfig,
+        description="Configuration for Sentience SDK verification assertions"
+    )
+
 
 class SentienceAgent:
     """
     Custom agent with full control over prompt construction.
 
     Features:
-    - Primary: Sentience snapshot as compact prompt (~3K tokens)
-    - Fallback: Vision mode when snapshot fails (~40K tokens)
+    - Primary: Sentience snapshot as compact prompt (~1.3K tokens)
+    - Fallback: Vision mode when snapshot fails (~4K tokens)
     - Token usage tracking via browser-use utilities
     - Clear isolation from built-in vision model
     """
@@ -108,13 +166,7 @@ class SentienceAgent:
         tools: Tools | None = None,
         *,
         # Sentience configuration
-        sentience_api_key: str | None = None,
-        sentience_use_api: bool | None = None,
-        sentience_max_elements: int = 40,
-        sentience_show_overlay: bool = False,
-        sentience_wait_for_extension_ms: int = 5000,
-        sentience_retries: int = 2,
-        sentience_retry_delay_s: float = 1.0,
+        sentience_config: SentienceAgentConfig,
         # Vision fallback configuration
         vision_fallback_enabled: bool = True,
         vision_detail_level: Literal['auto', 'low', 'high'] = 'auto',
@@ -127,6 +179,12 @@ class SentienceAgent:
         max_failures: int = 3,
         llm_timeout: int = 60,
         step_timeout: int = 120,
+        # Verification configuration (Sentience SDK AgentRuntime)
+        enable_verification: bool = False,
+        step_assertions: list[dict[str, Any]] | None = None,
+        done_assertion: Any | None = None,
+        tracer: Any | None = None,
+        trace_dir: str = "traces",
         **kwargs,
     ):
         """
@@ -137,13 +195,7 @@ class SentienceAgent:
             llm: Language model to use (primary model for Sentience snapshots)
             browser_session: Browser session instance
             tools: Tools registry (optional)
-            sentience_api_key: Sentience API key for gateway mode
-            sentience_use_api: Force API vs extension mode
-            sentience_max_elements: Maximum elements in snapshot
-            sentience_show_overlay: Show visual overlay
-            sentience_wait_for_extension_ms: Wait time for extension
-            sentience_retries: Number of snapshot retries
-            sentience_retry_delay_s: Delay between retries
+            sentience_config: SentienceAgentConfig object with all Sentience configuration
             vision_fallback_enabled: Enable vision fallback
             vision_detail_level: Vision detail level
             vision_include_screenshots: Include screenshots in fallback
@@ -154,6 +206,11 @@ class SentienceAgent:
             max_failures: Maximum failures
             llm_timeout: LLM timeout
             step_timeout: Step timeout
+            enable_verification: Enable Sentience SDK verification via AgentRuntime
+            step_assertions: Per-step assertions (list of dicts with predicate, label, required)
+            done_assertion: Predicate for machine-verifiable task completion
+            tracer: Optional Tracer instance (auto-created if None and verification enabled)
+            trace_dir: Directory for trace output files
         """
         self.task = task
         self.llm = llm
@@ -173,19 +230,16 @@ class SentienceAgent:
         self.file_system = FileSystem(base_dir=tempfile.mkdtemp(prefix="sentience_agent_"))
 
         # Build settings
-        sentience_config = SentienceAgentConfig(
-            sentience_api_key=sentience_api_key,
-            sentience_use_api=sentience_use_api,
-            sentience_max_elements=sentience_max_elements,
-            sentience_show_overlay=sentience_show_overlay,
-            sentience_wait_for_extension_ms=sentience_wait_for_extension_ms,
-            sentience_retries=sentience_retries,
-            sentience_retry_delay_s=sentience_retry_delay_s,
-        )
         vision_fallback = VisionFallbackConfig(
             enabled=vision_fallback_enabled,
             detail_level=vision_detail_level,
             include_screenshots=vision_include_screenshots,
+        )
+        verification_config = VerificationConfig(
+            enabled=enable_verification,
+            step_assertions=step_assertions or [],
+            done_assertion=done_assertion,
+            trace_dir=trace_dir,
         )
         self.settings = SentienceAgentSettings(
             task=task,
@@ -196,10 +250,16 @@ class SentienceAgent:
             step_timeout=step_timeout,
             sentience_config=sentience_config,
             vision_fallback=vision_fallback,
+            verification=verification_config,
         )
 
         # Initialize SentienceContext (lazy import to avoid hard dependency)
         self._sentience_context: Any | None = None
+
+        # Initialize AgentRuntime for verification (if enabled)
+        self._runtime: Any | None = None
+        self._tracer: Any | None = tracer
+        self._verification_initialized = False
 
         # Initialize token cost service
         self.token_cost_service = TokenCost(include_cost=calculate_cost)
@@ -223,9 +283,61 @@ class SentienceAgent:
 
         logger.info(
             f"Initialized SentienceAgent: task='{task}', "
-            f"sentience_max_elements={sentience_max_elements}, "
+            f"sentience_max_elements={sentience_config.sentience_max_elements}, "
             f"vision_fallback={'enabled' if vision_fallback_enabled else 'disabled'}"
         )
+
+    @property
+    def runtime(self) -> Any | None:
+        """Access the AgentRuntime instance (if verification is enabled)."""
+        return self._runtime
+
+    async def _initialize_verification(self) -> None:
+        """Initialize AgentRuntime for verification assertions.
+
+        Creates a BrowserBackend from the browser_session and sets up
+        the AgentRuntime with tracer for verification events.
+        """
+        if self._verification_initialized or not self.settings.verification.enabled:
+            return
+
+        try:
+            from sentience.agent_runtime import AgentRuntime
+            from sentience.backends import BrowserUseAdapter
+            from sentience.tracing import JsonlTraceSink, Tracer
+
+            # Create backend from browser_session
+            adapter = BrowserUseAdapter(self.browser_session)
+            backend = await adapter.create_backend()
+
+            # Create tracer if not provided
+            if self._tracer is None:
+                import os
+                import time
+                os.makedirs(self.settings.verification.trace_dir, exist_ok=True)
+                run_id = f"sentience-agent-{int(time.time())}"
+                sink = JsonlTraceSink(
+                    f"{self.settings.verification.trace_dir}/{run_id}.jsonl"
+                )
+                self._tracer = Tracer(run_id=run_id, sink=sink)
+                logger.info(f"📝 Verification trace: {self.settings.verification.trace_dir}/{run_id}.jsonl")
+
+            # Create AgentRuntime
+            self._runtime = AgentRuntime(
+                backend=backend,
+                tracer=self._tracer,
+                sentience_api_key=self.settings.sentience_config.sentience_api_key,
+            )
+
+            self._verification_initialized = True
+            logger.info("✅ Verification enabled via Sentience AgentRuntime")
+
+        except ImportError as e:
+            logger.warning(
+                f"⚠️  Verification requested but Sentience SDK not fully installed: {e}. "
+                "Install with: pip install sentienceapi"
+            )
+            self.settings.verification.enabled = False
 
     def _get_sentience_context(self) -> Any:
         """Get or create SentienceContext instance."""
@@ -809,6 +921,59 @@ class SentienceAgent:
         traverse_node(dom_state._root)
         return stats
 
+    async def _run_verification_assertions(
+        self,
+        step: int,
+        sentience_state: Any | None,
+        model_output: Any | None,
+    ) -> tuple[bool, bool]:
+        """Run verification assertions for the current step.
+
+        Args:
+            step: Current step number
+            sentience_state: Current Sentience snapshot state (if available)
+            model_output: Model output with next_goal (for step labeling)
+
+        Returns:
+            Tuple of (all_step_assertions_passed, task_done_by_assertion)
+        """
+        if not self._runtime or not self.settings.verification.enabled:
+            return True, False
+
+        # Begin step in AgentRuntime
+        goal = ""
+        if model_output and hasattr(model_output, "next_goal"):
+            goal = model_output.next_goal or ""
+        self._runtime.begin_step(goal=f"Step {step + 1}: {goal[:50]}")
+
+        # Inject current snapshot into runtime (avoid double-snapshot)
+        if sentience_state and hasattr(sentience_state, "snapshot"):
+            self._runtime.last_snapshot = sentience_state.snapshot
+            self._runtime._cached_url = sentience_state.snapshot.url if hasattr(sentience_state.snapshot, "url") else None
+
+        # Run step assertions
+        all_passed = True
+        for assertion_config in self.settings.verification.step_assertions:
+            predicate = assertion_config.get("predicate")
+            label = assertion_config.get("label", "unnamed")
+            required = assertion_config.get("required", False)
+
+            if predicate:
+                passed = self._runtime.assert_(predicate, label=label, required=required)
+                if required and not passed:
+                    all_passed = False
+                logger.info(f"  🔍 Assertion '{label}': {'✅ PASS' if passed else '❌ FAIL'}")
+
+        # Check done assertion
+        task_done = False
+        done_assertion = self.settings.verification.done_assertion
+        if done_assertion:
+            task_done = self._runtime.assert_done(done_assertion, label="task_complete")
+            if task_done:
+                logger.info("  🎯 Task verified complete by assertion!")
+
+        return all_passed, task_done
+
     async def run(self) -> Any:
         """
         Run the agent loop with full action execution and history tracking.
@@ -823,6 +988,10 @@ class SentienceAgent:
         # Initialize browser session if needed (start() is idempotent)
         await self.browser_session.start()
 
+        # Initialize verification if enabled
+        if self.settings.verification.enabled:
+            await self._initialize_verification()
+
         # Get AgentOutput type from tools registry
         # Create action model from registered actions
         action_model = self.tools.registry.create_action_model()
@@ -833,6 +1002,7 @@ class SentienceAgent:
         # Track execution history
         execution_history: list[dict[str, Any]] = []
         sentience_used_in_any_step = False  # Track if Sentience was used in ANY step
+        verification_task_done = False  # Track if task completed by assertion
 
         # Main agent loop
         for step in range(self.settings.max_steps):
@@ -1016,6 +1186,13 @@ class SentienceAgent:
                 if model_output.action:
                     action_results = await self._execute_actions(model_output.action)
 
+                # Run verification assertions (if enabled)
+                assertions_passed, verification_task_done = await self._run_verification_assertions(
+                    step=step,
+                    sentience_state=self._current_sentience_state,
+                    model_output=model_output,
+                )
+
                 # Update history with model output and action results
                 self.message_manager.update_history(
                     model_output=model_output,
@@ -1027,20 +1204,25 @@ class SentienceAgent:
                 if sentience_used:
                     sentience_used_in_any_step = True
 
-                # Track in execution history
-                execution_history.append(
-                    {
-                        "step": step + 1,
-                        "model_output": model_output,
-                        "action_results": action_results,
-                        "sentience_used": sentience_used,
-                    }
-                )
+                # Track in execution history (include verification results)
+                step_entry = {
+                    "step": step + 1,
+                    "model_output": model_output,
+                    "action_results": action_results,
+                    "sentience_used": sentience_used,
+                }
+                if self.settings.verification.enabled:
+                    step_entry["assertions_passed"] = assertions_passed
+                    step_entry["verification_task_done"] = verification_task_done
+                execution_history.append(step_entry)
 
-                # Check if done
+                # Check if done (by LLM action OR by verification assertion)
                 is_done = any(result.is_done for result in action_results if result.is_done)
                 if is_done:
-                    logger.info("✅ Task completed")
+                    logger.info("✅ Task completed (LLM done action)")
+                    break
+                if verification_task_done:
+                    logger.info("✅ Task completed (verified by assertion)")
                     break
 
                 # Check for errors
@@ -1086,8 +1268,29 @@ class SentienceAgent:
         steps_using_sentience = sum(1 for entry in execution_history if entry.get("sentience_used", False))
         total_steps = len(execution_history)
 
+        # Build verification summary (if enabled)
+        verification_summary = None
+        if self.settings.verification.enabled and self._runtime:
+            verification_summary = {
+                "enabled": True,
+                "all_assertions_passed": self._runtime.all_assertions_passed(),
+                "required_assertions_passed": self._runtime.required_assertions_passed(),
+                "task_verified_complete": self._runtime.is_task_done,
+                "assertions": self._runtime.get_assertions_for_step_end().get("assertions", []),
+            }
+            logger.info(
+                f"📊 Verification Summary: "
+                f"all_passed={verification_summary['all_assertions_passed']}, "
+                f"task_done={verification_summary['task_verified_complete']}"
+            )
+
+            # Close tracer if we created it
+            if self._tracer and hasattr(self._tracer, "close"):
+                self._tracer.close()
+                logger.info(f"📝 Trace saved to: {self.settings.verification.trace_dir}/")
+
         # Return execution summary (will return AgentHistoryList in future phases)
-        return {
+        result = {
             "steps": self._current_step + 1,
             "sentience_used": sentience_used_in_any_step,
             "sentience_usage_stats": {
@@ -1098,6 +1301,12 @@ class SentienceAgent:
             "usage": usage_summary,
             "execution_history": execution_history,
         }
+
+        # Add verification results if enabled
+        if verification_summary:
+            result["verification"] = verification_summary
+
+        return result
 
     async def _execute_actions(self, actions: list[Any]) -> list[Any]:
         """

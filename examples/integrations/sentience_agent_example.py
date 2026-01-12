@@ -1,10 +1,18 @@
 """
-Example usage of SentienceAgent.
+Example usage of SentienceAgent with Verification.
 
 This example demonstrates how to use SentienceAgent with:
 - Sentience snapshot as primary prompt (compact, token-efficient)
 - Vision fallback when snapshot fails
 - Token usage tracking
+- **NEW: Machine-verifiable assertions via Sentience SDK AgentRuntime**
+- **NEW: Declarative task completion verification**
+
+The verification feature showcases the full power of the Sentience SDK:
+- Per-step assertions (url_contains, exists, not_exists, etc.)
+- Predicate combinators (all_of, any_of)
+- Machine-verifiable task completion (assert_done)
+- Trace output for observability (Studio timeline)
 """
 
 import asyncio
@@ -15,8 +23,19 @@ import glob
 from dotenv import load_dotenv
 
 from browser_use import BrowserProfile, BrowserSession, ChatBrowserUse
-from browser_use.integrations.sentience import SentienceAgent
+from browser_use.integrations.sentience import SentienceAgent, SentienceAgentConfig
 from sentience import get_extension_dir
+
+# Import Sentience SDK verification helpers
+from sentience.verification import (
+    url_contains,
+    exists,
+    not_exists,
+    all_of,
+    any_of,
+)
+# Import the assertion DSL for expressive queries
+from sentience.asserts import E, expect, in_dominant_list
 
 # Note: This example requires:
 # 1. Sentience SDK installed: pip install sentienceapi
@@ -130,18 +149,56 @@ IMPORTANT: Do NOT click the post. Instead:
 3. Call the done action with the element ID and title in this format: "Top post: element ID [index], title: [title]"
 """
 
-        log(f"\n🚀 Starting SentienceAgent: {task}\n")
+        log(f"\n🚀 Starting SentienceAgent with Verification: {task}\n")
+
+        # Define verification assertions
+        # These will be checked after each step to provide machine-verifiable observability
+        step_assertions = [
+            # Verify we're on Hacker News
+            {
+                "predicate": url_contains("news.ycombinator.com"),
+                "label": "on_hackernews",
+                "required": True,  # Required: agent fails if this doesn't pass
+            },
+            # Verify Show HN posts are visible
+            {
+                "predicate": exists("role=link text~'Show HN'"),
+                "label": "show_hn_posts_visible",
+            },
+            # Verify no error messages
+            {
+                "predicate": not_exists("text~'Error'"),
+                "label": "no_error_message",
+            },
+        ]
+
+        # Define task completion assertion
+        # This is machine-verifiable: if this passes, the task is done!
+        done_assertion = all_of(
+            url_contains("news.ycombinator.com/show"),
+            exists("role=link text~'Show HN'"),
+        )
+
+        log("📋 Verification assertions configured:")
+        log("  - on_hackernews (required): URL contains 'news.ycombinator.com'")
+        log("  - show_hn_posts_visible: Show HN links are visible")
+        log("  - no_error_message: No error text on page")
+        log("  - done_assertion: URL is /show AND Show HN links visible\n")
+
+        # Create Sentience configuration
+        sentience_config = SentienceAgentConfig(
+            sentience_api_key=os.getenv("SENTIENCE_API_KEY"),
+            sentience_use_api=True,  # Use gateway/API mode
+            sentience_max_elements=40,
+            sentience_show_overlay=True,
+        )
 
         agent = SentienceAgent(
             task=task,
             llm=llm,
             browser_session=browser_session,
             tools=None,  # Will use default tools
-            # Sentience configuration
-            sentience_api_key=os.getenv("SENTIENCE_API_KEY"),
-            sentience_use_api=True,  # Use gateway/API mode
-            sentience_max_elements=40,
-            sentience_show_overlay=True,
+            sentience_config=sentience_config,
             # Vision fallback configuration
             vision_fallback_enabled=True,
             vision_detail_level="auto",
@@ -151,6 +208,11 @@ IMPORTANT: Do NOT click the post. Instead:
             # Agent settings
             max_steps=10,  # Limit steps for example
             max_failures=3,
+            # ✨ NEW: Verification configuration (Sentience SDK AgentRuntime)
+            enable_verification=True,
+            step_assertions=step_assertions,
+            done_assertion=done_assertion,
+            trace_dir="traces",  # Trace output for Studio timeline
         )
 
         # Run agent
@@ -173,6 +235,26 @@ IMPORTANT: Do NOT click the post. Instead:
             log(f"  Sentience usage: {steps_using}/{total_steps} steps ({percentage:.1f}%)")
         else:
             log(f"  Sentience used: {result.get('sentience_used', 'unknown')}")
+
+        # ✨ NEW: Show verification results
+        verification = result.get("verification")
+        if verification:
+            log(f"\n🔍 Verification Summary:")
+            log(f"  All assertions passed: {verification.get('all_assertions_passed', 'N/A')}")
+            log(f"  Required assertions passed: {verification.get('required_assertions_passed', 'N/A')}")
+            log(f"  Task verified complete: {verification.get('task_verified_complete', False)}")
+
+            # Show individual assertions
+            assertions = verification.get("assertions", [])
+            if assertions:
+                log(f"\n  Assertion Details ({len(assertions)} total):")
+                for assertion in assertions:
+                    status = "✅" if assertion.get("passed") else "❌"
+                    label = assertion.get("label", "unnamed")
+                    required = " (required)" if assertion.get("required") else ""
+                    log(f"    {status} {label}{required}")
+        else:
+            log(f"\n🔍 Verification: disabled")
 
     except ImportError as e:
         log(f"❌ Import error: {e}")
