@@ -1312,14 +1312,15 @@ class SentienceAgent:
         """
         Get or create a SentienceBrowser instance for direct action execution.
         
-        Connects Playwright to the same CDP instance that browser-use is using,
-        allowing Sentience SDK actions to execute directly using window.sentience_registry[element_id].
-        This avoids element ID mismatch issues.
+        Uses BrowserUseAdapter to get a proper browser backend that supports
+        Sentience SDK actions. This allows actions to execute directly using 
+        window.sentience_registry[element_id], avoiding element ID mismatch issues.
         
         Returns:
-            SentienceBrowser instance if available, None otherwise
+            Browser instance with page attribute if available, None otherwise
         """
         try:
+            from sentience.browser import AsyncSentienceBrowser
             from playwright.async_api import async_playwright
             
             # Check if we already have a browser instance cached
@@ -1345,21 +1346,26 @@ class SentienceAgent:
                     context = await browser.new_context()
                     page = await context.new_page()
                 
-                # Create AsyncSentienceBrowser wrapper
-                class BrowserWrapper:
-                    def __init__(self, page, playwright):
-                        self.page = page
-                        self._playwright = playwright  # Keep reference to prevent garbage collection
+                # Create proper AsyncSentienceBrowser instance using from_page()
+                # This properly initializes the browser with all required attributes
+                self._sentience_browser = await AsyncSentienceBrowser.from_page(
+                    page=page,
+                    api_key=self.settings.sentience_config.sentience_api_key,
+                )
                 
-                self._sentience_browser = BrowserWrapper(page, playwright)
-                logger.debug("  ✅ Created SentienceBrowser wrapper for direct action execution")
+                # Store playwright reference to prevent garbage collection
+                self._playwright = playwright
+                
+                logger.debug("  ✅ Created AsyncSentienceBrowser from Playwright page using from_page()")
             
             return self._sentience_browser
         except ImportError as e:
-            logger.debug(f"  ⚠️  Playwright not available: {e}")
+            logger.debug(f"  ⚠️  Sentience SDK not available: {e}")
             return None
         except Exception as e:
-            logger.debug(f"  ⚠️  Could not create SentienceBrowser wrapper: {e}")
+            logger.warning(f"  ⚠️  Could not create SentienceBrowser wrapper: {e}")
+            import traceback
+            logger.debug(f"  📋 Traceback: {traceback.format_exc()}")
             return None
 
     async def _execute_actions(self, actions: list[Any]) -> list[Any]:
@@ -1575,18 +1581,37 @@ class SentienceAgent:
                         logger.info(f"  🎯 Using Sentience SDK direct action for {action_name} (element_id={action_index})")
                         
                         if action_name == 'click':
-                            sentience_result = await click_async(
-                                sentience_browser,  # type: ignore[arg-type]
-                                element_id=action_index,
-                                use_mouse=True,
-                                take_snapshot=False,
-                            )
-                            result = ActionResult(
-                                extracted_content=f"Clicked element {action_index}",
-                                long_term_memory=f"Clicked element {action_index}",
-                                success=sentience_result.success,
-                                error=sentience_result.error.get('reason') if sentience_result.error else None,
-                            )
+                            logger.info(f"  🔧 Calling Sentience SDK click_async(element_id={action_index})...")
+                            try:
+                                sentience_result = await click_async(
+                                    sentience_browser,  # type: ignore[arg-type]
+                                    element_id=action_index,
+                                    use_mouse=True,
+                                    take_snapshot=False,
+                                )
+                                logger.info(
+                                    f"  ✅ Sentience SDK click completed: success={sentience_result.success}, "
+                                    f"outcome={sentience_result.outcome}, url_changed={sentience_result.url_changed}"
+                                )
+                                if sentience_result.error:
+                                    logger.warning(f"  ⚠️  Sentience SDK click had error: {sentience_result.error}")
+                                
+                                # ActionResult validation: success=True only allowed when is_done=True
+                                # For regular successful actions, leave success as None
+                                result = ActionResult(
+                                    extracted_content=f"Clicked element {action_index}",
+                                    long_term_memory=f"Clicked element {action_index}",
+                                    success=None if sentience_result.success else False,
+                                    error=sentience_result.error.get('reason') if sentience_result.error else None,
+                                )
+                                logger.info(f"  ✅ Created ActionResult for Sentience SDK click")
+                            except Exception as click_error:
+                                logger.warning(f"  ⚠️  Sentience SDK click_async raised exception: {click_error}")
+                                logger.warning(f"  📋 Exception type: {type(click_error).__name__}")
+                                import traceback
+                                logger.debug(f"  📋 Traceback: {traceback.format_exc()}")
+                                # Fall through to browser-use fallback
+                                raise  # Re-raise to trigger fallback
                         elif action_name in ('input', 'input_text'):
                             text = action_params.get('text', '')
                             sentience_result = await type_text_async(
@@ -1596,10 +1621,12 @@ class SentienceAgent:
                                 take_snapshot=False,
                                 delay_ms=0,
                             )
+                            # ActionResult validation: success=True only allowed when is_done=True
+                            # For regular successful actions, leave success as None
                             result = ActionResult(
                                 extracted_content=f"Typed '{text}' into element {action_index}",
                                 long_term_memory=f"Typed '{text}' into element {action_index}",
-                                success=sentience_result.success,
+                                success=None if sentience_result.success else False,
                                 error=sentience_result.error.get('reason') if sentience_result.error else None,
                             )
                             

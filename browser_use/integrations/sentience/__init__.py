@@ -6,9 +6,11 @@ from browser_use.integrations.sentience.agent import (
     SentienceAgentSettings,
     VisionFallbackConfig,
 )
+from browser_use.integrations.sentience.multi_step_agent import MultiStepSentienceAgent
 
 __all__ = [
     "SentienceAgent",
+    "MultiStepSentienceAgent",
     "SentienceAgentConfig",
     "SentienceAgentSettings",
     "VisionFallbackConfig",
