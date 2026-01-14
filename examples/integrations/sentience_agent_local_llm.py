@@ -1,11 +1,11 @@
 """
-Example: SentienceAgent with dual-model setup (local LLM + cloud vision model).
+Example: SentienceAgent with multi-step verification using AgentRuntime.
 
 This example demonstrates how to use SentienceAgent with:
 - Primary: Local LLM (Qwen 2.5 3B) for Sentience snapshots (fast, free)
 - Fallback: Cloud vision model (GPT-4o) for vision mode when Sentience fails
-- **NEW: Machine-verifiable assertions via Sentience SDK AgentRuntime**
-- **NEW: Declarative task completion verification**
+- **NEW: Multi-step task with step-by-step verification via AgentRuntime**
+- **NEW: Declarative task completion verification using expect() DSL**
 
 Requirements:
 1. Install transformers: pip install transformers torch accelerate
@@ -33,13 +33,12 @@ from browser_use.llm import ChatHuggingFace, ChatOpenAI
 from browser_use.llm.messages import SystemMessage, UserMessage
 from sentience import get_extension_dir
 
-# Import Sentience SDK verification helpers
-from sentience.verification import (
-    url_contains,
-    exists,
-    not_exists,
-    all_of,
-)
+# Import Sentience SDK AgentRuntime and verification helpers
+from sentience.backends import BrowserUseAdapter
+from sentience.agent_runtime import AgentRuntime
+from sentience.tracing import Tracer, JsonlTraceSink
+from sentience.verification import url_contains
+from sentience.asserts import E, expect, in_dominant_list
 
 load_dotenv()
 
@@ -54,7 +53,7 @@ def log(msg: str) -> None:
 
 
 async def main():
-    """Example: Use SentienceAgent with local LLM (Qwen 2.5 3B or BitNet)."""
+    """Example: Multi-step task with step-by-step verification."""
     browser_session = None
     try:
         # Get path to Sentience extension
@@ -132,6 +131,10 @@ async def main():
                 "--extensions-on-chrome-urls",  # Allow extensions on chrome:// URLs
                 f"--load-extension={combined_extensions}",  # Load ALL extensions together
             ],
+            # Increase wait times to reduce stale element issues
+            minimum_wait_page_load_time=0.5,  # Wait longer before capturing page state
+            wait_for_network_idle_page_load_time=1.0,  # Wait longer for network to be idle
+            wait_between_actions=0.3,  # Wait longer between actions to let page stabilize
         )
 
         log("Browser profile configured with Sentience extension")
@@ -183,28 +186,6 @@ async def main():
             log("   Continuing anyway - model will load on first agent call")
             traceback.print_exc()
 
-        # Option 2: BitNet B1.58 2B 4T (if available on Hugging Face)
-        # llm = ChatHuggingFace(
-        #     model="microsoft/bitnet-b1.58-2B",  # Check actual model name on HF
-        #     device_map="auto",
-        #     torch_dtype="float16",
-        # )
-
-        # Option 3: Other small models
-        # llm = ChatHuggingFace(
-        #     model="meta-llama/Llama-3.2-3B-Instruct",
-        #     device_map="auto",
-        #     torch_dtype="float16",
-        # )
-
-        # Option 4: Use 4-bit quantization to save memory (requires bitsandbytes)
-        # llm = ChatHuggingFace(
-        #     model="Qwen/Qwen2.5-3B-Instruct",
-        #     device_map="auto",
-        #     load_in_4bit=True,  # Reduces memory usage significantly
-        #     max_new_tokens=2048,
-        # )
-
         log(f"✅ Using local LLM: {llm.model}")
         log(f"   Device: {llm.device_map}")
         log("\n⏳ Note: Model will be downloaded from Hugging Face on first use (~6GB)")
@@ -221,37 +202,77 @@ async def main():
         vision_llm = ChatOpenAI(model="gpt-4o")
         log("✅ Vision LLM configured (will be used only for vision fallback)")
 
-        # Initialize SentienceAgent
-        task = """Go to HackerNews Show at https://news.ycombinator.com/show and find the top 1 Show HN post.
+        # ========================================================================
+        # SETUP AGENTRUNTIME FOR VERIFICATION
+        # ========================================================================
+        log("\n" + "=" * 80)
+        log("🔍 Setting up AgentRuntime for Multi-Step Verification")
+        log("=" * 80)
 
-IMPORTANT: Do NOT click the post. Instead:
-1. Identify the top post from the Sentience snapshot (it will be the first post in the list)
-2. Note its element ID (index number) and title from the snapshot
-3. Call the done action with the element ID and title in this format: "Top post: element ID [index], title: [title]"
-"""
+        # Create BrowserBackend using BrowserUseAdapter
+        adapter = BrowserUseAdapter(browser_session)
+        backend = await adapter.create_backend()
+        log("✅ Created BrowserBackend from browser-use session")
 
-        log(f"\n🚀 Starting SentienceAgent with Verification: {task}\n")
+        # Create tracer for verification events
+        trace_dir = Path("traces")
+        trace_dir.mkdir(exist_ok=True)
+        sink = JsonlTraceSink(str(trace_dir / "verification_trace.jsonl"))
+        tracer = Tracer(run_id="multi-step-task", sink=sink)
+        log("✅ Created Tracer for verification events")
 
-        # Define verification assertions for local LLM
-        step_assertions = [
+        # Create AgentRuntime with backend
+        runtime = AgentRuntime(
+            backend=backend,
+            tracer=tracer,
+            sentience_api_key=os.getenv("SENTIENCE_API_KEY"),
+        )
+        log("✅ Created AgentRuntime for step-by-step verification")
+
+        # ========================================================================
+        # MULTI-STEP TASK WITH VERIFICATION
+        # ========================================================================
+        log("\n" + "=" * 80)
+        log("🚀 Starting Multi-Step Task with Verification")
+        log("=" * 80)
+
+        # Define the multi-step task
+        task_steps = [
             {
-                "predicate": url_contains("news.ycombinator.com"),
-                "label": "on_hackernews",
-                "required": True,
+                "goal": "Go to Google and search for 'HackerNews Show'",
+                "task": """Go to google.com using the navigate action. 
+                After the page loads, you MUST complete these TWO ACTIONS IN ORDER:
+
+                ACTION 1 - Type the search query into the search input box:
+                - Find the search input box on the page (it's usually the main text input field)
+                - Use the input_text action to type "HackerNews Show" directly into the search box
+                - The text to type is exactly: HackerNews Show
+                - DO NOT click the input box first - just use input_text action directly
+                - The input_text action will automatically focus and type into the search box
+
+                ACTION 2 - Click the Search button:
+                - After ACTION 1 completes (after typing), find the Search button on the page
+                - The Search button is usually located near the search input box
+                - Look for a button with text like "Google Search", "Search", or a search icon
+                - Use the click action to click the Search button
+                - This will submit the search query
+
+                IMPORTANT:
+                - The search query text is: "HackerNews Show" (only these words, nothing else)
+                - Do NOT click the search input box before typing - use input_text action directly
+                - After typing, you must click the Search button to submit the search
+                - Do NOT press Enter key - find and click the Search button instead
+                - Action sequence: 1) input_text, 2) click Search button (only 2 actions total)""",
             },
             {
-                "predicate": exists("role=link text~'Show HN'"),
-                "label": "show_hn_posts_visible",
+                "goal": "Click the Show HN link in search results",
+                "task": "In the search results, find and click the link to 'Show | Hacker News'",
+            },
+            {
+                "goal": "Find the top 1 Show HN post",
+                "task": "On the Show HN page, identify the top 1 Show HN post (first post in the list). Do NOT click it. Just identify it.",
             },
         ]
-
-        # Task completion assertion
-        done_assertion = all_of(
-            url_contains("news.ycombinator.com/show"),
-            exists("role=link text~'Show HN'"),
-        )
-
-        log("📋 Verification enabled (assertions will be checked each step)")
 
         # Create Sentience configuration
         sentience_config = SentienceAgentConfig(
@@ -261,62 +282,172 @@ IMPORTANT: Do NOT click the post. Instead:
             sentience_show_overlay=True,
         )
 
-        agent = SentienceAgent(
-            task=task,
-            llm=llm,  # Primary LLM: Qwen 3B for Sentience snapshots
-            vision_llm=vision_llm,  # Fallback LLM: GPT-4o for vision mode
-            browser_session=browser_session,
-            tools=None,  # Will use default tools
-            sentience_config=sentience_config,
-            # Vision fallback configuration
-            vision_fallback_enabled=True,
-            vision_detail_level="auto",
-            vision_include_screenshots=True,
-            # Token tracking
-            calculate_cost=True,
-            # Agent settings
-            max_steps=10,  # Limit steps for example
-            max_failures=3,
-            # Local LLM specific settings (keep these for local model compatibility)
-            max_history_items=5,  # Keep minimal history for small models
-            llm_timeout=300,  # Increased timeout for local LLMs (5 minutes)
-            step_timeout=360,  # Increased step timeout (6 minutes)
-            # ✨ Verification configuration (Sentience SDK AgentRuntime)
-            enable_verification=True,
-            step_assertions=step_assertions,
-            done_assertion=done_assertion,
-            trace_dir="traces",
+        # Run each step with verification
+        for step_idx, step_info in enumerate(task_steps, start=1):
+            log(f"\n{'=' * 80}")
+            log(f"📋 Step {step_idx}: {step_info['goal']}")
+            log(f"{'=' * 80}")
+
+            # Begin verification step
+            runtime.begin_step(step_info["goal"], step_index=step_idx - 1)
+            log(f"✅ Began verification step {step_idx}")
+
+            # Create agent for this step
+            agent = SentienceAgent(
+                task=step_info["task"],
+                llm=llm,  # Primary LLM: Qwen 3B for Sentience snapshots
+                vision_llm=vision_llm,  # Fallback LLM: GPT-4o for vision mode
+                browser_session=browser_session,
+                tools=None,  # Will use default tools
+                sentience_config=sentience_config,
+                # Vision fallback configuration
+                vision_fallback_enabled=True,
+                vision_detail_level="auto",
+                vision_include_screenshots=True,
+                # Token tracking
+                calculate_cost=True,
+                # Agent settings - increased to handle stale element retries
+                max_steps=10,  # Increased to allow more retries with fresh snapshots
+                max_failures=5,  # Increased to handle stale element indices (page changes between snapshot and action)
+                # Local LLM specific settings
+                max_history_items=5,
+                llm_timeout=300,
+                step_timeout=360,
+                # Disable built-in verification (we're using AgentRuntime)
+                enable_verification=False,
+            )
+
+            # Run agent for this step
+            log(f"🤖 Running agent for step {step_idx}...")
+            result = await agent.run()
+            log(f"✅ Agent completed step {step_idx}")
+
+            # Take snapshot for verification
+            log(f"📸 Taking snapshot for verification...")
+            snapshot = await runtime.snapshot()
+            log(f"✅ Snapshot taken: {len(snapshot.elements)} elements found")
+
+            # Step-specific verification
+            log(f"🔍 Verifying step {step_idx}...")
+            all_passed = True
+
+            if step_idx == 1:
+                # Step 1: Verify we're on Google
+                log("  Verifying: URL contains google.com")
+                passed = runtime.assert_(
+                    url_contains("google.com"),
+                    label="on_google",
+                    required=True,
+                )
+                all_passed = all_passed and passed
+                log(f"  {'✅' if passed else '❌'} URL contains google.com: {passed}")
+
+                # Verify search results contain "Show | Hacker News"
+                log("  Verifying: Search results contain 'Show | Hacker News'")
+                passed = runtime.assert_(
+                    expect(E(text_contains="Show")).to_exist(),
+                    label="search_results_contain_show",
+                )
+                all_passed = all_passed and passed
+                log(f"  {'✅' if passed else '❌'} Search results contain 'Show': {passed}")
+
+                # Also check for "Hacker News" text
+                passed = runtime.assert_(
+                    expect.text_present("Hacker News"),
+                    label="hacker_news_text_present",
+                )
+                all_passed = all_passed and passed
+                log(f"  {'✅' if passed else '❌'} 'Hacker News' text present: {passed}")
+
+            elif step_idx == 2:
+                # Step 2: Verify we're on Show HN page
+                log("  Verifying: URL contains news.ycombinator.com/show")
+                passed = runtime.assert_(
+                    url_contains("news.ycombinator.com/show"),
+                    label="on_show_hn_page",
+                    required=True,
+                )
+                all_passed = all_passed and passed
+                log(f"  {'✅' if passed else '❌'} URL contains news.ycombinator.com/show: {passed}")
+
+                # Verify Show HN posts are visible
+                log("  Verifying: Show HN posts are visible")
+                passed = runtime.assert_(
+                    expect(E(text_contains="Show HN")).to_exist(),
+                    label="show_hn_posts_visible",
+                )
+                all_passed = all_passed and passed
+                log(f"  {'✅' if passed else '❌'} Show HN posts visible: {passed}")
+
+            elif step_idx == 3:
+                # Step 3: Verify we found the top post
+                log("  Verifying: Top 1 Show HN post contains 'Show HN' in title")
+                # Check if the first item in dominant list contains "Show HN"
+                passed = runtime.assert_(
+                    expect(in_dominant_list().nth(0)).to_have_text_contains("Show HN"),
+                    label="top_post_contains_show_hn",
+                    required=True,
+                )
+                all_passed = all_passed and passed
+                log(f"  {'✅' if passed else '❌'} Top post contains 'Show HN': {passed}")
+
+                # Verify we're still on Show HN page
+                passed = runtime.assert_(
+                    url_contains("news.ycombinator.com/show"),
+                    label="still_on_show_hn_page",
+                )
+                all_passed = all_passed and passed
+                log(f"  {'✅' if passed else '❌'} Still on Show HN page: {passed}")
+
+            log(f"\n{'✅' if all_passed else '❌'} Step {step_idx} verification: {'PASSED' if all_passed else 'FAILED'}")
+
+        # ========================================================================
+        # FINAL TASK COMPLETION VERIFICATION
+        # ========================================================================
+        log(f"\n{'=' * 80}")
+        log("🎯 Final Task Completion Verification")
+        log(f"{'=' * 80}")
+
+        # Take final snapshot
+        final_snapshot = await runtime.snapshot()
+        log(f"📸 Final snapshot: {len(final_snapshot.elements)} elements")
+
+        # Verify task completion
+        log("🔍 Verifying task completion...")
+        task_complete = runtime.assert_done(
+            expect(in_dominant_list().nth(0)).to_have_text_contains("Show HN"),
+            label="task_complete_top_post_found",
         )
 
-        # Run agent
-        result = await agent.run()
+        if task_complete:
+            log("✅ Task completed successfully!")
+            log(f"   Top post title contains 'Show HN'")
+        else:
+            log("❌ Task completion verification failed")
+            log("   Top post may not contain 'Show HN' in title")
 
-        # Get token usage
+        # ========================================================================
+        # SUMMARY
+        # ========================================================================
+        log(f"\n{'=' * 80}")
+        log("📊 Summary")
+        log(f"{'=' * 80}")
+
+        # Get token usage from last agent
         usage_summary = await agent.token_cost_service.get_usage_summary()
-        log("\n📊 Token Usage Summary:")
+        log(f"Token Usage:")
         log(f"  Total tokens: {usage_summary.total_tokens}")
         log(f"  Total cost: ${usage_summary.total_cost:.6f}")
-        log(f"  Steps: {result.get('steps', 'unknown')}")
 
-        # Show detailed Sentience usage stats
-        sentience_stats = result.get("sentience_usage_stats", {})
-        if sentience_stats:
-            steps_using = sentience_stats.get("steps_using_sentience", 0)
-            total_steps = sentience_stats.get("total_steps", 0)
-            percentage = sentience_stats.get("sentience_percentage", 0)
-            log(f"  Sentience used: {result.get('sentience_used', False)}")
-            log(f"  Sentience usage: {steps_using}/{total_steps} steps ({percentage:.1f}%)")
-        else:
-            log(f"  Sentience used: {result.get('sentience_used', 'unknown')}")
+        # Show verification summary
+        log(f"\nVerification Summary:")
+        log(f"  Task completed: {task_complete}")
+        log(f"  All assertions passed: {runtime.all_assertions_passed()}")
+        log(f"  Required assertions passed: {runtime.required_assertions_passed()}")
 
-        # ✨ Show verification results
-        verification = result.get("verification")
-        if verification:
-            log(f"\n🔍 Verification Summary:")
-            log(f"  All assertions passed: {verification.get('all_assertions_passed', 'N/A')}")
-            log(f"  Task verified complete: {verification.get('task_verified_complete', False)}")
-        else:
-            log(f"\n🔍 Verification: disabled")
+        # Show trace file location
+        log(f"\nTrace file: {trace_dir / 'verification_trace.jsonl'}")
+        log("  You can view this in Sentience Studio for detailed verification timeline")
 
     except ImportError as e:
         log(f"❌ Import error: {e}")

@@ -392,9 +392,10 @@ class ChatHuggingFace(BaseChatModel):
         
         example_json = "{\n" + ",\n".join(example_fields) + "\n}"
         
-        # Build minimal instruction (optimized for small local LLMs)
-        # Keep it very short to avoid confusing the model
-        schema_instruction = f"\n\nJSON only:\n{example_json}"
+        # Build explicit instruction for small local LLMs
+        # Must be very clear: ONLY JSON, no explanations, no reasoning, no extra text
+        # Use imperative language to be more direct - match system message style
+        schema_instruction = f"\n\nCRITICAL: Output ONLY this JSON format. No explanations, no reasoning, no markdown, no code blocks. Start with {{ and end with }}:\n{example_json}"
         
         # Create modified messages
         modified_messages = list(messages)
@@ -411,6 +412,9 @@ class ChatHuggingFace(BaseChatModel):
         # Try to extract JSON from response
         completion = completion.strip()
         
+        # Remove any leading/trailing whitespace or newlines
+        completion = completion.strip()
+        
         # Try to find JSON in the response (in case model adds extra text)
         if completion.startswith('```json'):
             # Extract from code block
@@ -418,10 +422,31 @@ class ChatHuggingFace(BaseChatModel):
         elif completion.startswith('```'):
             completion = completion.replace('```', '').strip()
         
+        # Find the JSON object (from first { to matching })
+        # Use a more robust approach: find the first { and then find the matching }
+        import re
+        json_match = re.search(r'\{.*\}', completion, re.DOTALL)
+        if json_match:
+            completion = json_match.group(0)
+        else:
+            # Fallback: try to find any JSON-like structure
+            # Look for first { and try to extract until we have balanced braces
+            brace_start = completion.find('{')
+            if brace_start >= 0:
+                brace_count = 0
+                for i in range(brace_start, len(completion)):
+                    if completion[i] == '{':
+                        brace_count += 1
+                    elif completion[i] == '}':
+                        brace_count -= 1
+                        if brace_count == 0:
+                            completion = completion[brace_start:i+1]
+                            break
+        
         # Try to parse to validate JSON
         try:
             json.loads(completion)
-        except json.JSONDecodeError:
-            logger.warning(f"Generated text is not valid JSON: {completion[:200]}")
+        except json.JSONDecodeError as e:
+            logger.warning(f"Generated text is not valid JSON: {completion[:200]}... Error: {e}")
         
         return completion, usage
