@@ -1308,9 +1308,74 @@ class SentienceAgent:
 
         return result
 
+    async def _get_sentience_browser(self) -> Any | None:
+        """
+        Get or create a SentienceBrowser instance for direct action execution.
+        
+        Uses BrowserUseAdapter to get a proper browser backend that supports
+        Sentience SDK actions. This allows actions to execute directly using 
+        window.sentience_registry[element_id], avoiding element ID mismatch issues.
+        
+        Returns:
+            Browser instance with page attribute if available, None otherwise
+        """
+        try:
+            from sentience.browser import AsyncSentienceBrowser
+            from playwright.async_api import async_playwright
+            
+            # Check if we already have a browser instance cached
+            if not hasattr(self, '_sentience_browser') or self._sentience_browser is None:
+                # Get CDP URL from browser session
+                if not self.browser_session.cdp_url:
+                    logger.warning("  ⚠️  No CDP URL available, cannot connect Playwright for Sentience SDK actions")
+                    return None
+                
+                cdp_url = self.browser_session.cdp_url
+                logger.debug(f"  🔗 Connecting Playwright to CDP: {cdp_url[:50]}...")
+                
+                # Connect Playwright to the same CDP instance
+                playwright = await async_playwright().start()
+                browser = await playwright.chromium.connect_over_cdp(cdp_url)
+                
+                # Get the current page (or create one if needed)
+                if browser.contexts and browser.contexts[0].pages:
+                    page = browser.contexts[0].pages[0]
+                elif browser.contexts:
+                    page = await browser.contexts[0].new_page()
+                else:
+                    context = await browser.new_context()
+                    page = await context.new_page()
+                
+                # Create proper AsyncSentienceBrowser instance using from_page()
+                # This properly initializes the browser with all required attributes
+                self._sentience_browser = await AsyncSentienceBrowser.from_page(
+                    page=page,
+                    api_key=self.settings.sentience_config.sentience_api_key,
+                )
+                
+                # Store playwright reference to prevent garbage collection
+                self._playwright = playwright
+                
+                logger.debug("  ✅ Created AsyncSentienceBrowser from Playwright page using from_page()")
+            
+            return self._sentience_browser
+        except ImportError as e:
+            logger.debug(f"  ⚠️  Sentience SDK not available: {e}")
+            return None
+        except Exception as e:
+            logger.warning(f"  ⚠️  Could not create SentienceBrowser wrapper: {e}")
+            import traceback
+            logger.debug(f"  📋 Traceback: {traceback.format_exc()}")
+            return None
+
     async def _execute_actions(self, actions: list[Any]) -> list[Any]:
         """
         Execute a list of actions.
+        
+        Strategy:
+        - If we have a Sentience snapshot and element_id, use Sentience SDK direct actions
+          (avoids element ID mismatch by using window.sentience_registry[element_id])
+        - Otherwise, fall back to browser-use's action system
 
         Args:
             actions: List of ActionModel instances
@@ -1322,10 +1387,12 @@ class SentienceAgent:
         from browser_use.browser.events import BrowserStateRequestEvent
 
         results: list[ActionResult] = []
-        total_actions = len(actions)
+        
+        # Try to get SentienceBrowser for direct action execution
+        sentience_browser = await self._get_sentience_browser()
+        use_sentience_actions = sentience_browser is not None and self._current_sentience_state is not None
 
-        # Ensure selector_map is built before executing actions
-        # This is needed because Sentience uses backend_node_ids that must exist in selector_map
+        # Ensure selector_map is built before executing actions (for fallback)
         selector_map = await self.browser_session.get_selector_map()
         if not selector_map:
             logger.info("  🔄 Selector map is empty, triggering DOM build...")
@@ -1339,6 +1406,10 @@ class SentienceAgent:
             logger.info(f"  ✅ Selector map built: {len(selector_map)} elements available")
 
         for i, action in enumerate(actions):
+            # Skip None actions (marked as processed, e.g., send_keys handled by type_text)
+            if action is None:
+                continue
+                
             # Wait between actions (except first)
             if i > 0:
                 wait_time = getattr(
@@ -1486,20 +1557,128 @@ class SentienceAgent:
                 
                 # Warn about multiple scroll actions (potential jittery behavior)
                 if action_name == "scroll" and i > 0:
-                    prev_action_data = actions[i - 1].model_dump(exclude_unset=True)
-                    prev_action_name = next(iter(prev_action_data.keys())) if prev_action_data else "unknown"
-                    if prev_action_name == "scroll":
-                        logger.info(f"  ⚠️  Multiple scroll actions detected - may cause jittery behavior")
+                    prev_action = actions[i - 1]
+                    if prev_action is not None:
+                        prev_action_data = prev_action.model_dump(exclude_unset=True)
+                        prev_action_name = next(iter(prev_action_data.keys())) if prev_action_data else "unknown"
+                        if prev_action_name == "scroll":
+                            logger.info(f"  ⚠️  Multiple scroll actions detected - may cause jittery behavior")
 
-                # Execute action
-                result = await self.tools.act(
-                    action=action,
-                    browser_session=self.browser_session,
-                    file_system=self.file_system,
-                    page_extraction_llm=self.llm,  # Use the same LLM for extraction
-                    sensitive_data=None,  # TODO: Add sensitive data support
-                    available_file_paths=None,  # TODO: Add file paths support
+                # Try to use Sentience SDK direct actions if available (avoids element ID mismatch)
+                # action_index is already defined above from action_params.get('index')
+                use_sentience_direct = (
+                    use_sentience_actions 
+                    and action_index is not None 
+                    and action_name in ('click', 'input', 'input_text')
+                    and self._current_sentience_state is not None
                 )
+                
+                if use_sentience_direct and sentience_browser is not None:
+                    # Use Sentience SDK direct actions (uses window.sentience_registry[element_id])
+                    try:
+                        from sentience.actions import click_async, type_text_async, press_async
+                        
+                        logger.info(f"  🎯 Using Sentience SDK direct action for {action_name} (element_id={action_index})")
+                        
+                        if action_name == 'click':
+                            logger.info(f"  🔧 Calling Sentience SDK click_async(element_id={action_index})...")
+                            try:
+                                sentience_result = await click_async(
+                                    sentience_browser,  # type: ignore[arg-type]
+                                    element_id=action_index,
+                                    use_mouse=True,
+                                    take_snapshot=False,
+                                )
+                                logger.info(
+                                    f"  ✅ Sentience SDK click completed: success={sentience_result.success}, "
+                                    f"outcome={sentience_result.outcome}, url_changed={sentience_result.url_changed}"
+                                )
+                                if sentience_result.error:
+                                    logger.warning(f"  ⚠️  Sentience SDK click had error: {sentience_result.error}")
+                                
+                                # ActionResult validation: success=True only allowed when is_done=True
+                                # For regular successful actions, leave success as None
+                                result = ActionResult(
+                                    extracted_content=f"Clicked element {action_index}",
+                                    long_term_memory=f"Clicked element {action_index}",
+                                    success=None if sentience_result.success else False,
+                                    error=sentience_result.error.get('reason') if sentience_result.error else None,
+                                )
+                                logger.info(f"  ✅ Created ActionResult for Sentience SDK click")
+                            except Exception as click_error:
+                                logger.warning(f"  ⚠️  Sentience SDK click_async raised exception: {click_error}")
+                                logger.warning(f"  📋 Exception type: {type(click_error).__name__}")
+                                import traceback
+                                logger.debug(f"  📋 Traceback: {traceback.format_exc()}")
+                                # Fall through to browser-use fallback
+                                raise  # Re-raise to trigger fallback
+                        elif action_name in ('input', 'input_text'):
+                            text = action_params.get('text', '')
+                            sentience_result = await type_text_async(
+                                sentience_browser,  # type: ignore[arg-type]
+                                element_id=action_index,
+                                text=text,
+                                take_snapshot=False,
+                                delay_ms=0,
+                            )
+                            # ActionResult validation: success=True only allowed when is_done=True
+                            # For regular successful actions, leave success as None
+                            result = ActionResult(
+                                extracted_content=f"Typed '{text}' into element {action_index}",
+                                long_term_memory=f"Typed '{text}' into element {action_index}",
+                                success=None if sentience_result.success else False,
+                                error=sentience_result.error.get('reason') if sentience_result.error else None,
+                            )
+                            
+                            # If there's a send_keys action next for Enter, handle it
+                            if i + 1 < len(actions):
+                                next_action = actions[i + 1]
+                                if next_action is not None:
+                                    next_action_data = next_action.model_dump(exclude_unset=True)
+                                    next_action_name = next(iter(next_action_data.keys())) if next_action_data else None
+                                    if next_action_name == 'send_keys':
+                                        next_params = next_action_data.get('send_keys', {})
+                                        keys = next_params.get('keys', '')
+                                        if keys == 'Enter':
+                                            logger.info("  ⌨️  Pressing Enter after typing")
+                                            await press_async(
+                                                sentience_browser,  # type: ignore[arg-type]
+                                                key='Enter',
+                                                take_snapshot=False,
+                                            )
+                                            # Skip the next send_keys action since we handled it
+                                            actions[i + 1] = None  # Mark as processed
+                        else:
+                            # Fall back to browser-use for other actions
+                            result = await self.tools.act(
+                                action=action,
+                                browser_session=self.browser_session,
+                                file_system=self.file_system,
+                                page_extraction_llm=self.llm,
+                                sensitive_data=None,
+                                available_file_paths=None,
+                            )
+                    except Exception as e:
+                        logger.warning(f"  ⚠️  Sentience SDK direct action failed: {e}, falling back to browser-use")
+                        # Fall back to browser-use action system
+                        result = await self.tools.act(
+                            action=action,
+                            browser_session=self.browser_session,
+                            file_system=self.file_system,
+                            page_extraction_llm=self.llm,
+                            sensitive_data=None,
+                            available_file_paths=None,
+                        )
+                else:
+                    # Use browser-use action system (original behavior)
+                    result = await self.tools.act(
+                        action=action,
+                        browser_session=self.browser_session,
+                        file_system=self.file_system,
+                        page_extraction_llm=self.llm,  # Use the same LLM for extraction
+                        sensitive_data=None,  # TODO: Add sensitive data support
+                        available_file_paths=None,  # TODO: Add file paths support
+                    )
 
                 results.append(result)
 
@@ -1543,6 +1722,10 @@ class SentienceAgent:
             is_anthropic=False,  # Will be auto-detected if needed
             is_browser_use_model=False,  # Will be auto-detected if needed
             extend_system_message=(
+                "\n<output_format>\n"
+                "CRITICAL: Your response MUST be valid JSON only. No explanations, no reasoning, no markdown, no code blocks.\n"
+                "Start with { and end with }. Output ONLY the JSON object matching the required schema.\n"
+                "</output_format>\n"
                 "\n<sentience_format>\n"
                 "CRITICAL: When browser_state contains elements in Sentience format, "
                 "the first column is labeled 'ID' but browser-use actions use a parameter called 'index'.\n"
